@@ -9,7 +9,7 @@ A local-only tool where a planner splits work across developer agents and a revi
 npm run setup        # install + build the UI
 npm run dev          # server on 4317 (reload) + Vite on 5173 (/api proxied)
 npm run demo         # scripted agents, no key, no cost, separate data folder (data-demo/)
-npm test             # server (vitest, ~46 tests) + web
+npm test             # server (vitest, ~52 tests) + web
 npm run build        # web build + server typecheck (tsc --noEmit)
 npx tsc --noEmit -p server        # quick typecheck
 npx vitest run --root server test/scrum.test.ts   # one test file

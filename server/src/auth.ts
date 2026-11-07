@@ -35,14 +35,27 @@ export function registerAuth(app: FastifyInstance, db: DB) {
     return { ok: true };
   });
 
+  // Lockout: 5 wrong passwords within 10 minutes pause sign-in for 5 minutes (kept in memory, so a restart clears it).
+  const fails: number[] = [];
+  let lockedUntil = 0;
+  const MAX_FAILS = 5, WINDOW_MS = 10 * 60_000, LOCK_MS = 5 * 60_000;
+
   app.post("/api/auth/login", async (req, reply) => {
+    const now = Date.now();
+    if (now < lockedUntil) {
+      return reply.code(429).send({ error: `Too many wrong passwords. Try again in ${Math.ceil((lockedUntil - now) / 60_000)} min.` });
+    }
     const { username, password } = req.body as { username?: string; password?: string };
     const row = db.prepare("SELECT id, password_hash FROM users WHERE username = ?").get(String(username ?? "").trim()) as
       { id: number; password_hash: string } | undefined;
     if (!row || !verifyPassword(String(password ?? ""), row.password_hash)) {
       await new Promise((r) => setTimeout(r, 400));
+      fails.push(Date.now());
+      while (fails.length && fails[0] < Date.now() - WINDOW_MS) fails.shift();
+      if (fails.length >= MAX_FAILS) { lockedUntil = Date.now() + LOCK_MS; fails.length = 0; }
       return reply.code(401).send({ error: "Wrong username or password" });
     }
+    fails.length = 0;
     db.prepare("DELETE FROM sessions WHERE expires_at < datetime('now')").run();
     startSession(reply, row.id);
     return { ok: true };

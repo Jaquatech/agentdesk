@@ -235,8 +235,8 @@ team share the open space.
 
 ## Spending limits
 
-Settings has two optional caps in USD: per day (all agent calls since local midnight) and per sprint (refinement of its items included).
-From 80% a banner warns; at the limit queued tasks wait, new agent calls are refused ("Budget reached"), and work resumes when
+Settings has two caps in USD: per day (all agent calls since local midnight) and per sprint (refinement of its items included).
+New installs start with $10 per day and $20 per sprint; set a field to 0 for no limit. From 80% a banner warns; at the limit queued tasks wait, new agent calls are refused ("Budget reached"), and work resumes when
 the limit is raised. Only finished calls count, so one running call can overshoot; unpriced and local models count as $0
 (add prices on the Usage page). Code: `server/src/budget.ts`, checked in `Orchestrator.callAgent` and `tick`.
 
@@ -326,9 +326,29 @@ Agents never get a free hand. Every rule below is enforced by the server, not by
   elsewhere with `AGENTDESK_MASTER_KEY`, back that up too. Your project code is not in `data/`: it lives in its own git
   repositories (use their remotes).
 - Secrets: AES-256-GCM with the master key; the UI shows only a hint (`sk-…a1b2`).
-- Sign-in: scrypt password hashes, an HttpOnly SameSite=Strict session cookie. Requests from other hosts or other
+- Sign-in: scrypt password hashes, an HttpOnly SameSite=Strict session cookie; five wrong passwords in ten minutes pause sign-in for five minutes. Requests from other hosts or other
   sites' pages are refused.
 - Other settings: `PORT` (default 4317), `AGENTDESK_CLAUDE_BIN` (path to `claude`), `LOG=1` (request log).
+
+## Privacy
+
+AgentDesk has no account with us, no telemetry and no analytics. Everything stays on your computer in `data/` and in
+your own git repositories. The only network traffic is what you configure: calls to the model providers you add
+(prompts and the code the agents read are sent to them), and git/GitHub for projects with a remote.
+
+## Upgrading and rolling back
+
+1. Stop AgentDesk and copy the `data/` folder somewhere safe. The database only moves forward (new versions append
+   migrations), so this copy is the way back.
+2. `git pull`, then `npm run setup`, then start it.
+3. To go back: stop it, check out the earlier tag (`git checkout <earlier tag>`), run `npm run setup`, and put the saved
+   `data/` back.
+
+Releases are tagged (`git tag`); see the repository's Releases page.
+
+## Help and feedback
+
+Bugs and ideas: open an issue at https://github.com/Jaquatech/agentdesk/issues.
 
 ## Code map
 

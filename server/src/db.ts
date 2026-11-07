@@ -383,8 +383,8 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   max_review_rounds: "2",
   auto_run_plans: "false",
   push_and_pr: "true",
-  budget_day_usd: "0",
-  budget_sprint_usd: "0",
+  budget_day_usd: "10",
+  budget_sprint_usd: "20",
 };
 
 export function getSettings(db: DB): Record<string, string> {
