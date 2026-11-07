@@ -1,0 +1,139 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import Markdown from "react-markdown";
+import { ExternalLink, GitMerge, RotateCcw, Square, Trash2 } from "lucide-react";
+import { get, post, parseJson, useLiveEvents, type Agent, type Run, type Task } from "../api.ts";
+import { StatusBadge, money, ago } from "../components/ui.tsx";
+import { TaskActivity } from "../components/Activity.tsx";
+
+const STEPS = ["building", "verifying", "reviewing", "approved", "merged"] as const;
+const ACTIVE = ["queued", "building", "verifying", "reviewing"];
+const ORDER: Record<string, number> = { building: 0, verifying: 0, reviewing: 0, queued: 1, approved: 2, needs_attention: 2, failed: 2, interrupted: 2, proposed: 3 };
+
+/** Task list + detail. With `chatId` only that chat's tasks; without, every task across projects. */
+export function TaskPanel({ chatId, agents }: { chatId?: number; agents: Agent[] }) {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [filter, setFilter] = useState<"active" | "all">("active");
+
+  const load = () => get<Task[]>(`/api/tasks?${chatId ? `chat=${chatId}` : ""}${filter === "active" && !chatId ? "&active=1" : ""}`).then(setTasks);
+  useEffect(() => { load(); }, [chatId, filter]);
+  useLiveEvents((ev) => {
+    if (ev.type === "task" && (!chatId || ev.chatId === chatId)) {
+      setTasks((list) => {
+        const i = list.findIndex((t) => t.id === ev.task.id);
+        if (i < 0) return [{ ...ev.task }, ...list];
+        const next = [...list];
+        next[i] = { ...next[i], ...ev.task };
+        return next;
+      });
+    }
+  });
+
+  const sorted = useMemo(() => [...tasks].sort((a, b) =>
+    (ORDER[a.status] ?? 4) - (ORDER[b.status] ?? 4) || b.id - a.id), [tasks]);
+  const current = sorted.find((t) => t.id === selected) ?? sorted[0];
+  const name = (id: number | null) => agents.find((a) => a.id === id)?.name ?? "–";
+
+  return (
+    <div className="tasks">
+      <div className="tasks-list">
+        {!chatId && (
+          <div className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
+            <div className="tabs" style={{ marginLeft: 0 }}>
+              <button className={`tab ${filter === "active" ? "active" : ""}`} onClick={() => setFilter("active")}>Open</button>
+              <button className={`tab ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>All</button>
+            </div>
+          </div>
+        )}
+        {sorted.length === 0 && <div className="empty">No tasks yet. Ask the planner for something in a chat.</div>}
+        {sorted.map((t) => (
+          <div key={t.id} className={`task-row ${current?.id === t.id ? "active" : ""}`} onClick={() => setSelected(t.id)}>
+            <div className="row" style={{ gap: 8 }}>
+              <StatusBadge status={t.status} />
+              <span className="spacer" />
+              <span className="hint">{ago(t.updated_at)}</span>
+            </div>
+            <b>{t.title}</b>
+            <div className="meta">
+              <span>{name(t.worker_id)}</span>
+              {t.round > 0 && <span>round {t.round + 1}</span>}
+              <span>{money(t.cost_usd)}</span>
+              {!chatId && t.project_name && <span>{t.project_name} · {t.chat_title}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {current ? <TaskDetail key={current.id} task={current} name={name} workers={agents.filter((a) => a.role === "worker" && a.enabled)} onAction={load} /> : <div />}
+    </div>
+  );
+}
+
+function TaskDetail({ task, name, workers, onAction }: { task: Task; name: (id: number | null) => string; workers: Agent[]; onAction: () => void }) {
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+
+  const loadRuns = () => get<{ runs: Run[] }>(`/api/tasks/${task.id}`).then((d) => setRuns(d.runs));
+  useEffect(() => { loadRuns(); }, [task.id, task.status, task.round]);
+
+  const [retryWorker, setRetryWorker] = useState("");
+  const act = async (action: string, body: Record<string, unknown> = {}) => {
+    if (action === "discard" && !confirm("Delete this task's worktree and branch, here and on the remote (an open pull request closes)?")) return;
+    setBusy(action); setError("");
+    try { await post(`/api/tasks/${task.id}/${action}`, body); setRetryWorker(""); onAction(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(""); }
+  };
+
+  const stepIdx = STEPS.indexOf(task.status as any);
+  const failed = ["failed", "needs_attention", "cancelled", "interrupted"].includes(task.status);
+  const paths = parseJson<string[]>(task.paths, []);
+
+  return (
+    <div className="task-detail">
+      <div>
+        <div className="row"><StatusBadge status={task.status} /><span className="hint mono">{task.branch || task.slug}</span></div>
+        <h2 style={{ margin: "6px 0 10px", fontSize: 18 }}>{task.title}</h2>
+        <div className="steps" title="build → checks → review → ready → merged">
+          {STEPS.map((s, i) => <div key={s} className={`step ${stepIdx > i || task.status === "merged" ? "done" : stepIdx === i ? "on" : ""} ${failed && i === Math.max(0, stepIdx) ? "fail" : ""}`} />)}
+        </div>
+      </div>
+      <div className="meta">
+        <span>Developer <b>{name(task.worker_id)}</b></span>
+        <span>Reviewer <b>{name(task.reviewer_id)}</b></span>
+        <span>Round <b>{task.round + 1}</b></span>
+        <span>Cost <b>{money(task.cost_usd)}</b></span>
+        <span>Tokens <b>{(task.tokens / 1e6).toFixed(2)}M</b></span>
+        {task.commit_sha && <span>Commit <b className="mono">{task.commit_sha}</b></span>}
+        {paths.length > 0 && <span>Paths <b className="mono">{paths.join(" ")}</b></span>}
+      </div>
+      <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+        {task.status === "approved" && <button className="btn primary" disabled={!!busy} onClick={() => act("merge")}><GitMerge size={14} /> {busy === "merge" ? "Merging…" : "Merge"}</button>}
+        {task.pr_url && <a className="btn" href={task.pr_url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Pull request</a>}
+        {["queued", "building", "verifying", "reviewing", "proposed"].includes(task.status) && <button className="btn" disabled={!!busy} onClick={() => act("cancel")}><Square size={13} /> Stop</button>}
+        {["failed", "needs_attention", "interrupted", "cancelled"].includes(task.status) && (
+          <span className="row" style={{ gap: 4 }}>
+            <button className="btn" disabled={!!busy} onClick={() => act("retry", retryWorker ? { worker_id: Number(retryWorker) } : {})}><RotateCcw size={14} /> Retry</button>
+            <select className="retry-dev" value={retryWorker} onChange={(e) => setRetryWorker(e.target.value)} title="Developer for the retry">
+              <option value="">with {name(task.worker_id)}</option>
+              {workers.filter((w) => w.id !== task.worker_id).map((w) => <option key={w.id} value={w.id}>with {w.name}</option>)}
+            </select>
+          </span>
+        )}
+        <a className="btn" href={`#/chat/${task.chat_id}`}>Open chat</a>
+        {["failed", "needs_attention", "cancelled", "interrupted", "approved"].includes(task.status) && task.worktree && <button className="btn danger" disabled={!!busy} onClick={() => act("discard")}><Trash2 size={14} /> Discard branch</button>}
+      </div>
+      {error && <div className="error">{error}</div>}
+      {task.error && <div className="card card-pad" style={{ borderColor: "var(--bad)" }}><b className="error">Problem</b><div className="msg-body"><Markdown>{task.error}</Markdown></div></div>}
+      {task.summary && <details open><summary><b>Developer's summary</b></summary><div className="msg-body"><Markdown>{task.summary}</Markdown></div></details>}
+      {task.review && <details open={task.verdict !== "approve"}><summary><b>Review: {task.verdict}</b></summary><div className="msg-body"><Markdown>{task.review}</Markdown></div></details>}
+      <details><summary><b>Spec</b></summary><div className="msg-body"><Markdown>{task.spec}</Markdown></div></details>
+      <div>
+        <b>Activity</b>
+        <div style={{ marginTop: 6 }}>
+          <TaskActivity taskId={task.id} runs={runs} agentName={name} onNewRun={loadRuns} />
+        </div>
+      </div>
+    </div>
+  );
+}
