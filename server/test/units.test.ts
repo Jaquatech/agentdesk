@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { commandAllowed, globToRegex, runTool } from "../src/engines/tools.ts";
-import { splitChain } from "../src/orchestrator/shell.ts";
+import { splitChain, needsShell } from "../src/orchestrator/shell.ts";
 import { pathAllowed } from "../src/orchestrator/git.ts";
 import { parseAllowedTools } from "../src/engines/types.ts";
 import { lastJsonBlock } from "../src/engines/claudeCli.ts";
@@ -91,5 +91,17 @@ describe("crypto", () => {
     const h = hashPassword("pw123456");
     expect(verifyPassword("pw123456", h)).toBe(true);
     expect(verifyPassword("wrong", h)).toBe(false);
+  });
+});
+
+describe("running programs on Windows", () => {
+  it("starts git and gh directly (a shell cuts a multi-line commit message), but .cmd shims through the shell", () => {
+    expect(needsShell("git", true)).toBe(false);
+    expect(needsShell("gh", true)).toBe(false);
+    expect(needsShell("powershell.exe", true)).toBe(false);
+    expect(needsShell("npm", true)).toBe(true);
+    expect(needsShell("claude", true)).toBe(true);
+    expect(needsShell("git", false)).toBe(false);
+    expect(needsShell("npm", false)).toBe(false);
   });
 });

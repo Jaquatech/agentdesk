@@ -13,10 +13,19 @@ export type RunOptions = {
 
 const IS_WIN = process.platform === "win32";
 
-/** Runs a program with arguments (no shell). On Windows, .cmd shims like `claude` and `npm` need the shell. */
+/**
+ * On Windows, .cmd shims like `claude`, `npm` and `az` need the shell; real executables do not. `git` and `gh` are .exe files
+ * that CreateProcess finds by bare name. Through cmd.exe an argument with a line break (a release commit message) is cut at
+ * the first line: git then got `merge -m "Sprint 1…` without the branch and merged nothing, with exit code 0.
+ */
+export function needsShell(program: string, win = IS_WIN) {
+  return win && !/^(git|gh|taskkill)$|\.(exe|com)$/i.test(program);
+}
+
+/** Runs a program with arguments (no shell unless it is a .cmd shim, see needsShell). */
 export function runProgram(program: string, args: string[], opts: RunOptions): Promise<RunResult> {
   return new Promise((resolve) => {
-    const useShell = IS_WIN && !/\.(exe|com)$/i.test(program);
+    const useShell = needsShell(program);
     const child = spawn(useShell ? quoteWin(program, args) : program, useShell ? [] : args, {
       cwd: opts.cwd,
       env: { ...process.env, ...opts.env },

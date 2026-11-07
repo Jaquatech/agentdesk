@@ -119,9 +119,16 @@ export async function releaseSprint(p: ProjectRow, branch: string, message: stri
     await runProgram("git", ["merge", "--abort"], { cwd: p.path });
     throw new Error(`Merging ${branch} into ${p.base_branch} failed (${base_conflict(r.stdout + r.stderr)}). ${p.base_branch} changed since the sprint started; merge it into the sprint branch by hand.`);
   }
+  // Exit code 0 is not proof: a merge that got the wrong arguments says "Already up to date". The sprint must really be in.
+  if (!(await gitOk(p.path, "merge-base", "--is-ancestor", branch, "HEAD"))) {
+    throw new Error(`${branch} is not in ${p.base_branch} after the merge. Nothing was released; the sprint branch is kept.`);
+  }
   if (push && remote) {
     const pr = await runProgram("git", ["push", "origin", p.base_branch], { cwd: p.path, timeoutMs: 5 * 60_000 });
     if (pr.code !== 0) return `Merged into ${p.base_branch} here, but the push failed: ${tail(pr.stderr || pr.stdout, 4)}`;
+    const head = await git(p.path, "rev-parse", "HEAD");
+    const remoteHead = await git(p.path, "rev-parse", `origin/${p.base_branch}`).catch(() => "");
+    if (head !== remoteHead) return `Merged into ${p.base_branch} here, but origin/${p.base_branch} does not match it (not pushed)`;
     return `Merged into ${p.base_branch} and pushed`;
   }
   return `Merged into ${p.base_branch}${remote ? " (not pushed)" : ""}`;
