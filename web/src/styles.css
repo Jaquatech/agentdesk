@@ -401,6 +401,7 @@ a.btn { text-decoration: none; color: inherit; }
 .pi-row { background: var(--surface-2); border-left: 3px solid var(--accent); }
 .pi-row.active { background: var(--accent-soft); }
 .sprint-row { padding-left: 24px; }
+.action-bar { flex-wrap: wrap; gap: 8px; margin: 2px 0 10px; }
 .task-row.task-sub { padding: 8px 16px 8px 44px; }
 
 /* guides */

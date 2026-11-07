@@ -451,6 +451,23 @@ function SprintDetail({ s, data, reload, onTask }: { s: Sprint; data: Overview; 
       </div>
       <UsageLine u={s.usage} />
 
+      {s.status === "active" && (
+        <div className="row action-bar">
+          <button className="btn" disabled={busy} onClick={() => confirm("Close this sprint now? Unfinished items go back to the backlog.") && act(() => post(`/api/sprints/${s.id}/close`))}>Close sprint</button>
+          <span className="hint">Approved tasks merge into <code>{s.branch}</code>; the base branch stays untouched until Release. Retry stopped tasks from their detail.</span>
+        </div>
+      )}
+      {s.status === "done" && (
+        <div className="row action-bar">
+          <button className="btn primary" disabled={busy || s.busy} onClick={() => {
+            const warn = s.security_verdict === "issues" ? "The security review found issues. " : !s.security_verdict ? "No security review was run. " : "";
+            if (confirm(`${warn}Release sprint ${s.number}? \`${s.branch}\` is merged into the base branch and pushed (when the project has a remote).`)) act(() => post(`/api/sprints/${s.id}/release`));
+          }}><Rocket size={14} /> Release to production</button>
+          <button className="btn" disabled={busy || s.busy} onClick={() => act(() => post(`/api/sprints/${s.id}/security`))}><ShieldCheck size={14} /> {s.busy ? "Reviewing…" : s.security_verdict ? "Run security review again" : "Security review"}</button>
+        </div>
+      )}
+      {error && <div className="error">{error}</div>}
+
       {s.status === "planning" && <PlanPanel s={s} data={data} reload={reload} />}
 
       {tasks.length > 0 && (
@@ -467,13 +484,6 @@ function SprintDetail({ s, data, reload, onTask }: { s: Sprint; data: Overview; 
         </div>
       )}
 
-      {s.status === "active" && (
-        <div className="row">
-          <span className="hint">Approved tasks merge into <code>{s.branch}</code>; the base branch stays untouched until Release. Retry stopped tasks from their detail.</span>
-          <span className="spacer" />
-          <button className="btn small" disabled={busy} onClick={() => confirm("Close this sprint now? Unfinished items go back to the backlog.") && act(() => post(`/api/sprints/${s.id}/close`))}>Close sprint</button>
-        </div>
-      )}
       {(s.status === "done" || s.status === "released") && (
         <>
           <div>
@@ -487,18 +497,7 @@ function SprintDetail({ s, data, reload, onTask }: { s: Sprint; data: Overview; 
           </div>
         </>
       )}
-      {s.status === "done" && (
-        <div className="row">
-          <button className="btn" disabled={busy || s.busy} onClick={() => act(() => post(`/api/sprints/${s.id}/security`))}><ShieldCheck size={14} /> {s.busy ? "Reviewing…" : s.security_verdict ? "Run security review again" : "Security review"}</button>
-          <span className="spacer" />
-          <button className="btn primary" disabled={busy || s.busy} onClick={() => {
-            const warn = s.security_verdict === "issues" ? "The security review found issues. " : !s.security_verdict ? "No security review was run. " : "";
-            if (confirm(`${warn}Release sprint ${s.number}? \`${s.branch}\` is merged into the base branch and pushed (when the project has a remote).`)) act(() => post(`/api/sprints/${s.id}/release`));
-          }}><Rocket size={14} /> Release to production</button>
-        </div>
-      )}
       {s.chat_id && <a className="hint" href={`#/chat/${s.chat_id}`}><MessageSquare size={12} /> Sprint chat</a>}
-      {error && <div className="error">{error}</div>}
     </div>
   );
 }
@@ -521,6 +520,12 @@ function PlanPanel({ s, data, reload }: { s: Sprint; data: Overview; reload: () 
   };
   return (
     <div>
+      <div className="row action-bar">
+        <button className="btn primary" disabled={busy || blocked || pick.size === 0} onClick={start}><Play size={14} /> Start sprint</button>
+        <button className="btn danger" onClick={async () => { if (confirm("Delete this planned sprint?")) { await del(`/api/sprints/${s.id}`); reload(); } }}>Delete sprint</button>
+        {blocked && <span className="hint">Release the running sprint first.</span>}
+      </div>
+      {error && <div className="error">{error}</div>}
       <b>Plan the sprint</b>
       <div className="hint" style={{ margin: "4px 0 6px" }}>
         Scrum master's plan: ready items by priority, up to {p.capacity} points. <b style={{ color: used > p.capacity ? "var(--bad)" : undefined }}>{used} / {p.capacity}</b> chosen.
@@ -534,13 +539,6 @@ function PlanPanel({ s, data, reload }: { s: Sprint; data: Overview; reload: () 
           <span className="badge">{i.points ?? "?"} pts</span>{i.too_big && <span className="badge bad">too big</span>}
         </label>
       ))}
-      <div className="row" style={{ marginTop: 8 }}>
-        {blocked && <span className="hint">Release the running sprint first.</span>}
-        <span className="spacer" />
-        <button className="btn small danger" onClick={async () => { if (confirm("Delete this planned sprint?")) { await del(`/api/sprints/${s.id}`); reload(); } }}>Delete</button>
-        <button className="btn primary" disabled={busy || blocked || pick.size === 0} onClick={start}><Play size={14} /> Start sprint</button>
-      </div>
-      {error && <div className="error">{error}</div>}
     </div>
   );
 }
