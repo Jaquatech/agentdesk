@@ -228,7 +228,7 @@ describe("pipeline", () => {
     rmSync(bare, { recursive: true, force: true });
   });
 
-  it("sorts every task into exactly one tab: active, attention, done or archive", async () => {
+  it("sorts every task into exactly one tab: active, attention, done (in a sprint), released or archive", async () => {
     const call = (ctx as any).call;
     const project = await call("POST", "/api/projects", { name: "open", source: "local", path: repo });
     const chat = await call("POST", "/api/chats", { project_id: project.id });
@@ -238,14 +238,20 @@ describe("pipeline", () => {
     for (const s of ["queued", "building", "verifying", "reviewing"]) add(s, s, "task/" + s, "/wt/" + s);
     for (const s of ["proposed", "approved", "needs_attention", "failed", "interrupted"]) add(s, s, s === "proposed" ? "" : "task/" + s, s === "proposed" ? "" : "/wt/" + s);
     add("stopped", "cancelled", "task/stopped", "/wt/stopped"); // stopped mid-run: worktree kept, can still be retried
-    add("merged", "merged", "task/merged", "");
+    add("merged", "merged", "task/merged", "");                   // no sprint: merged into the base branch
+    const sprint = (n: number, status: string) => Number(ctx.db.prepare("INSERT INTO sprints (project_id, number, name, status) VALUES (?, ?, ?, ?)").run(project.id, n, `s${n}`, status).lastInsertRowid);
+    for (const [slug, status] of [["in-open-sprint", "done"], ["in-released-sprint", "released"]] as const) {
+      add(slug, "merged", "task/" + slug, "");
+      ctx.db.prepare("UPDATE tasks SET sprint_id = ? WHERE slug = ?").run(sprint(slug === "in-open-sprint" ? 1 : 2, status), slug);
+    }
     add("stopped-early", "cancelled", "", "");                    // stopped before it started
     add("discarded", "cancelled", "task/discarded", "");          // discarded or closed with a sprint: nothing left
     const slugs = async (group: string) => ((await call("GET", `/api/tasks?group=${group}`)) as { slug: string }[]).map((t) => t.slug).sort();
-    const tabs = { active: await slugs("active"), attention: await slugs("attention"), done: await slugs("done"), archive: await slugs("archive") };
+    const tabs = { active: await slugs("active"), attention: await slugs("attention"), done: await slugs("done"), released: await slugs("released"), archive: await slugs("archive") };
     expect(tabs.active).toEqual(["building", "queued", "reviewing", "verifying"]);
     expect(tabs.attention).toEqual(["approved", "failed", "interrupted", "needs_attention", "proposed", "stopped"]);
-    expect(tabs.done).toEqual(["merged"]);
+    expect(tabs.done).toEqual(["in-open-sprint"]);
+    expect(tabs.released).toEqual(["in-released-sprint", "merged"]);
     expect(tabs.archive).toEqual(["discarded", "stopped-early"]);
     const all = (await call("GET", `/api/tasks?chat=${chat.id}`)) as unknown[];
     expect(all).toHaveLength(Object.values(tabs).flat().length); // every task is in exactly one tab

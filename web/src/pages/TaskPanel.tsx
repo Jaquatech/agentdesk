@@ -10,17 +10,19 @@ const ACTIVE = ["queued", "building", "verifying", "reviewing"];
 const ORDER: Record<string, number> = { building: 0, verifying: 0, reviewing: 0, queued: 1, approved: 2, needs_attention: 2, failed: 2, interrupted: 2, cancelled: 2, proposed: 3 };
 
 /** Tabs in Running tasks. The server decides which task belongs to which (TASK_GROUPS in routes.ts). */
-type TaskGroup = "active" | "attention" | "done" | "archive";
+type TaskGroup = "active" | "attention" | "done" | "released" | "archive";
 const TABS: { id: TaskGroup; label: string; hint: string }[] = [
   { id: "active", label: "Active", hint: "Queued, building, verifying or in review" },
   { id: "attention", label: "Needs you", hint: "Waiting for you, failed or stopped: run, merge, retry or discard" },
-  { id: "done", label: "Done", hint: "Merged" },
+  { id: "done", label: "Done", hint: "Merged into a sprint branch, waiting for the sprint's release" },
+  { id: "released", label: "Released", hint: "Merged into the main branch: tasks outside a sprint, and tasks of a released sprint" },
   { id: "archive", label: "Archive", hint: "Cancelled with nothing left to retry (discarded, closed with a sprint)" },
 ];
 const EMPTY: Record<TaskGroup, string> = {
   active: "Nothing is running.",
   attention: "Nothing waiting for you.",
-  done: "No merged tasks yet.",
+  done: "No task is waiting for its sprint's release.",
+  released: "Nothing merged into the main branch yet.",
   archive: "Nothing archived.",
 };
 
@@ -35,6 +37,8 @@ export function TaskPanel({ chatId, agents }: { chatId?: number; agents: Agent[]
   const load = () => get<Task[]>(`/api/tasks?${chatId ? `chat=${chatId}` : `group=${group}`}`).then(setTasks);
   useEffect(() => { load(); }, [chatId, group]);
   useLiveEvents((ev) => {
+    // A sprint release moves its tasks from Done to Released without any task changing status.
+    if (ev.type === "scrum" && !chatId) { load(); return; }
     if (ev.type !== "task" || (chatId && ev.chatId !== chatId)) return;
     const known = tasksRef.current.find((t) => t.id === ev.task.id);
     // A chat shows all its tasks, so an event just updates the row. In a tab, a task that is new here or changed

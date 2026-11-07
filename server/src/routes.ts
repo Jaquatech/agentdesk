@@ -23,7 +23,9 @@ const bad = (reply: FastifyReply, error: string, code = 400) => reply.code(code)
 const TASK_GROUPS: Record<string, string> = {
   active: "t.status IN ('queued','building','verifying','reviewing')",
   attention: "(t.status IN ('proposed','approved','needs_attention','failed','interrupted') OR (t.status = 'cancelled' AND t.worktree != ''))",
-  done: "t.status = 'merged'",
+  // Merged is two things: into a sprint branch (waits for the sprint's release) or into the base branch (released).
+  done: "(t.status = 'merged' AND t.sprint_id IS NOT NULL AND (SELECT s.status FROM sprints s WHERE s.id = t.sprint_id) != 'released')",
+  released: "(t.status = 'merged' AND (t.sprint_id IS NULL OR (SELECT s.status FROM sprints s WHERE s.id = t.sprint_id) = 'released'))",
   archive: "(t.status = 'cancelled' AND t.worktree = '')",
 };
 
@@ -351,7 +353,8 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     }
     if (chat) { where.push("t.chat_id = ?"); args.push(id(chat)); }
     // Groups are disjoint and cover every task: active (in progress), attention (waiting for the user or retryable),
-    // done (merged) and archive (cancelled with no worktree left: discarded, dropped with a sprint, never started).
+    // done (merged into a sprint, not released yet), released (merged into the base branch) and archive (cancelled with no
+    // worktree left: discarded, dropped with a sprint, never started).
     if (group) {
       const clause = TASK_GROUPS[String(group)];
       if (!clause) return bad(reply, `Unknown task group: ${group}`);

@@ -201,6 +201,8 @@ you set the priority (▲▼)
   (the PI being delivered: its sprints and their tasks; a task opens with the same merge, retry, review and activity as Running
   tasks), **Releases** (released sprints with release notes and security review). A PI counts as current once one of its sprints
   has started; sprints without a PI are listed under *Without a PI*. Plan and start a sprint from its detail.
+- **Running tasks tabs.** *Done* = merged into a sprint branch, waiting for the sprint's release. *Released* = merged into the main
+  branch (tasks outside a sprint, and tasks of a released sprint). *Archive* = cancelled with nothing left to retry.
 - **Token use per sprint** (sprint detail, PI detail): tokens and cost by kind of work (product manager, refinement, development, QA,
   security, release notes). Refinement of an item counts for the sprint it went into; work before that shows as "not in any sprint yet".
 - **Stopped tasks.** If a task stops (failed, needs attention, a conflict with other work in the sprint branch), retry it from Running
