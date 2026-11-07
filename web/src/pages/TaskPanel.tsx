@@ -89,7 +89,7 @@ export function TaskPanel({ chatId, agents }: { chatId?: number; agents: Agent[]
   );
 }
 
-function TaskDetail({ task, name, workers, onAction }: { task: Task; name: (id: number | null) => string; workers: Agent[]; onAction: () => void }) {
+export function TaskDetail({ task, name, workers, onAction }: { task: Task; name: (id: number | null) => string; workers: Agent[]; onAction: () => void }) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");

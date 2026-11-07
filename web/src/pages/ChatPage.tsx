@@ -351,7 +351,7 @@ function ScrumBar({ projectId }: { projectId: number }) {
     <div className="scrum-bar">
       <b>Scrum</b><span className="ellipsis">{data.cycle.text}</span><span className="spacer" />
       <span className="hint">Ask for anything new; the product manager adds it to the backlog.</span>
-      <a href={`#/scrum/${projectId}`}>Backlog & sprints</a>
+      <a href={`#/scrum/${projectId}`}>Backlog & PIs</a>
     </div>
   );
 }

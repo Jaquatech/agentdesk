@@ -175,7 +175,7 @@ chat message → planner (read-only) → tasks (proposed) → Run plan
 ## Scrum: backlog, sprints, release
 
 Set a project's **How work is run** to *Scrum* (Projects). The chat then talks to a product manager instead of a planner, and the
-sidebar gets **Backlog & sprints**.
+sidebar gets **Backlog & PIs**.
 
 ```
 business owner asks in the chat ("we need …", "review the backlog") – at any step
@@ -196,7 +196,12 @@ you set the priority (▲▼)
 - **Capacity.** The Scrum master keeps priority: it takes items in order and stops at the first one that does not fit. An item bigger
   than a whole sprint (13 points) is skipped and flagged. You can tick other items by hand before pressing Start.
 - **PIs** are optional: a goal that groups sprints. Release notes and token use add up under the PI.
-- **Token use per sprint** (sprint card, PI header): tokens and cost by kind of work (product manager, refinement, development, QA,
+- **The page** works like Running tasks: a list on the left, the selected thing on the right. Four tabs follow the life of the work:
+  **Backlog** (items by priority; edit one on the right), **Coming PI** (planned PIs and sprints, nothing started), **Current PI**
+  (the PI being delivered: its sprints and their tasks; a task opens with the same merge, retry, review and activity as Running
+  tasks), **Releases** (released sprints with release notes and security review). A PI counts as current once one of its sprints
+  has started; sprints without a PI are listed under *Without a PI*. Plan and start a sprint from its detail.
+- **Token use per sprint** (sprint detail, PI detail): tokens and cost by kind of work (product manager, refinement, development, QA,
   security, release notes). Refinement of an item counts for the sprint it went into; work before that shows as "not in any sprint yet".
 - **Stopped tasks.** If a task stops (failed, needs attention, a conflict with other work in the sprint branch), retry it from Running
   tasks, or **Close sprint** to send unfinished items back to the backlog.

@@ -106,7 +106,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
                 </div>
                 {open && p.process === "scrum" && (
                   <a className={`side-item side-chat ${route.page === "scrum" && route.id === p.id ? "active" : ""}`} href={`#/scrum/${p.id}`}>
-                    <Kanban size={13} /> <span className="ellipsis">Backlog & sprints</span>
+                    <Kanban size={13} /> <span className="ellipsis">Backlog & PIs</span>
                   </a>
                 )}
                 {open && pchats.map((c) => (
