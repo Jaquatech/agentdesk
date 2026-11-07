@@ -342,7 +342,9 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       args.push(...list);
     }
     if (chat) { where.push("t.chat_id = ?"); args.push(id(chat)); }
-    if (active) where.push("t.status NOT IN ('merged','cancelled')");
+    // Open = everything still needing attention. Stopped (cancelled) and failed tasks stay so they can be retried;
+    // only merged tasks and discarded ones (branch deleted: branch set, worktree cleared) drop out.
+    if (active) where.push("t.status != 'merged' AND NOT (t.status = 'cancelled' AND t.branch != '' AND t.worktree = '')");
     return db.prepare(`SELECT t.*, c.title AS chat_title, p.name AS project_name FROM tasks t
       JOIN chats c ON c.id = t.chat_id JOIN projects p ON p.id = t.project_id
       ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY t.updated_at DESC LIMIT 200`).all(...args);

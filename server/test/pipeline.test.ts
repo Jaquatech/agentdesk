@@ -228,6 +228,22 @@ describe("pipeline", () => {
     rmSync(bare, { recursive: true, force: true });
   });
 
+  it("keeps stopped and failed tasks in the Open list, but not merged or discarded ones", async () => {
+    const call = (ctx as any).call;
+    const project = await call("POST", "/api/projects", { name: "open", source: "local", path: repo });
+    const chat = await call("POST", "/api/chats", { project_id: project.id });
+    const add = (slug: string, status: string, branch: string, worktree: string) => ctx.db.prepare(
+      "INSERT INTO tasks (chat_id, project_id, slug, title, spec, status, branch, worktree) VALUES (?, ?, ?, ?, 'x', ?, ?, ?)")
+      .run(chat.id, project.id, slug, slug, status, branch, worktree);
+    add("failed", "failed", "task/failed", "/wt/failed");
+    add("stopped", "cancelled", "task/stopped", "/wt/stopped"); // stopped mid-run: worktree kept
+    add("stopped-early", "cancelled", "", "");                    // stopped before it started
+    add("discarded", "cancelled", "task/discarded", "");          // discarded: branch deleted
+    add("merged", "merged", "task/merged", "");
+    const open = (await call("GET", "/api/tasks?active=1")) as { slug: string }[];
+    expect(open.map((t) => t.slug).sort()).toEqual(["failed", "stopped", "stopped-early"]);
+  });
+
   it("stores attachments, gives them to the planner, and clears the cache", async () => {
     const call = (ctx as any).call;
     const project = await call("POST", "/api/projects", { name: "att", source: "local", path: repo });
