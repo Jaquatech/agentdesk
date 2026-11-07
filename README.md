@@ -12,6 +12,17 @@ shows who is working, reviewing or taking a break (coffee, sofa, arcade, slot ma
 - Projects: a local git folder, a GitHub repository (pull requests through `gh`) or an Azure DevOps repository
   (pull requests through `az repos`).
 
+![The office: agents at their desks in team rooms, others on a break](docs/screenshots/office.png)
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Current sprint: tasks, developer summary and review](docs/screenshots/sprint.png)<br>**Sprint.** Tasks of the running sprint, with the developer's summary and the review. | ![Sprint complete: release notes](docs/screenshots/release-notes.png)<br>**Release.** A finished sprint with generated release notes, ready to release. |
+| ![Agents grouped by role and team](docs/screenshots/agents.png)<br>**Agents.** Planner, developers and reviewers, each with its own provider and model. | ![Editing an agent: model, thinking, teams](docs/screenshots/agent-settings.png)<br>**One agent.** Model recommendations, limits, starting context and teams. |
+| ![Agent gallery](docs/screenshots/gallery.png)<br>**Gallery.** Ready-made agents to add with one click. | ![Usage and billing](docs/screenshots/usage.png)<br>**Usage and billing.** Cost per day, agent, model and project. |
+| ![Office settings and logo](docs/screenshots/settings.png)<br>**Office settings.** Style, features and company logo. | |
+
 ## Installation
 
 You need **Node.js 22.13 or newer** (the current LTS is fine) and **git**. Nothing is compiled during install:
@@ -308,6 +319,12 @@ Agents never get a free hand. Every rule below is enforced by the server, not by
 
 - Everything lives in `data/` (git-ignored): `agentdesk.db` (SQLite) and `master.key`. Set
   `AGENTDESK_MASTER_KEY` (base64, 32 bytes) to keep the key elsewhere; set `AGENTDESK_DATA` to move the folder.
+- **Backup, or moving to a new computer:** stop AgentDesk and copy the whole `data/` folder (to a backup location, or into
+  the new installation's folder). It holds everything about your setup: accounts, settings, providers and their
+  encrypted keys, agents, teams, projects, chats, tasks, usage, and the key that opens the vault. Install AgentDesk
+  on the new computer, put the copied `data/` next to `server/` and `web/`, and start it. If you keep the key
+  elsewhere with `AGENTDESK_MASTER_KEY`, back that up too. Your project code is not in `data/`: it lives in its own git
+  repositories (use their remotes).
 - Secrets: AES-256-GCM with the master key; the UI shows only a hint (`sk-…a1b2`).
 - Sign-in: scrypt password hashes, an HttpOnly SameSite=Strict session cookie. Requests from other hosts or other
   sites' pages are refused.
