@@ -1,0 +1,58 @@
+# AgentDesk: notes for coding agents
+
+A local-only tool where a planner splits work across developer agents and a reviewer checks it. React UI, Fastify server,
+`node:sqlite` database. It runs on the user's machine and listens on 127.0.0.1 only. README.md is the user manual; this file is the map and the rules.
+
+## Commands
+
+```bash
+npm run setup        # install + build the UI
+npm run dev          # server on 4317 (reload) + Vite on 5173 (/api proxied)
+npm run demo         # scripted agents, no key, no cost, separate data folder (data-demo/)
+npm test             # server (vitest, ~46 tests) + web
+npm run build        # web build + server typecheck (tsc --noEmit)
+npx tsc --noEmit -p server        # quick typecheck
+npx vitest run --root server test/scrum.test.ts   # one test file
+```
+
+Node >= 22.13 (uses the built-in `node:sqlite`). Plain CSS tokens in `web/src/styles.css`, no UI framework; icons from lucide-react.
+
+## Code map
+
+| Concept | Where |
+|---|---|
+| App wiring, local-only host/origin checks | `server/src/index.ts` |
+| Routes (settings, secrets, providers, agents, projects, chats, tasks, approvals, events) | `server/src/routes.ts` |
+| Schema: append-only `MIGRATIONS` array | `server/src/db.ts` |
+| Planner, task pipeline (worktree, build, commit, checks, review rounds, PR, merge), approvals | `server/src/orchestrator/orchestrator.ts`, `git.ts`, `prompts.ts`, `shell.ts` |
+| Engines: Claude CLI, built-in API loop, demo | `server/src/engines/` |
+| Providers (Anthropic, OpenAI-compatible, Ollama, Claude CLI), capabilities | `server/src/providers/` |
+| Teams: who plans, builds, reviews (`pickAgent`, `teamAgents`, architect and security slots) | `server/src/teams.ts` |
+| Agent gallery: ready-made agent templates | `server/src/gallery.ts` |
+| Model guide: which model for which work, "seen" vs "expected" ratings | `server/src/modelGuide.ts` |
+| Scrum: backlog, refinement, sprints, PIs, security review, release, usage per sprint | `server/src/scrum.ts` |
+| Spending limits (per day, per sprint) | `server/src/budget.ts` |
+| Usage and prices | `server/src/usage.ts`, `pricing.ts` |
+| Live events to the UI (SSE) | `server/src/bus.ts` |
+| UI pages | `web/src/pages/` (Guides, Scrum, Teams, Agents, Chat, Settings, ...) |
+
+## How the pieces fit
+
+- **Task pipeline** (one task = one branch `task/<slug>` + one worktree under the data folder): worker builds, a commit is made only if every changed file is inside the task's allowed paths, verify commands must pass, the reviewer approves or sends fix instructions (rounds are a Setting), then push + PR (projects with a remote) and the user presses Merge. `tasks.feedback` keeps the last round's fix text so a retry continues instead of starting blind.
+- **Every agent call goes through `Orchestrator.callAgent`**: it records a `runs` row (model, tokens, cost, transcript), enforces the spending limits, and publishes activity. New kinds of agent work should use it, not call an engine directly.
+- **Teams:** a project has a team, a chat can use another. No team = every enabled agent. Planner only assigns to its team's developers.
+- **Scrum:** a project with `process = 'scrum'` hands chat messages to `Scrum.chat` (the planner acts as product manager). Items refine by themselves (product manager, architect, developer estimate) until Ready. `Scrum.start` creates the sprint branch and one queued task per item; sprint tasks start from the sprint branch, are reviewed against it, and squash-merge into it (`mergeIntoSprint`, serialized per sprint). `settle` completes the sprint when every task has merged; `release` merges the sprint branch into the base branch and pushes. Usage per sprint attributes a run to `COALESCE(runs.sprint_id, item's sprint)`.
+- **Demo engine** (`engines/demo.ts`) answers every tool the app uses, including the Scrum ones; extend it when you add a new tool, or the demo breaks.
+- **Model guide ratings** are expectations unless marked "seen" (observed in real runs here). Do not mark a rating "seen" without evidence.
+
+## Rules
+
+- **Migrations:** never edit an applied one; append a new string to `MIGRATIONS`.
+- **Secrets:** API keys are encrypted in the vault (`crypto.ts`); values never leave the server and are never printed, logged, committed or sent to the UI. Logs carry outcomes, not values.
+- **Local only:** the server binds to 127.0.0.1 and refuses other hosts and cross-site writes. Keep it that way.
+- **Git safety:** agents work in worktrees; the user's own checkout is not touched. Only branches this tool created (`task/...`) are deleted on a remote. Commands outside an agent's allow-list need the user's approval.
+- **Tests that call the API** need a `host: localhost` header and a session cookie from `POST /api/auth/setup` (username of 3+ characters). Replace the engine with `engineOverride.engine`. See `test/pipeline.test.ts` and `test/scrum.test.ts`.
+- **UI changes:** check with a real browser (Playwright is fine) in demo mode; type checks do not show layout problems.
+- **Keep the repo generic:** no customer, employer or other-product names in code, docs, tests or commit messages.
+- Update README.md (user manual) and this file in the same change when a concept moves.
+- Commits: small, imperative subject, a body that says why.
