@@ -635,13 +635,18 @@ Only state what the items and commits support.`,
     const tasks = this.db.prepare(`SELECT t.id, t.item_id, t.sprint_id, t.title, t.status, t.round, t.worker_id, a.name AS worker, t.cost_usd, t.tokens, t.error, t.chat_id
       FROM tasks t LEFT JOIN agents a ON a.id = t.worker_id WHERE t.sprint_id IS NOT NULL AND t.project_id = ? ORDER BY t.id`).all(projectId);
     const u = this.usage(projectId);
+    // What each item cost so far (refinement, and development once it is in a sprint), shown like a task's cost.
+    const spent = new Map((this.db.prepare(`SELECT item_id, COUNT(*) AS runs, COALESCE(SUM(cost_usd), 0) AS cost,
+        COALESCE(SUM(tokens_in + cache_read + cache_write + tokens_out), 0) AS tokens
+      FROM runs WHERE project_id = ? AND item_id IS NOT NULL AND engine != 'shell' AND engine != '' GROUP BY item_id`).all(projectId) as
+      { item_id: number; runs: number; cost: number; tokens: number }[]).map((r) => [r.item_id, r]));
     return {
       project: { id: project.id, name: project.name, process: project.process, points_per_dev: project.points_per_dev },
       cycle: this.cycle(projectId),
       capacity: this.capacity(projectId),
       pis: (this.db.prepare("SELECT * FROM pis WHERE project_id = ? ORDER BY id DESC").all(projectId) as Pi[]).map((p) => ({ ...p, usage: u.pis[p.id] ?? null })),
       sprints: sprints.map((s) => ({ ...s, usage: u.sprints[s.id] ?? null, busy: this.working.has(`security:${s.id}`) || this.working.has(`finish:${s.id}`) })),
-      items: items.map((i) => ({ ...i, refining: this.working.has(`refine:${i.id}`) })),
+      items: items.map((i) => ({ ...i, refining: this.working.has(`refine:${i.id}`), cost: spent.get(i.id)?.cost ?? 0, tokens: spent.get(i.id)?.tokens ?? 0, runs: spent.get(i.id)?.runs ?? 0 })),
       tasks,
       unplanned: u.unplanned,
     };

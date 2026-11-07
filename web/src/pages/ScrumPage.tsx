@@ -13,7 +13,7 @@ type Usage = {
 type Item = {
   id: number; sprint_id: number | null; title: string; request: string; story: string; acceptance: string; tech_notes: string; paths: string;
   worker: string; points: number | null; priority: number; status: "refining" | "ready" | "in_sprint" | "done" | "dropped" | "error";
-  step: string; error: string; refining: boolean;
+  step: string; error: string; refining: boolean; cost: number; tokens: number; runs: number;
 };
 type Sprint = {
   id: number; pi_id: number | null; chat_id: number | null; number: number; name: string; goal: string; status: "planning" | "active" | "done" | "released";
@@ -232,57 +232,81 @@ function NewItem({ projectId, onDone }: { projectId: number; onDone: () => void 
   );
 }
 
+const ITEM_STEPS = ["product", "architect", "estimate", "ready", "in_sprint", "done"] as const;
+
+/** An item looks like a task: status, steps, who/size/cost, rendered text. Edit opens the form. */
 function ItemEditor({ item, onChanged }: { item: Item; onChanged: () => void }) {
   const locked = ["in_sprint", "done"].includes(item.status);
+  const [editing, setEditing] = useState(false);
   const [f, setF] = useState({
     title: item.title, story: item.story, acceptance: item.acceptance, tech_notes: item.tech_notes,
     paths: parseJson<string[]>(item.paths, []).join("\n"), points: item.points as number | null,
   });
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
-  const set = (k: string, v: unknown) => { setSaved(false); setF((x) => ({ ...x, [k]: v })); };
+  const set = (k: string, v: unknown) => setF((x) => ({ ...x, [k]: v }));
   const save = async () => {
     setError("");
-    try { await put(`/api/backlog/${item.id}`, { title: f.title, story: f.story, acceptance: f.acceptance, tech_notes: f.tech_notes, paths: f.paths, points: f.points }); setSaved(true); onChanged(); }
+    try { await put(`/api/backlog/${item.id}`, { title: f.title, story: f.story, acceptance: f.acceptance, tech_notes: f.tech_notes, paths: f.paths, points: f.points }); setEditing(false); onChanged(); }
     catch (e) { setError((e as Error).message); }
   };
   const drop = async () => { await put(`/api/backlog/${item.id}`, { status: "dropped" }); onChanged(); };
+  const paths = parseJson<string[]>(item.paths, []);
+  const at = item.status === "refining" ? Math.max(0, ITEM_STEPS.indexOf(item.step as any)) : item.status === "ready" ? 3 : item.status === "in_sprint" ? 4 : item.status === "done" ? 5 : -1;
+  const label = item.status === "in_sprint" ? "in sprint" : item.status === "error" ? "stopped" : item.status === "refining" ? (STEP[item.step] ?? "refining") : item.status;
+  const tone = item.status === "ready" || item.status === "done" ? "s-approved" : item.status === "error" ? "s-failed" : item.status === "refining" ? "s-building" : "s-queued";
+
+  if (editing) {
+    return (
+      <div className="task-detail">
+        <h2 style={{ margin: 0, fontSize: 18 }}>Edit item</h2>
+        <Field label="Title"><NoFillInput value={f.title} onChange={(e) => set("title", e.target.value)} /></Field>
+        <Field label="User story (product manager)"><textarea rows={5} value={f.story} onChange={(e) => set("story", e.target.value)} /></Field>
+        <Field label="Acceptance criteria"><textarea rows={6} value={f.acceptance} onChange={(e) => set("acceptance", e.target.value)} /></Field>
+        <Field label="Technical notes (architect)"><textarea className="mono" rows={10} value={f.tech_notes} onChange={(e) => set("tech_notes", e.target.value)} /></Field>
+        <div className="grid2">
+          <Field label="Files it may change (one per line)"><textarea className="mono" rows={3} value={f.paths} onChange={(e) => set("paths", e.target.value)} /></Field>
+          <Field label="Size (story points)" hint="Set by a developer; change it if you know better. 13 means too big: split it.">
+            <select value={f.points ?? ""} onChange={(e) => set("points", e.target.value ? Number(e.target.value) : null)}>
+              <option value="">Not estimated</option>
+              {SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+        </div>
+        {error && <div className="error">{error}</div>}
+        <div className="row"><span className="spacer" />
+          <button className="btn" onClick={() => { setEditing(false); setError(""); }}>Cancel</button>
+          <button className="btn primary" onClick={save}>Save</button></div>
+      </div>
+    );
+  }
   return (
     <div className="task-detail">
       <div>
-        <div className="row">
-          {item.status === "refining" && <span className="badge wait">{STEP[item.step] ?? "refining"}…</span>}
-          {item.status === "ready" && <span className="badge good">ready</span>}
-          {item.status === "in_sprint" && <span className="badge accent">in a sprint</span>}
-          {item.status === "done" && <span className="badge good">done</span>}
-          {item.status === "dropped" && <span className="badge">dropped</span>}
-          {item.status === "error" && <span className="badge bad">stopped</span>}
+        <div className="row"><span className={`status ${tone}`}>{label}</span><span className="hint">backlog item #{item.id}</span></div>
+        <h2 style={{ margin: "6px 0 10px", fontSize: 18 }}>{item.title}</h2>
+        <div className="steps" title="product manager → architect → estimate → ready → in sprint → done">
+          {ITEM_STEPS.map((s, i) => <div key={s} className={`step ${at > i ? "done" : at === i ? (item.status === "refining" ? "on" : "done") : ""} ${item.status === "error" && i === Math.max(0, ITEM_STEPS.indexOf(item.step as any)) ? "fail" : ""}`} />)}
         </div>
-        <h2 style={{ margin: "6px 0 0", fontSize: 18 }}>{item.title}</h2>
       </div>
-      {locked && <div className="hint">This item is in a sprint: its text is fixed.</div>}
-      {item.error && <div className="error">{item.error}</div>}
-      <Field label="Title"><NoFillInput value={f.title} disabled={locked} onChange={(e) => set("title", e.target.value)} /></Field>
-      <Field label="User story (product manager)"><textarea rows={4} disabled={locked} value={f.story} onChange={(e) => set("story", e.target.value)} /></Field>
-      <Field label="Acceptance criteria"><textarea rows={5} disabled={locked} value={f.acceptance} onChange={(e) => set("acceptance", e.target.value)} /></Field>
-      <Field label="Technical notes (architect)"><textarea className="mono" rows={8} disabled={locked} value={f.tech_notes} onChange={(e) => set("tech_notes", e.target.value)} /></Field>
-      <div className="grid2">
-        <Field label="Files it may change (one per line)"><textarea className="mono" rows={3} disabled={locked} value={f.paths} onChange={(e) => set("paths", e.target.value)} /></Field>
-        <Field label="Size (story points)" hint="Set by a developer; change it if you know better. 13 means too big: split it.">
-          <select disabled={locked} value={f.points ?? ""} onChange={(e) => set("points", e.target.value ? Number(e.target.value) : null)}>
-            <option value="">Not estimated</option>
-            {SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </Field>
+      <div className="meta">
+        <span>Developer <b>{item.worker || "–"}</b></span>
+        <span>Size <b>{item.points != null ? `${item.points} pts` : "not estimated"}</b></span>
+        <span>Cost <b>{money(item.cost)}</b></span>
+        <span>Tokens <b>{(item.tokens / 1e6).toFixed(2)}M</b></span>
+        <span>Calls <b>{item.runs}</b></span>
+        {paths.length > 0 && <span>Paths <b className="mono">{paths.join(" ")}</b></span>}
       </div>
-      {error && <div className="error">{error}</div>}
-      <div className="row">
-        {item.status === "error" && <button className="btn" onClick={async () => { await post(`/api/backlog/${item.id}/retry`); onChanged(); }}><RotateCcw size={13} /> Retry</button>}
+      <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+        {!locked && item.status !== "dropped" && <button className="btn" onClick={() => setEditing(true)}>Edit</button>}
+        {item.status === "error" && <button className="btn" onClick={async () => { await post(`/api/backlog/${item.id}/retry`); onChanged(); }}><RotateCcw size={14} /> Retry</button>}
         {!locked && item.status !== "dropped" && <button className="btn danger" onClick={drop}>Drop item</button>}
-        <span className="spacer" />
-        {saved && <span className="hint">Saved</span>}
-        {!locked && <button className="btn primary" onClick={save}>Save</button>}
       </div>
+      {locked && <div className="hint">This item is in a sprint or done: its text is fixed. Follow it under Current PI.</div>}
+      {item.error && <div className="card card-pad" style={{ borderColor: "var(--bad)" }}><b className="error">Problem</b><div className="msg-body"><Markdown>{item.error}</Markdown></div></div>}
+      {item.story && <details open><summary><b>User story</b></summary><div className="msg-body"><Markdown>{item.story}</Markdown></div></details>}
+      {item.acceptance && <details open><summary><b>Acceptance criteria</b></summary><div className="msg-body"><Markdown>{item.acceptance}</Markdown></div></details>}
+      {item.tech_notes && <details open><summary><b>Technical notes</b></summary><div className="msg-body"><Markdown>{item.tech_notes}</Markdown></div></details>}
+      {item.request && <details><summary><b>In the business owner's words</b></summary><div className="msg-body"><Markdown>{item.request}</Markdown></div></details>}
     </div>
   );
 }
