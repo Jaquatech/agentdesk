@@ -137,6 +137,12 @@ textarea.mono { font-size: 12.5px; }
 .msg-body { line-height: 1.6; }
 .msg-body > :first-child { margin-top: 0; }
 .msg-body > :last-child { margin-bottom: 0; }
+/* Markdown inside task and item details (summary, review, story, technical notes): compact headings, boxed code */
+.task-detail .msg-body h1, .task-detail .msg-body h2, .task-detail .msg-body h3, .task-detail .msg-body h4 { margin: 16px 0 6px; line-height: 1.3; font-weight: 600; }
+.task-detail .msg-body h1 { font-size: 16px; } .task-detail .msg-body h2 { font-size: 15px; } .task-detail .msg-body h3, .task-detail .msg-body h4 { font-size: 14px; }
+.task-detail .msg-body pre { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow: auto; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; }
+.task-detail .msg-body pre code { background: none; padding: 0; font: inherit; }
+.task-detail .msg-body code { font: 12.5px var(--mono); background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
 .msg.user .msg-body { background: var(--surface-2); border-radius: 10px; padding: 10px 14px; justify-self: end; max-width: 85%; }
 .msg.user .msg-who { justify-content: flex-end; }
 .msg.event { font-size: 13px; color: var(--muted); border-left: 2px solid var(--line); padding-left: 12px; }
