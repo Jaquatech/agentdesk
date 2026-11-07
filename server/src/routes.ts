@@ -6,7 +6,7 @@ import type { DB } from "./db.ts";
 import { getSettings, setSetting, DEFAULT_SETTINGS, json } from "./db.ts";
 import { secretHint, type Vault } from "./crypto.ts";
 import { bus, type LiveEvent } from "./bus.ts";
-import { testProvider, DEFAULT_BASE_URL, type ProviderRow } from "./providers/index.ts";
+import { testProvider, secretValue, DEFAULT_BASE_URL, type ProviderRow } from "./providers/index.ts";
 import { ROLE_TEMPLATES } from "./orchestrator/prompts.ts";
 import { setAgentTeams } from "./teams.ts";
 import { galleryForUi } from "./gallery.ts";
@@ -120,15 +120,15 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     const p = db.prepare("SELECT * FROM providers WHERE id = ?").get(id((req.params as Body).id)) as ProviderRow | undefined;
     if (!p) return bad(reply, "Not found", 404);
     const model = String((req.query as Body).model || p.default_model);
-    return { model, ...(await getCapabilities(p.kind, p.base_url, model)) };
+    return { model, ...(await getCapabilities(p.kind, p.base_url, model, secretValue(db, vault, p.secret_id))) };
   });
   app.get("/api/chats/:id/planner-capabilities", async (req) => {
     const planner = orch.plannerFor(id((req.params as Body).id));
-    const a = planner && db.prepare("SELECT a.*, p.kind, p.base_url, p.default_model FROM agents a JOIN providers p ON p.id = a.provider_id WHERE a.id = ?")
+    const a = planner && db.prepare("SELECT a.*, p.kind, p.base_url, p.default_model, p.secret_id FROM agents a JOIN providers p ON p.id = a.provider_id WHERE a.id = ?")
       .get(planner.id) as (Body & { id: number }) | undefined;
     if (!a) return { agent: null, model: "", vision: null, tools: null, source: "no planner" };
     const model = a.model || a.default_model;
-    return { agent: a.name, model, ...(await getCapabilities(a.kind, a.base_url, model)) };
+    return { agent: a.name, model, ...(await getCapabilities(a.kind, a.base_url, model, secretValue(db, vault, a.secret_id as number | null))) };
   });
   app.post("/api/providers/:id/test", async (req, reply) => {
     const p = db.prepare("SELECT * FROM providers WHERE id = ?").get(id((req.params as Body).id)) as ProviderRow | undefined;

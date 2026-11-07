@@ -248,7 +248,7 @@ export class Orchestrator {
       if (files.length) {
         // Images only go to a model that can read them; otherwise the planner is told their names.
         const p = resolveProvider(this.db, this.vault, planner);
-        const caps = await getCapabilities(p.kind, p.baseUrl, p.model);
+        const caps = await getCapabilities(p.kind, p.baseUrl, p.model, p.apiKey);
         attachments = loadForPrompt(files, { vision: caps.vision, model: p.model });
       }
       const workers = teamAgents(this.db, teamId, "worker"); // only this team's developers get work

@@ -9,12 +9,15 @@ export type Capabilities = { vision: boolean | null; tools: boolean | null; thin
 const cache = new Map<string, { at: number; caps: Capabilities }>();
 const TTL = 10 * 60_000;
 
-/** Ollama's native API lives at the server root, not under the OpenAI-style /v1. */
+/**
+ * Ollama's native API lives at the server root, not under the OpenAI-style /v1.
+ * Tolerates a pasted endpoint (https://ollama.com/api/chat, .../v1/chat/completions) and returns the root.
+ */
 export function ollamaRoot(baseUrl: string) {
-  return (baseUrl || "http://localhost:11434/v1").replace(/\/+$/, "").replace(/\/v1$/, "");
+  return (baseUrl || "http://localhost:11434/v1").trim().replace(/\/+$/, "").replace(/(?<!\/)\/(v1|api)(\/.*)?$/i, "");
 }
 
-export async function getCapabilities(kind: ProviderKind, baseUrl: string, model: string): Promise<Capabilities> {
+export async function getCapabilities(kind: ProviderKind, baseUrl: string, model: string, apiKey?: string): Promise<Capabilities> {
   if (kind === "anthropic" || kind === "claude-cli") {
     return { vision: true, tools: true, source: kind === "claude-cli" ? "Claude Code reads images with its Read tool" : "Claude models" };
   }
@@ -25,7 +28,8 @@ export async function getCapabilities(kind: ProviderKind, baseUrl: string, model
     if (hit && Date.now() - hit.at < TTL) return hit.caps;
     try {
       const res = await fetch(`${ollamaRoot(baseUrl)}/api/show`, {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model }),
+        method: "POST", body: JSON.stringify({ model }),
+        headers: { "content-type": "application/json", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) }, // key: Ollama Cloud
         signal: AbortSignal.timeout(5000),
       });
       const data = await res.json().catch(() => ({})) as { capabilities?: string[] };

@@ -34,6 +34,27 @@ describe("model capabilities", () => {
     expect(ollamaRoot("http://localhost:11434/v1/")).toBe("http://localhost:11434");
   });
 
+  it("reduces a pasted Ollama endpoint to the server root (Ollama Cloud: https://ollama.com)", () => {
+    for (const u of ["https://ollama.com", "https://ollama.com/", "https://ollama.com/v1", "https://ollama.com/api/chat", "https://ollama.com/v1/chat/completions"]) {
+      expect(ollamaRoot(u)).toBe("https://ollama.com");
+    }
+  });
+
+  it("sends the API key to Ollama Cloud as a Bearer token", async () => {
+    const auth: (string | undefined)[] = [];
+    const server = createServer((req, res) => {
+      auth.push(req.headers.authorization);
+      req.resume();
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ capabilities: ["completion", "tools"] }));
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    const base = `http://127.0.0.1:${(server.address() as any).port}/api/chat`;
+    expect(await getCapabilities("ollama", base, "gpt-oss:120b", "secret-key")).toMatchObject({ tools: true });
+    expect(auth[0]).toBe("Bearer secret-key");
+    server.close();
+  });
+
   it("names images instead of sending them to a model without vision", () => {
     const dir = mkdtempSync(join(tmpdir(), "ad-cap-"));
     const png = join(dir, "1-a.png");

@@ -7,7 +7,7 @@ import { ModelPicker, NoFillInput, SecretInput } from "../components/inputs.tsx"
 const KINDS: Record<ProviderKind, { label: string; note: string; needsKey: boolean; model: string }> = {
   anthropic: { label: "Anthropic API", note: "Claude models through the Messages API.", needsKey: true, model: "claude-sonnet-5-5" },
   openai: { label: "OpenAI-compatible", note: "OpenAI, Azure OpenAI (v1), vLLM, LM Studio, llama.cpp server, OpenLLM.", needsKey: false, model: "gpt-5" },
-  ollama: { label: "Ollama (local)", note: "Local models through Ollama's OpenAI-compatible endpoint. No key.", needsKey: false, model: "qwen3:8b" },
+  ollama: { label: "Ollama (local or cloud)", note: "Local Ollama needs no key. For Ollama Cloud set Base URL https://ollama.com and add your API key (ollama.com/settings/keys).", needsKey: false, model: "qwen3:8b" },
   "claude-cli": { label: "Claude Code CLI", note: "Runs `claude -p` in the worktree (needs Claude Code installed). Key optional: without it your Claude Code sign-in is used.", needsKey: false, model: "sonnet" },
 };
 
@@ -154,17 +154,15 @@ function ProviderForm({ p, secrets, defaults, onClose, onSaved }: {
             <NoFillInput className="mono" value={f.base_url ?? ""} onChange={(e) => set("base_url", e.target.value)} placeholder={defaults[kind]} />
           </Field>
         )}
-        {kind !== "ollama" && (
-          <div className="grid2">
-            <Field label={`API key${KINDS[kind].needsKey ? "" : " (optional)"}`}>
-              <select value={f.secret_id ?? ""} onChange={(e) => set("secret_id", e.target.value ? Number(e.target.value) : null)}>
-                <option value="">{KINDS[kind].needsKey ? "Choose or paste a new key…" : "None"}</option>
-                {secrets.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.hint})</option>)}
-              </select>
-            </Field>
-            <Field label="…or paste a new key"><SecretInput value={newKey} onChange={setNewKey} placeholder="stored encrypted" /></Field>
-          </div>
-        )}
+        <div className="grid2">
+          <Field label={`API key${KINDS[kind].needsKey ? "" : " (optional)"}`}>
+            <select value={f.secret_id ?? ""} onChange={(e) => set("secret_id", e.target.value ? Number(e.target.value) : null)}>
+              <option value="">{KINDS[kind].needsKey ? "Choose or paste a new key…" : "None"}</option>
+              {secrets.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.hint})</option>)}
+            </select>
+          </Field>
+          <Field label="…or paste a new key"><SecretInput value={newKey} onChange={setNewKey} placeholder="stored encrypted" /></Field>
+        </div>
         <Field label="Default model" hint={!models.length ? "Press Test connection to load the list."
           : f.default_model && !models.includes(f.default_model) ? <span className="error">"{f.default_model}" is not in this provider's list. Pick one or calls will fail.</span> : undefined}>
           <ModelPicker models={models} value={f.default_model ?? ""} onChange={(v) => set("default_model", v)} />

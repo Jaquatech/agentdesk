@@ -23,7 +23,7 @@ needed for the matching feature:
 | GitHub CLI (`gh`) | opening and merging pull requests for GitHub projects |
 | Azure CLI (`az`) with the DevOps extension | opening pull requests for Azure DevOps projects |
 | Claude Code CLI (`claude`) | agents on the *Claude Code CLI* provider type |
-| Ollama | local models |
+| Ollama | local models, or Ollama Cloud (Base URL `https://ollama.com` + API key) |
 
 An API key (Anthropic or OpenAI-compatible) is only needed for real work; `npm run demo` runs without one.
 

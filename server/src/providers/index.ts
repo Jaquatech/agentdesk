@@ -9,6 +9,7 @@ import { ClaudeCliEngine } from "../engines/claudeCli.ts";
 import { DemoEngine } from "../engines/demo.ts";
 import { runProgram } from "../orchestrator/shell.ts";
 import { findPrice } from "../pricing.ts";
+import { ollamaRoot } from "./capabilities.ts";
 
 export type ProviderRow = {
   id: number; name: string; kind: ProviderKind; base_url: string; secret_id: number | null;
@@ -23,7 +24,8 @@ export const DEFAULT_BASE_URL: Record<ProviderKind, string> = {
 };
 
 export function makeChatProvider(kind: ProviderKind, baseUrl: string, apiKey?: string): ChatProvider | undefined {
-  const url = baseUrl || DEFAULT_BASE_URL[kind];
+  // Ollama: local (no key) or Ollama Cloud (https://ollama.com + API key). A pasted /api/chat style URL is reduced to the root.
+  const url = kind === "ollama" && baseUrl.trim() ? `${ollamaRoot(baseUrl)}/v1` : baseUrl || DEFAULT_BASE_URL[kind];
   if (kind === "anthropic") return new AnthropicProvider(url, apiKey ?? "");
   if (kind === "openai" || kind === "ollama") return new OpenAICompatibleProvider(url, apiKey);
   return undefined;
