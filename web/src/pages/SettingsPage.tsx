@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { get, post, put, del } from "../api.ts";
 import { Field } from "../components/ui.tsx";
 import { OFFICE_STYLES } from "../office/palette.ts";
+import { FEATURE_LABELS } from "../office/layout.ts";
+import { LOGO_COLORS, LOGO_GLYPHS, LOGO_SHAPES, shrinkImage } from "../office/logo.ts";
+import { LogoMark } from "../office/LogoMark.tsx";
 
 
 export function SettingsPage({ onChanged }: { onChanged: () => void }) {
@@ -44,6 +47,60 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
           </div>
           <div className="row" style={{ gap: 6 }}>
             {(() => { const o = OFFICE_STYLES[s.office_style] ?? OFFICE_STYLES.nordic; return [o.wall, o.floorA, o.desk, o.sofa, o.rug, o.sign].map((c, i) => <span key={i} className="swatch" style={{ background: c, width: 28, height: 18 }} />); })()}
+          </div>
+        </div>
+
+        <div className="section-title"><h2>Office features</h2></div>
+        <div className="card card-pad">
+          <div className="feature-grid">
+            {FEATURE_LABELS.map((f) => (
+              <label key={f.key} className="feature-opt" title={f.hint}>
+                <input type="checkbox" checked={s[`office_${f.key}`] !== "false"} onChange={(e) => set(`office_${f.key}`, e.target.checked ? "true" : "false")} />
+                <span><b>{f.label}</b><span className="hint">{f.hint}</span></span>
+              </label>
+            ))}
+          </div>
+          <div className="hint" style={{ marginTop: 8 }}>Idle agents walk to whatever is switched on: they play the arcade, try the slot machine, get coffee or sit on the sofa. Team rooms use the teams from the Teams page.</div>
+        </div>
+
+        <div className="section-title"><h2>Company logo</h2></div>
+        <div className="card card-pad">
+          <div className="logo-editor">
+            <div className="logo-preview"><LogoMark settings={s} size={96} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="grid2">
+                <Field label="Shape">
+                  <select value={s.logo_shape} onChange={(e) => set("logo_shape", e.target.value)}>
+                    {LOGO_SHAPES.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                  </select>
+                </Field>
+                <Field label="Symbol">
+                  <select value={s.logo_glyph} onChange={(e) => set("logo_glyph", e.target.value)}>
+                    {LOGO_GLYPHS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <Field label="Colour" hint="Auto follows the office style.">
+                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                  <button type="button" className={`btn small${s.logo_color === "auto" ? " primary" : ""}`} onClick={() => set("logo_color", "auto")}>Auto</button>
+                  {LOGO_COLORS.map((c) => (
+                    <button key={c} type="button" title={c} aria-label={c} onClick={() => set("logo_color", c)}
+                      className="swatch" style={{ background: c, width: 26, height: 26, border: s.logo_color === c ? "2px solid var(--text)" : "2px solid transparent", cursor: "pointer" }} />
+                  ))}
+                </div>
+              </Field>
+              <Field label="Or use your own image" hint="PNG, JPG or SVG. It replaces the generated mark (shrunk to 256 px and stored in your local settings).">
+                <div className="row" style={{ gap: 8 }}>
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    try { set("logo_image", await shrinkImage(f)); } catch (err) { setMsg((err as Error).message); }
+                    e.target.value = "";
+                  }} />
+                  {s.logo_image && <button type="button" className="btn small" onClick={() => set("logo_image", "")}>Remove image</button>}
+                </div>
+              </Field>
+            </div>
           </div>
         </div>
 

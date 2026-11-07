@@ -1,20 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import { get, parseJson, useLiveEvents, type Activity, type Agent, type AgentState } from "../api.ts";
-import { OfficeScene, W, H, roleColor, type OfficeAgent } from "./scene.ts";
+import { OfficeScene, roleColor, type OfficeAgent } from "./scene.ts";
 import { OFFICE_STYLES, lookFor } from "./palette.ts";
+import { featuresFromSettings } from "./layout.ts";
+import { loadImage, logoSpecFromSettings } from "./logo.ts";
 
-type OfficeData = { settings: Record<string, string>; agents: Pick<Agent, "id" | "name" | "role" | "appearance" | "enabled">[]; activity: Activity[] };
+type OfficeData = {
+  settings: Record<string, string>;
+  agents: Pick<Agent, "id" | "name" | "role" | "appearance" | "enabled">[];
+  teams?: { id: number; name: string; members: number[] }[];
+  activity: Activity[];
+};
 
 const STATE_LABEL: Record<AgentState, string> = {
   idle: "on a break", thinking: "thinking", reading: "reading code", typing: "writing code",
   running: "running a command", reviewing: "reviewing", waiting: "waiting for checks", error: "hit a problem",
 };
 
-/** The pixel office: one desk per agent; idle agents hang out in the lounge. */
+/** The office: an isometric room with one desk per agent; idle agents hang out in the lounge. */
 export function Office({ chatId }: { chatId?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef(new OfficeScene());
+  const styleRef = useRef(OFFICE_STYLES.nordic);
   const [data, setData] = useState<OfficeData | null>(null);
   const [activity, setActivity] = useState<Map<number, Activity>>(new Map());
   const [selected, setSelected] = useState<number | null>(null);
@@ -35,7 +43,17 @@ export function Office({ chatId }: { chatId?: number }) {
   useEffect(() => {
     if (!data) return;
     const scene = sceneRef.current;
-    scene.company = data.settings.company_name || "My Company";
+    styleRef.current = OFFICE_STYLES[data.settings.office_style] ?? OFFICE_STYLES.nordic;
+    let cancelled = false;
+    loadImage(data.settings.logo_image || "").then((img) => {
+      if (cancelled) return;
+      scene.configure({ features: featuresFromSettings(data.settings), teams: data.teams ?? [], logo: logoSpecFromSettings(data.settings, img) });
+    });
+    return () => { cancelled = true; };
+  }, [data]);
+
+  useEffect(() => {
+    if (!data) return;
     const agents: OfficeAgent[] = data.agents.filter((a) => a.enabled).map((a) => {
       const act = activity.get(a.id);
       return {
@@ -43,29 +61,25 @@ export function Office({ chatId }: { chatId?: number }) {
         state: act?.state ?? "idle", detail: act?.detail,
       };
     });
-    scene.setAgents(agents);
+    sceneRef.current.setAgents(agents);
   }, [data, activity]);
+
+  useEffect(() => { sceneRef.current.selected = selected; }, [selected]);
 
   // render loop
   useEffect(() => {
     const canvas = canvasRef.current!, stage = stageRef.current!;
     const ctx = canvas.getContext("2d")!;
     let raf = 0, last = performance.now();
-    let layout = { scale: 1, ox: 0, oy: 0 };
-    const off = document.createElement("canvas");
-    off.width = W; off.height = H;
-    const octx = off.getContext("2d")!;
+    let dpr = 1;
 
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
+      dpr = window.devicePixelRatio || 1;
       const r = stage.getBoundingClientRect();
       canvas.width = Math.max(1, Math.floor(r.width * dpr));
       canvas.height = Math.max(1, Math.floor(r.height * dpr));
       canvas.style.width = `${r.width}px`;
       canvas.style.height = `${r.height}px`;
-      const fit = Math.min(canvas.width / W, canvas.height / H);
-      const scale = fit >= 2 ? Math.floor(fit) : fit; // integer scaling keeps pixels crisp
-      layout = { scale, ox: Math.floor((canvas.width - W * scale) / 2), oy: Math.floor((canvas.height - H * scale) / 2) };
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -73,32 +87,21 @@ export function Office({ chatId }: { chatId?: number }) {
 
     const frame = (now: number) => {
       const scene = sceneRef.current;
-      const style = OFFICE_STYLES[data?.settings.office_style ?? "nordic"] ?? OFFICE_STYLES.nordic;
-      scene.update(Math.min(64, now - last), now);
+      scene.update(Math.min(64, now - last), Date.now());
       last = now;
-      octx.imageSmoothingEnabled = false;
-      octx.clearRect(0, 0, W, H);
-      scene.draw(octx, style, now);
-      ctx.fillStyle = style.backdrop;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(off, layout.ox, layout.oy, W * layout.scale, H * layout.scale);
-      scene.drawLabels(ctx, style, layout.scale, layout.ox, layout.oy, now);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      scene.draw(ctx, canvas.width / dpr, canvas.height / dpr, styleRef.current, now);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
 
-    const toScene = (e: MouseEvent) => {
-      const r = canvas.getBoundingClientRect();
-      const dpr = canvas.width / r.width;
-      return { x: ((e.clientX - r.left) * dpr - layout.ox) / layout.scale, y: ((e.clientY - r.top) * dpr - layout.oy) / layout.scale };
-    };
+    const toCanvas = (e: MouseEvent) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
     const move = (e: MouseEvent) => {
-      const p = toScene(e);
+      const p = toCanvas(e);
       sceneRef.current.hover = sceneRef.current.hitTest(p.x, p.y);
       canvas.style.cursor = sceneRef.current.hover ? "pointer" : "default";
     };
-    const click = (e: MouseEvent) => { const p = toScene(e); setSelected(sceneRef.current.hitTest(p.x, p.y)); };
+    const click = (e: MouseEvent) => { const p = toCanvas(e); setSelected(sceneRef.current.hitTest(p.x, p.y)); };
     canvas.addEventListener("mousemove", move);
     canvas.addEventListener("click", click);
     return () => {
@@ -107,7 +110,7 @@ export function Office({ chatId }: { chatId?: number }) {
       canvas.removeEventListener("mousemove", move);
       canvas.removeEventListener("click", click);
     };
-  }, [data]);
+  }, []);
 
   const agents = data?.agents.filter((a) => a.enabled) ?? [];
   const sel = agents.find((a) => a.id === selected);

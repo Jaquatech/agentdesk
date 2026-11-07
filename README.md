@@ -2,8 +2,8 @@
 
 A local AI development team that runs on your own machine. You chat with a **planner**; it reads the code and
 splits the work into tasks. **Developer** agents build each task in its own git branch and worktree, the project's
-checks run, a **reviewer** (QA) approves or sends it back for a fix round, and you merge. A pixel-art **office**
-shows who is working, reviewing or taking a break on the sofa.
+checks run, a **reviewer** (QA) approves or sends it back for a fix round, and you merge. An isometric **office**
+shows who is working, reviewing or taking a break (coffee, sofa, arcade, slot machine).
 
 - Runs locally: the server listens on `127.0.0.1` only. Only the server calls model APIs; API keys are encrypted on
   disk and never sent to the browser.
@@ -210,6 +210,18 @@ you set the priority (▲▼)
 - Release needs the project folder on the base branch and clean (like a local merge). If pushing is refused (protected branch), the merge
   stays local and the message says so.
 
+## The office
+
+The Office page is an isometric room drawn in code. Every agent has a desk; working agents sit at it with a speech
+bubble for what they do, idle agents walk to the lounge: they play the (animated) invaders cabinet, pull the slot
+machine, get coffee, sit on the sofa in front of the TV or chat. Click an agent to see its state.
+
+Settings > Office controls it: company name, colour style, **features** (team rooms, plants, coffee corner, sofa and
+TV, coffee table, arcade, slot machine, decorations) and the **company logo**: pick a shape, symbol and colour, or
+upload your own picture (shrunk to 256 px). The logo shows on the office wall, the sign and the sidebar.
+With **team rooms** on and two or more teams that have members, each team gets its own glass room; agents without a
+team share the open space.
+
 ## Spending limits
 
 Settings has two optional caps in USD: per day (all agent calls since local midnight) and per sprint (refinement of its items included).
@@ -321,7 +333,7 @@ Agents never get a free hand. Every rule below is enforced by the server, not by
 | UI pages | `web/src/pages/` |
 | Office scene (drawn in code, no image assets) | `web/src/office/` |
 
-Office styles live in `web/src/office/palette.ts`; add one there and it appears in Settings.
+Office styles live in `web/src/office/palette.ts`; add one there and it appears in Settings. Layout (rooms, desks, break spots, walking routes) is pure data in `layout.ts`; `props.ts` draws furniture and the games, `people.ts` the characters, `logo.ts` the emblem.
 
 ## License
 

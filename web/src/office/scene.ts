@@ -1,17 +1,13 @@
 import type { AgentState, Role } from "../api.ts";
 import type { Look, OfficeStyle } from "./palette.ts";
-import { drawCharacter, drawPlant, px, shade, type Ctx } from "./draw.ts";
-
-/** The office: a fixed room, one desk per agent, a lounge for idle agents. Logical size 384×224. */
-export const W = 384;
-export const H = 224;
-const WALL_H = 52;
-const LANE_X = 246; // open walkway between desks and lounge
-const DESK_W = 40;
-const DESK_COLS = 4;
-const DESK_X0 = 18;
-const DESK_DX = 56;
-const ROW_Y = [92, 138, 184]; // desk top edge per row; agents sit just above it
+import { Iso, HH, UZ, shade, roundRectPath, type Ctx } from "./iso.ts";
+import {
+  DEFAULT_FEATURES, WALL_Z, buildLayout, deskExit, routeBetween, spotExit,
+  type Desk, type Features, type Layout, type Pt, type Spot, type TeamInfo,
+} from "./layout.ts";
+import { drawPerson, personHeight, type Dir, type Pose } from "./people.ts";
+import { renderLogo, type LogoSpec } from "./logo.ts";
+import * as P from "./props.ts";
 
 export type OfficeAgent = {
   id: number; name: string; role: Role; look: Look;
@@ -19,310 +15,335 @@ export type OfficeAgent = {
 };
 
 type Sprite = {
-  id: number; x: number; y: number; path: { x: number; y: number }[];
-  spot: string; facing: 1 | -1; arrivedAt: number;
+  id: number; x: number; y: number; path: Pt[]; dir: Dir;
+  at: string; exit: Pt[]; spotKey: string; spotUntil: number;
 };
 
-type Spot = { key: string; x: number; y: number; pose: "sit" | "sitBack" | "stand"; holding?: "cup" };
-
-const LOUNGE: Spot[] = [
-  { key: "sofa-1", x: 298, y: 156, pose: "sitBack" },
-  { key: "sofa-2", x: 314, y: 156, pose: "sitBack" },
-  { key: "sofa-3", x: 330, y: 156, pose: "sitBack" },
-  { key: "coffee", x: 268, y: 74, pose: "stand", holding: "cup" },
-  { key: "beanbag-1", x: 276, y: 204, pose: "sitBack" },
-  { key: "beanbag-2", x: 356, y: 204, pose: "sitBack" },
-  { key: "window", x: 362, y: 92, pose: "stand", holding: "cup" },
-  { key: "plant", x: 262, y: 118, pose: "stand" },
-];
-
-export function deskPos(i: number) {
-  const row = Math.floor(i / DESK_COLS) % ROW_Y.length;
-  const col = i % DESK_COLS;
-  return { x: DESK_X0 + col * DESK_DX, y: ROW_Y[row] };
-}
-const seatOf = (i: number) => { const d = deskPos(i); return { x: d.x + DESK_W / 2, y: d.y }; };
-
-export class OfficeScene {
-  private sprites = new Map<number, Sprite>();
-  agents: OfficeAgent[] = [];
-  company = "My Company";
-  hover: number | null = null;
-
-  setAgents(agents: OfficeAgent[]) {
-    this.agents = agents;
-    for (const a of agents) {
-      if (!this.sprites.has(a.id)) {
-        const desk = this.deskIndex(a.id);
-        const s = seatOf(desk);
-        this.sprites.set(a.id, { id: a.id, x: s.x, y: s.y, path: [], spot: `desk`, facing: 1, arrivedAt: 0 });
-      }
-    }
-    for (const id of [...this.sprites.keys()]) if (!agents.some((a) => a.id === id)) this.sprites.delete(id);
-  }
-
-  private deskIndex(id: number) {
-    // Planners first, then developers, then reviewers: the architect sits at the front.
-    const order = [...this.agents].sort((a, b) => roleRank(a.role) - roleRank(b.role) || a.id - b.id);
-    return Math.max(0, order.findIndex((a) => a.id === id));
-  }
-
-  private loungeSpot(id: number): Spot {
-    const idle = this.agents.filter((a) => a.state === "idle").sort((a, b) => a.id - b.id);
-    const i = Math.max(0, idle.findIndex((a) => a.id === id));
-    // Rotate who gets the sofa every few minutes so everyone gets to play.
-    const shift = Math.floor(Date.now() / 180_000);
-    return LOUNGE[(i + shift) % LOUNGE.length];
-  }
-
-  /** Advances walking; call every frame. */
-  update(dt: number, now: number) {
-    for (const a of this.agents) {
-      const sp = this.sprites.get(a.id)!;
-      const working = a.state !== "idle";
-      const targetKey = working ? "desk" : this.loungeSpot(a.id).key;
-      if (sp.spot !== targetKey) {
-        const target = working ? seatOf(this.deskIndex(a.id)) : this.loungeSpot(a.id);
-        sp.path = route(sp, target);
-        sp.spot = targetKey;
-      }
-      if (sp.path.length) {
-        const next = sp.path[0];
-        const dx = next.x - sp.x, dy = next.y - sp.y;
-        const dist = Math.hypot(dx, dy);
-        const step = dt * 0.045; // px per ms
-        if (dx) sp.facing = dx > 0 ? 1 : -1;
-        if (dist <= step) { sp.x = next.x; sp.y = next.y; sp.path.shift(); if (!sp.path.length) sp.arrivedAt = now; }
-        else { sp.x += (dx / dist) * step; sp.y += (dy / dist) * step; }
-      }
-    }
-  }
-
-  hitTest(x: number, y: number): number | null {
-    for (const a of this.agents) {
-      const sp = this.sprites.get(a.id)!;
-      if (Math.abs(x - sp.x) <= 6 && y <= sp.y + 1 && y >= sp.y - 20) return a.id;
-    }
-    return null;
-  }
-
-  // ---------- drawing ----------
-
-  draw(ctx: Ctx, s: OfficeStyle, t: number) {
-    this.drawRoom(ctx, s, t);
-    const anyGaming = this.agents.some((a) => a.state === "idle" && this.atSpot(a.id) && this.loungeSpot(a.id).key.startsWith("sofa"));
-    this.drawTv(ctx, s, t, anyGaming);
-
-    // Depth sort: desks and people by their baseline.
-    type Item = { z: number; draw: () => void };
-    const items: Item[] = [];
-    const deskCount = Math.max(this.agents.length, 4);
-    for (let i = 0; i < Math.min(deskCount, DESK_COLS * ROW_Y.length); i++) {
-      const owner = this.agents.find((a) => this.deskIndex(a.id) === i);
-      const d = deskPos(i);
-      items.push({ z: d.y + 12, draw: () => this.drawDesk(ctx, s, d.x, d.y, owner, t) });
-    }
-    items.push({ z: 168, draw: () => this.drawSofa(ctx, s) });
-    items.push({ z: 210, draw: () => this.drawBeanbags(ctx, s) });
-    for (const a of this.agents) {
-      const sp = this.sprites.get(a.id)!;
-      const atDesk = !sp.path.length && sp.spot === "desk";
-      const spot = !sp.path.length && sp.spot !== "desk" ? LOUNGE.find((l) => l.key === sp.spot) : undefined;
-      const z = atDesk ? sp.y + 1 : spot?.pose === "sitBack" ? sp.y + 20 : sp.y;
-      items.push({
-        z, draw: () => {
-          const pose = sp.path.length ? "walk" : atDesk ? (["typing", "running"].includes(a.state) ? "type" : "sit") : spot?.pose ?? "stand";
-          drawCharacter(ctx, sp.x, sp.y, a.look, pose, t + a.id * 97, { facing: sp.path.length ? sp.facing : undefined, holding: spot?.holding });
-          if (this.hover === a.id) { ctx.globalAlpha = 0.35; px(ctx, sp.x - 6, sp.y + 1, 12, 1, "#ffffff"); ctx.globalAlpha = 1; }
-        },
-      });
-    }
-    items.sort((a, b) => a.z - b.z).forEach((i) => i.draw());
-
-    // light overlay for the night style
-    if (s.label === "Night shift") { ctx.globalAlpha = 0.12; px(ctx, 0, 0, W, H, "#000020"); ctx.globalAlpha = 1; }
-  }
-
-  private atSpot(id: number) { const sp = this.sprites.get(id); return !!sp && !sp.path.length; }
-
-  /** Text pass on the full-resolution canvas: company sign, name tags, speech bubbles. */
-  drawLabels(ctx: Ctx, s: OfficeStyle, scale: number, ox: number, oy: number, t: number) {
-    const X = (x: number) => ox + x * scale, Y = (y: number) => oy + y * scale;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = s.signText;
-    ctx.font = `600 ${Math.max(10, Math.round(scale * 4.2))}px ${getComputedStyle(document.body).fontFamily}`;
-    ctx.fillText(this.company.slice(0, 28), X(82), Y(19));
-
-    const small = Math.max(10, Math.round(scale * 3.3));
-    for (const a of this.agents) {
-      const sp = this.sprites.get(a.id)!;
-      const atDesk = !sp.path.length && sp.spot === "desk";
-      // name tag
-      ctx.font = `500 ${small}px ${getComputedStyle(document.body).fontFamily}`;
-      const label = a.name;
-      const w = ctx.measureText(label).width + 8;
-      const ny = atDesk ? Y(sp.y + 15) : Y(sp.y + 4);
-      ctx.fillStyle = "rgba(15,18,16,.72)";
-      roundRect(ctx, X(sp.x) - w / 2, ny - small * 0.7, w, small * 1.4, 4);
-      ctx.fillStyle = roleColor(a.role);
-      ctx.fillText(label, X(sp.x), ny);
-
-      // bubble
-      const bubble = bubbleText(a, atDesk);
-      if (!bubble) continue;
-      const text = bubble.length > 34 ? bubble.slice(0, 33) + "…" : bubble;
-      const bw = ctx.measureText(text).width + 12;
-      const by = Y(sp.y - 25) - (Math.floor(t / 600) % 2 ? 1 : 0);
-      const bx = Math.min(Math.max(X(sp.x) - bw / 2, ox + 2), ox + W * scale - bw - 2);
-      ctx.fillStyle = a.state === "error" ? "#b8433a" : "rgba(255,253,248,.95)";
-      roundRect(ctx, bx, by - small * 0.8, bw, small * 1.6, 6);
-      ctx.beginPath();
-      ctx.moveTo(X(sp.x) - 4, by + small * 0.8);
-      ctx.lineTo(X(sp.x) + 4, by + small * 0.8);
-      ctx.lineTo(X(sp.x), by + small * 0.8 + 5);
-      ctx.fill();
-      ctx.fillStyle = a.state === "error" ? "#fff" : "#1f2421";
-      ctx.fillText(text, bx + bw / 2, by);
-    }
-  }
-
-  private drawRoom(ctx: Ctx, s: OfficeStyle, t: number) {
-    // floor planks
-    for (let y = WALL_H; y < H; y += 8) {
-      for (let x = 0; x < W + 32; x += 32) {
-        const off = ((y / 8) % 2) * 16;
-        px(ctx, x - off, y, 32, 8, ((x + y) / 8) % 3 === 0 ? s.floorB : s.floorA);
-        px(ctx, x - off, y + 7, 32, 1, s.floorLine);
-        px(ctx, x - off + 31, y, 1, 8, s.floorLine);
-      }
-    }
-    // wall
-    px(ctx, 0, 0, W, WALL_H, s.wall);
-    for (let x = 0; x < W; x += 24) px(ctx, x, 0, 1, WALL_H - 6, s.wallShadow);
-    px(ctx, 0, WALL_H - 6, W, 4, s.wallTrim);
-    px(ctx, 0, WALL_H - 2, W, 2, shade(s.wallTrim, -0.1));
-
-    // company sign
-    px(ctx, 22, 8, 120, 22, shade(s.sign, -0.15));
-    px(ctx, 21, 7, 120, 22, s.sign);
-    // window with sky
-    const wx = 168, wy = 6, ww = 64, wh = 34;
-    px(ctx, wx - 2, wy - 2, ww + 4, wh + 4, s.windowFrame);
-    for (let i = 0; i < wh; i++) px(ctx, wx, wy + i, ww, 1, i < wh / 2 ? s.sky[0] : s.sky[1]);
-    const cloudX = wx + ((t / 300) % (ww + 20)) - 20;
-    if (s.label !== "Night shift") { px(ctx, Math.max(wx, cloudX), wy + 8, Math.min(14, wx + ww - Math.max(wx, cloudX)), 4, "#ffffffcc"); }
-    else { for (let i = 0; i < 9; i++) px(ctx, wx + ((i * 23) % ww), wy + ((i * 11) % 14) + 2, 1, 1, Math.floor(t / 500 + i) % 3 ? "#ffffff" : "#8899ff"); }
-    px(ctx, wx + ww / 2 - 1, wy, 2, wh, s.windowFrame);
-    px(ctx, wx, wy + wh / 2 - 1, ww, 2, s.windowFrame);
-    // clock
-    px(ctx, 246, 10, 14, 14, "#f4f1ea");
-    px(ctx, 252, 12, 1, 6, "#1f2421");
-    const ang = (t / 1000) * (Math.PI / 30);
-    px(ctx, Math.round(252 + Math.cos(ang) * 4), Math.round(17 + Math.sin(ang) * 4), 1, 1, "#b8433a");
-    // whiteboard above the architect's desk
-    px(ctx, 18, 34, 40, 2, "#9a9a9a");
-    // rug in the lounge
-    px(ctx, 270, 112, 104, 76, s.rugEdge);
-    px(ctx, 272, 114, 100, 72, s.rug);
-    for (let x = 276; x < 370; x += 8) px(ctx, x, 118, 4, 1, shade(s.rug, 0.08));
-    // coffee machine + counter
-    px(ctx, 256, 52, 34, 14, s.desk);
-    px(ctx, 256, 52, 34, 2, s.deskTop);
-    px(ctx, 260, 38, 12, 14, "#3a3f45");
-    px(ctx, 262, 40, 8, 3, "#b8433a");
-    px(ctx, 264, 46, 4, 4, "#f4f1ea");
-    if (Math.floor(t / 300) % 4 === 0) px(ctx, 265, 34, 1, 2, "#ffffff88");
-    // plants and lamp
-    drawPlant(ctx, 2, 214, s, true, t);
-    drawPlant(ctx, 236, 86, s, false, t);
-    drawPlant(ctx, 370, 70, s, true, t);
-    px(ctx, 238, 160, 2, 40, "#2b2b2b");
-    px(ctx, 234, 156, 10, 5, s.lamp);
-  }
-
-  private drawTv(ctx: Ctx, s: OfficeStyle, t: number, gaming: boolean) {
-    const x = 292, y = 10, w = 52, h = 30;
-    px(ctx, x - 2, y - 2, w + 4, h + 4, "#16181c");
-    px(ctx, x, y, w, h, gaming ? "#0b1a2a" : "#1d2430");
-    if (gaming) {
-      // a little pong match
-      const by = y + 4 + Math.abs(((t / 12) % (2 * (h - 8))) - (h - 8));
-      const bx = x + 4 + Math.abs(((t / 9) % (2 * (w - 8))) - (w - 8));
-      px(ctx, x + 3, Math.min(y + h - 9, Math.max(y + 1, by - 3)), 2, 8, "#6ee7b7");
-      px(ctx, x + w - 5, Math.min(y + h - 9, Math.max(y + 1, by - 2 + Math.sin(t / 300) * 3)), 2, 8, "#fbbf24");
-      px(ctx, bx, by, 2, 2, "#ffffff");
-      for (let i = y + 2; i < y + h - 2; i += 4) px(ctx, x + w / 2, i, 1, 2, "#ffffff55");
-    } else {
-      const glow = Math.floor(t / 1500) % 3;
-      px(ctx, x + 18 + glow * 4, y + 12, 8, 6, shade(s.lamp, -0.2));
-    }
-    // console under the TV
-    px(ctx, x + 18, y + h + 4, 16, 4, "#2b2f36");
-    px(ctx, x + 30, y + h + 5, 2, 1, gaming ? "#6ee7b7" : "#555");
-  }
-
-  private drawSofa(ctx: Ctx, s: OfficeStyle) {
-    // seen from behind: the people on it face the TV
-    const x = 286, y = 150;
-    px(ctx, x, y, 56, 16, s.sofa);
-    px(ctx, x, y, 56, 3, shade(s.sofa, 0.08));
-    px(ctx, x - 4, y + 2, 5, 14, s.sofaDark);
-    px(ctx, x + 55, y + 2, 5, 14, s.sofaDark);
-    px(ctx, x + 18, y + 3, 1, 12, s.sofaDark);
-    px(ctx, x + 37, y + 3, 1, 12, s.sofaDark);
-    px(ctx, x, y + 16, 56, 2, shade(s.sofaDark, -0.15));
-  }
-
-  private drawBeanbags(ctx: Ctx, s: OfficeStyle) {
-    for (const bx of [270, 350]) {
-      px(ctx, bx, 198, 14, 10, s.sofaDark);
-      px(ctx, bx + 1, 197, 12, 3, s.sofa);
-    }
-  }
-
-  private drawDesk(ctx: Ctx, s: OfficeStyle, x: number, y: number, owner: OfficeAgent | undefined, t: number) {
-    // chair back (behind the person)
-    // desk
-    px(ctx, x, y, DESK_W, 4, s.deskTop);
-    px(ctx, x, y + 4, DESK_W, 8, s.desk);
-    px(ctx, x, y + 11, DESK_W, 1, s.deskEdge);
-    px(ctx, x + 2, y + 12, 2, 6, s.deskEdge);
-    px(ctx, x + DESK_W - 4, y + 12, 2, 6, s.deskEdge);
-    // monitor (we see its back; the screen light spills onto the desk)
-    const working = owner && owner.state !== "idle";
-    px(ctx, x + 4, y - 7, 14, 9, "#2b2f36");
-    px(ctx, x + 10, y + 1, 2, 2, "#2b2f36");
-    if (working) {
-      ctx.globalAlpha = 0.25 + 0.1 * Math.sin(t / 200);
-      px(ctx, x + 3, y, 16, 3, owner!.state === "error" ? "#ff6b5e" : owner!.state === "running" ? "#6ee7b7" : "#9fd3ff");
-      ctx.globalAlpha = 1;
-    }
-    // role props
-    if (owner?.role === "planner") {
-      px(ctx, x + 26, y + 1, 10, 2, "#f4f1ea");
-      px(ctx, x + 27, y + 1, 6, 1, "#3f7fd0");
-    } else if (owner?.role === "reviewer") {
-      px(ctx, x + 26, y, 7, 3, "#f4f1ea");
-      px(ctx, x + 34, y - 1, 3, 3, "#c9cfd6");
-      px(ctx, x + 36, y + 1, 2, 1, "#8a6a3a");
-    } else if (owner) {
-      px(ctx, x + 30, y - 1, 3, 3, "#f4f1ea");
-      if (working && Math.floor(t / 500) % 2) px(ctx, x + 31, y - 3, 1, 1, "#ffffff88");
-    } else {
-      px(ctx, x + 22, y + 1, 8, 2, shade(s.deskTop, -0.06));
-    }
-  }
-}
-
-function roleRank(r: Role) { return r === "planner" ? 0 : r === "worker" ? 1 : 2; }
+type Item = { x0: number; x1: number; y0: number; y1: number; draw: () => void; shadow?: [number, number, number, number, number] };
 
 export function roleColor(r: Role) {
   return r === "planner" ? "#f2c66d" : r === "reviewer" ? "#9fd3ff" : "#9ee6b0";
 }
 
-function bubbleText(a: OfficeAgent, atDesk: boolean): string | null {
-  if (a.state === "idle") return null;
+const SPEED = 0.0026; // tiles per ms
+
+export class OfficeScene {
+  agents: OfficeAgent[] = [];
+  teams: TeamInfo[] = [];
+  features: Features = { ...DEFAULT_FEATURES };
+  company = "My Company";
+  logo: LogoSpec = { name: "My Company", shape: "circle", glyph: "monogram", color: "auto" };
+  hover: number | null = null;
+  selected: number | null = null;
+  layout: Layout = buildLayout([], [], DEFAULT_FEATURES);
+
+  private sprites = new Map<number, Sprite>();
+  private layoutKey = "";
+  private hits = new Map<number, { x: number; y: number; w: number; h: number }>();
+  private logoCanvas: HTMLCanvasElement | null = null;
+  private logoKey = "";
+  private logoImage: unknown = null;
+
+  configure(o: { features: Features; teams: TeamInfo[]; logo: LogoSpec }) {
+    this.features = o.features; this.teams = o.teams; this.logo = o.logo; this.company = o.logo.name;
+    this.rebuild();
+  }
+
+  setAgents(agents: OfficeAgent[]) {
+    this.agents = agents;
+    this.rebuild();
+    for (const id of [...this.sprites.keys()]) if (!agents.some((a) => a.id === id)) this.sprites.delete(id);
+    for (const a of agents) if (!this.sprites.has(a.id)) this.place(a);
+  }
+
+  private rebuild() {
+    const key = JSON.stringify([this.agents.map((a) => [a.id, a.role]), this.teams, this.features]);
+    if (key === this.layoutKey) return;
+    this.layoutKey = key;
+    this.layout = buildLayout(this.agents.map((a) => ({ id: a.id, role: a.role })), this.teams, this.features);
+    this.sprites.clear(); // everyone starts at the right place in the new layout
+    for (const a of this.agents) this.place(a);
+  }
+
+  private deskOf(id: number): Desk | undefined { return this.layout.desks.find((d) => d.agentId === id); }
+
+  private place(a: OfficeAgent) {
+    const w = this.wantedAnchor(a, Date.now(), new Set());
+    const p = w.exit[0];
+    this.sprites.set(a.id, { id: a.id, x: p.x, y: p.y, path: [], dir: "fl", at: w.key, exit: w.exit, spotKey: w.spot?.key ?? "", spotUntil: w.spot ? Date.now() + 20000 : 0 });
+  }
+
+  /** Where this agent wants to be right now: its desk when working, otherwise a spot in the lounge. */
+  private wantedAnchor(a: OfficeAgent, now: number, taken: Set<string>): { key: string; exit: Pt[]; spot?: Spot } {
+    const L = this.layout;
+    const desk = this.deskOf(a.id);
+    if (a.state !== "idle" && desk) return { key: "desk", exit: deskExit(L, desk) };
+    const sp = this.sprites.get(a.id);
+    let spot = sp && sp.spotKey ? L.spots.find((s) => s.key === sp.spotKey) : undefined;
+    if (!spot || (sp && sp.spotUntil < now) || (sp && sp.at === "desk")) {
+      const free = L.spots.filter((s) => !taken.has(s.key));
+      const pool = free.length ? free : L.spots;
+      const bucket = Math.floor(now / 7000);
+      let pick = pool[(a.id * 7 + bucket * 3 + ((a.id * 31) % 5)) % pool.length];
+      if (spot && pick.key === spot.key && pool.length > 1) pick = pool[(pool.indexOf(pick) + 1) % pool.length];
+      spot = pick;
+      if (sp) { sp.spotKey = spot.key; sp.spotUntil = now + 28000 + ((a.id * 977 + bucket * 131) % 32000); }
+    }
+    taken.add(spot.key);
+    return { key: spot.key, exit: spotExit(L, spot), spot };
+  }
+
+  /** Advances walking; call every frame. */
+  update(dt: number, now: number) {
+    const taken = new Set<string>();
+    for (const a of this.agents) {
+      const sp = this.sprites.get(a.id);
+      if (sp && sp.spotKey && a.state === "idle" && sp.at !== "desk") taken.add(sp.spotKey);
+    }
+    for (const a of this.agents) {
+      const sp = this.sprites.get(a.id);
+      if (!sp) continue;
+      if (!sp.path.length) {
+        const w = this.wantedAnchor(a, now, taken);
+        if (w.key !== sp.at) {
+          sp.path = routeBetween(sp.exit, w.exit);
+          sp.at = w.key;
+          sp.exit = w.exit;
+          if (w.spot) sp.spotKey = w.spot.key;
+        }
+      }
+      if (sp.path.length) {
+        const next = sp.path[0];
+        const dx = next.x - sp.x, dy = next.y - sp.y;
+        const dist = Math.hypot(dx, dy);
+        const step = dt * SPEED;
+        if (dist > 0.001) sp.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "fr" : "bl") : dy > 0 ? "fl" : "br";
+        if (dist <= step) { sp.x = next.x; sp.y = next.y; sp.path.shift(); }
+        else { sp.x += (dx / dist) * step; sp.y += (dy / dist) * step; }
+      }
+    }
+  }
+
+  /** Hit test in canvas pixels. */
+  hitTest(px: number, py: number): number | null {
+    let best: number | null = null, bestY = -1e9;
+    for (const [id, h] of this.hits) {
+      if (px >= h.x && px <= h.x + h.w && py >= h.y && py <= h.y + h.h && h.y > bestY) { best = id; bestY = h.y; }
+    }
+    return best;
+  }
+
+  private atSpot(sp: Sprite) { return !sp.path.length && sp.at !== "desk" ? this.layout.spots.find((s) => s.key === sp.at) : undefined; }
+
+  /* -------------------------------------------------------------- drawing */
+
+  private emblem(s: OfficeStyle) {
+    const key = [this.logo.name, this.logo.shape, this.logo.glyph, this.logo.color, s.label, s.sign].join("|");
+    if (!this.logoCanvas || key !== this.logoKey || (this.logo.image ?? null) !== this.logoImage) {
+      this.logoKey = key; this.logoImage = this.logo.image ?? null;
+      this.logoCanvas = renderLogo(this.logo, s, 256);
+    }
+    return this.logoCanvas;
+  }
+
+  /** Fits the room into the canvas and returns the projection. */
+  fit(w: number, h: number): Iso {
+    const L = this.layout;
+    const padX = 24, padTop = 30, padBottom = 40;
+    const widthU = L.cols + L.rows;
+    const heightU = (L.cols + L.rows) * HH + WALL_Z * UZ + 0.3;
+    const k = Math.max(8, Math.min((w - padX * 2) / widthU, (h - padTop - padBottom) / heightU, 64));
+    const totalH = heightU * k;
+    const ox = w / 2 - ((L.cols - L.rows) / 2) * k;
+    const oy = padTop + Math.max(0, (h - padTop - padBottom - totalH) / 2) + WALL_Z * UZ * k;
+    return new Iso(k, ox, oy);
+  }
+
+  draw(ctx: Ctx, w: number, h: number, s: OfficeStyle, t: number) {
+    const L = this.layout, F = this.features;
+    const iso = this.fit(w, h);
+    const bg = ctx.createRadialGradient(w / 2, h * 0.45, 40, w / 2, h * 0.5, Math.max(w, h) * 0.75);
+    bg.addColorStop(0, shade(s.backdrop, 0.07)); bg.addColorStop(1, shade(s.backdrop, -0.02));
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    ctx.lineJoin = "round";
+
+    // ---- room
+    P.drawFloor(ctx, iso, L, s);
+    P.drawBlockCarpets(ctx, iso, L);
+    if (F.decor || F.sofa || F.table) P.drawRug(ctx, iso, s, L.lounge.rug);
+    P.drawWalls(ctx, iso, L, s);
+
+    // windows, sign, clock, posters
+    const logoCx = L.zoneW / 2;
+    const signL = logoCx - 1.7 - 0.4, signR = logoCx + 1.7 + 0.4;
+    for (let x = 0.7; x + 2.2 < L.zoneW + 0.2; x += 3.5) {
+      if (x + 2.2 > signL && x < signR) continue;
+      P.drawWindow(ctx, iso, s, x, t, L);
+    }
+    P.drawLogoSign(ctx, iso, s, logoCx, this.company, this.emblem(s));
+    if (F.decor) {
+      P.drawClock(ctx, iso, L.lx + 6.9, t);
+      P.drawPosterBack(ctx, iso, s, L.lx + 0.4, 0);
+      P.drawPosterBack(ctx, iso, s, L.lx + 1.6, 2);
+    }
+    P.drawLeftWallDecor(ctx, iso, s, L, F.decor, t);
+
+    // ---- things with depth
+    const items: Item[] = [];
+    const add = (x0: number, y0: number, x1: number, y1: number, draw: () => void, shadow?: Item["shadow"]) => items.push({ x0, x1, y0, y1, draw, shadow });
+    const L2 = L.lounge;
+    const gaming = this.agents.some((a) => { const sp = this.sprites.get(a.id); const spot = sp && this.atSpot(sp); return a.state === "idle" && spot?.kind === "sofa"; });
+
+    for (const d of L.desks) {
+      const owner = d.agentId != null ? this.agents.find((a) => a.id === d.agentId) : undefined;
+      const sp = owner ? this.sprites.get(owner.id) : undefined;
+      const seated = !!sp && !sp.path.length && sp.at === "desk";
+      const info = owner ? { state: seated ? owner.state : ("idle" as AgentState), role: owner.role } : null;
+      add(d.x, d.y, d.x + 2, d.y + 1, () => P.drawDesk(ctx, iso, s, d, info, seated, F.plants, t), [d.x, d.y, 2, 1, 0.14]);
+    }
+    for (const b of L.blocks) {
+      if (F.plants) add(b.x + 0.35, b.y + b.h - 0.9, b.x + 0.75, b.y + b.h - 0.5, () => P.drawPlant(ctx, iso, s, b.x + 0.55, b.y + b.h - 0.7, !b.glass, t));
+      if (!b.glass) continue;
+      for (const seg of P.glassSegments(b)) {
+        add(Math.min(seg.x0, seg.x1) - 0.03, Math.min(seg.y0, seg.y1) - 0.03, Math.max(seg.x0, seg.x1) + 0.03, Math.max(seg.y0, seg.y1) + 0.03, () => P.drawGlassSegment(ctx, iso, seg, b.color));
+      }
+      const posts: Pt[] = [{ x: b.x + b.w, y: b.y + b.h }, { x: b.x + b.w - 1, y: b.y + b.h }];
+      if (b.y > 0) posts.push({ x: b.x + b.w, y: b.y });
+      if (b.x > 0) posts.push({ x: b.x, y: b.y + b.h });
+      if (b.x > 0 && b.y > 0) posts.push({ x: b.x, y: b.y });
+      for (const p of posts) add(p.x - 0.05, p.y - 0.05, p.x + 0.05, p.y + 0.05, () => P.drawGlassPost(ctx, iso, p.x, p.y, b.color));
+      add(b.x + b.w - 1, b.y + b.h - 0.5, b.x + b.w, b.y + b.h + 0.02, () => P.drawDoor(ctx, iso, b));
+    }
+    if (F.coffee) add(L2.counter.x, L2.counter.y, L2.counter.x + L2.counter.w, L2.counter.y + L2.counter.d, () => P.drawCounter(ctx, iso, s, L2.counter, t), [L2.counter.x, L2.counter.y, L2.counter.w, L2.counter.d, 0.16]);
+    if (F.sofa) {
+      add(L2.tv.x, 0, L2.tv.x + L2.tv.w, 0.5, () => P.drawTv(ctx, iso, s, L2, gaming, t), [L2.tv.x, 0, L2.tv.w, 0.5, 0.12]);
+      const f = L2.sofa;
+      add(f.x, f.y, f.x + f.w, f.y + f.d, () => P.drawSofa(ctx, iso, s, f), [f.x, f.y, f.w, f.d, 0.2]);
+    }
+    if (F.table) { const f = L2.table; add(f.x, f.y, f.x + f.w, f.y + f.d, () => P.drawCoffeeTable(ctx, iso, s, f), [f.x, f.y, f.w, f.d, 0.14]); }
+    if (F.arcade) { const f = L2.arcade; add(f.x, f.y, f.x + f.w + 0.2, f.y + f.d, () => P.drawArcade(ctx, iso, s, f, t), [f.x, f.y, f.w + 0.15, f.d, 0.2]); }
+    if (F.slots) { const f = L2.slots; add(f.x, f.y, f.x + f.w, f.y + f.d, () => P.drawSlots(ctx, iso, s, f, t), [f.x, f.y, f.w, f.d, 0.2]); }
+    if (F.decor) {
+      const f = L2.shelf; add(f.x, f.y, f.x + f.w, f.y + f.d, () => P.drawShelf(ctx, iso, s, f), [f.x, f.y, f.w, f.d, 0.14]);
+      add(L2.lamp.x - 0.2, L2.lamp.y - 0.2, L2.lamp.x + 0.2, L2.lamp.y + 0.2, () => P.drawLamp(ctx, iso, s, L2.lamp, !!s.dark));
+    }
+    if (F.plants) for (const p of L2.plants) add(p.x - 0.25, p.y - 0.25, p.x + 0.25, p.y + 0.25, () => P.drawPlant(ctx, iso, s, p.x, p.y, p.big, t));
+
+    // people
+    this.hits.clear();
+    const labels: (() => void)[] = [];
+    for (const a of this.agents) {
+      const sp = this.sprites.get(a.id);
+      if (!sp) continue;
+      const walking = sp.path.length > 0;
+      const spot = this.atSpot(sp);
+      let pose: Pose = "stand", dir: Dir = sp.dir, chair = false;
+      let bx0 = sp.x - 0.22, bx1 = sp.x + 0.22, by0 = sp.y - 0.22, by1 = sp.y + 0.22;
+      if (walking) pose = "walk";
+      else if (sp.at === "desk") {
+        pose = ["typing", "running"].includes(a.state) ? "type" : "sit"; dir = "fl"; chair = true;
+        const d = this.deskOf(a.id);
+        if (d) { by0 = d.y - 0.7; by1 = d.y - 0.001; }
+      } else if (spot) {
+        dir = spot.face === "front" ? "fl" : "br";
+        pose = spot.kind === "sofa" ? "sitBack" : spot.kind === "coffee" ? "coffee" : spot.kind === "arcade" ? "play" : spot.kind === "slots" ? "pull" : "chat";
+        if (spot.kind === "sofa") { by0 = L2.sofa.y - 0.6; by1 = L2.sofa.y - 0.001; }
+      }
+      const mood = a.state === "error" ? "error" : a.state === "thinking" ? "think" : "ok";
+      const [sx, sy] = iso.p(sp.x, sp.y);
+      const hgt = personHeight(iso.k);
+      this.hits.set(a.id, { x: sx - iso.k * 0.45, y: sy - hgt, w: iso.k * 0.9, h: hgt + iso.k * 0.25 });
+      items.push({
+        x0: bx0, x1: bx1, y0: by0, y1: by1,
+        draw: () => {
+          drawPerson(ctx, sx, sy, iso.k, a.look, { pose, dir, t: t + a.id * 97, mood, chair, chairColor: "#5d6877" });
+          if (this.hover === a.id || this.selected === a.id) {
+            ctx.strokeStyle = this.selected === a.id ? "#ffffff" : "#ffffffaa"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.ellipse(sx, sy + 1, iso.k * 0.42, iso.k * 0.2, 0, 0, Math.PI * 2); ctx.stroke();
+          }
+        },
+      });
+      const atDesk = !walking && sp.at === "desk";
+      labels.push(() => this.label(ctx, iso, a, sx, sy, hgt, walking, atDesk, spot, t));
+    }
+
+    // shadows first, then the sorted things
+    ctx.fillStyle = "#000";
+    for (const it of items) {
+      if (!it.shadow) continue;
+      const [x, y, ww, dd, al] = it.shadow;
+      ctx.globalAlpha = al;
+      ctx.beginPath();
+      [iso.p(x + 0.1, y + 0.1), iso.p(x + ww + 0.28, y + 0.1), iso.p(x + ww + 0.28, y + dd + 0.28), iso.p(x + 0.1, y + dd + 0.28)]
+        .forEach(([a, b], i) => (i ? ctx.lineTo(a, b) : ctx.moveTo(a, b)));
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    sortItems(items).forEach((i) => i.draw());
+
+    if (s.dark) { ctx.globalAlpha = 0.1; ctx.fillStyle = "#000030"; ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1; }
+
+    // team labels and name tags on top
+    for (const b of L.blocks) if (b.glass) this.teamLabel(ctx, iso, b);
+    labels.forEach((f) => f());
+  }
+
+  private teamLabel(ctx: Ctx, iso: Iso, b: Layout["blocks"][number]) {
+    const [x0, y] = iso.p(b.x + 0.2, b.y + b.h, 2.2);
+    const size = Math.max(11, Math.round(iso.k * 0.42));
+    ctx.font = `700 ${size}px system-ui, sans-serif`;
+    const text = b.name.length > 22 ? b.name.slice(0, 21) + "…" : b.name;
+    const tw = ctx.measureText(text).width + size * 1.6;
+    ctx.fillStyle = "rgba(14,18,16,.82)";
+    const x = x0 + tw / 2;
+    roundRectPath(ctx, x - tw / 2, y - size * 0.95, tw, size * 1.9, size * 0.95); ctx.fill();
+    ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(x - tw / 2 + size * 0.85, y, size * 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#f4f1ea"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(text, x - tw / 2 + size * 1.35, y + 0.5);
+  }
+
+  private label(ctx: Ctx, iso: Iso, a: OfficeAgent, sx: number, sy: number, hgt: number, walking: boolean, atDesk: boolean, spot: Spot | undefined, t: number) {
+    const small = Math.max(10, Math.round(iso.k * 0.36));
+    ctx.font = `600 ${small}px system-ui, sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const nw = ctx.measureText(a.name).width + 10;
+    // seated people are half hidden by their desk, so their tag sits above the head; others get it under the feet
+    const head = atDesk ? hgt - iso.k * 0.1 : hgt;
+    const tagY = atDesk ? sy - head - small * 0.8 : sy + iso.k * 0.32;
+    ctx.fillStyle = "rgba(15,18,16,.74)";
+    roundRectPath(ctx, sx - nw / 2, tagY - small * 0.75, nw, small * 1.5, small * 0.75); ctx.fill();
+    ctx.fillStyle = roleColor(a.role);
+    ctx.fillText(a.name, sx, tagY + 0.5);
+
+    const text = bubbleText(a, atDesk, walking, spot, t);
+    if (!text) return;
+    const shown = text.length > 34 ? text.slice(0, 33) + "…" : text;
+    const bw = ctx.measureText(shown).width + 14;
+    const by = (atDesk ? tagY - small * 1.9 : sy - hgt - small * 1.3) - (Math.floor(t / 600) % 2 ? 1 : 0);
+    ctx.fillStyle = a.state === "error" ? "#b8433a" : "rgba(255,253,248,.96)";
+    roundRectPath(ctx, sx - bw / 2, by - small * 0.85, bw, small * 1.7, small * 0.85); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(sx - 4, by + small * 0.8); ctx.lineTo(sx + 4, by + small * 0.8); ctx.lineTo(sx, by + small * 0.8 + 5); ctx.fill();
+    ctx.fillStyle = a.state === "error" ? "#fff" : "#1f2421";
+    ctx.fillText(shown, sx, by + 0.5);
+  }
+}
+
+const IDLE_TALK: Record<string, string[]> = {
+  arcade: ["🕹 one more round", "👾 they're coming!", "🏆 new high score"],
+  slots: ["🎰 feeling lucky", "🍒🍒🍒 ?", "💰 come on…"],
+  coffee: ["☕ refill", "☕ best part of the day"],
+  sofa: ["🎮 my turn next", "🛋 five more minutes"],
+  chat: ["💬 did you see the diff?", "💬 nice work"],
+};
+
+function bubbleText(a: OfficeAgent, atDesk: boolean, walking: boolean, spot: Spot | undefined, t: number): string | null {
+  if (a.state === "idle") {
+    if (walking || !spot) return null;
+    const slot = Math.floor((t + a.id * 3300) / 4500);
+    if (slot % 4 !== 0) return null;
+    const lines = IDLE_TALK[spot.kind];
+    return lines[Math.floor(slot / 4) % lines.length];
+  }
   if (!atDesk) return "on my way…";
   if (a.state === "waiting" && a.detail === "needs your OK") return "✋ needs your OK";
   const d = a.detail ? ` ${a.detail}` : "";
@@ -338,19 +359,30 @@ function bubbleText(a: OfficeAgent, atDesk: boolean): string | null {
   }
 }
 
-function route(from: { x: number; y: number }, to: { x: number; y: number }) {
-  // Along the own row to the walkway, along the walkway, then across to the target.
-  const pts = [{ x: LANE_X, y: from.y }, { x: LANE_X, y: to.y }, { x: to.x, y: to.y }];
-  return pts.filter((p, i) => i === pts.length - 1 || Math.hypot(p.x - from.x, p.y - from.y) > 0.5);
-}
-
-function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-  ctx.fill();
+/**
+ * Painter's order for boxes on a grid seen from +x,+y: A goes before B when A lies entirely at smaller x or
+ * smaller y. Pairs with no clear answer fall back to the distance of their centres.
+ */
+export function sortItems<T extends { x0: number; x1: number; y0: number; y1: number }>(items: T[]): T[] {
+  const n = items.length;
+  const key = items.map((i) => (i.x0 + i.x1) / 2 + (i.y0 + i.y1) / 2);
+  const before = (a: T, b: T) => a.x1 <= b.x0 + 1e-6 || a.y1 <= b.y0 + 1e-6;
+  const out: number[][] = Array.from({ length: n }, () => []);
+  const indeg = new Array<number>(n).fill(0);
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    const ab = before(items[i], items[j]), ba = before(items[j], items[i]);
+    if (ab && !ba) { out[i].push(j); indeg[j]++; }
+    else if (ba && !ab) { out[j].push(i); indeg[i]++; }
+  }
+  const done = new Array<boolean>(n).fill(false);
+  const result: T[] = [];
+  for (let c = 0; c < n; c++) {
+    let pick = -1;
+    for (let i = 0; i < n; i++) if (!done[i] && indeg[i] === 0 && (pick < 0 || key[i] < key[pick])) pick = i;
+    if (pick < 0) for (let i = 0; i < n; i++) if (!done[i] && (pick < 0 || key[i] < key[pick])) pick = i; // cycle: break it
+    done[pick] = true;
+    result.push(items[pick]);
+    for (const j of out[pick]) indeg[j]--;
+  }
+  return result;
 }

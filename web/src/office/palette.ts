@@ -11,6 +11,7 @@ export type OfficeStyle = {
   sign: string; signText: string;
   lamp: string;
   backdrop: string;
+  dark?: boolean;
 };
 
 export const OFFICE_STYLES: Record<string, OfficeStyle> = {
@@ -65,6 +66,7 @@ export const OFFICE_STYLES: Record<string, OfficeStyle> = {
     sign: "#4fd1c5", signText: "#0d1225",
     lamp: "#4fd1c5",
     backdrop: "#080a14",
+    dark: true,
   },
 };
 

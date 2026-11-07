@@ -423,6 +423,10 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
   app.get("/api/office", async () => ({
     settings: getSettings(db),
     agents: db.prepare("SELECT id, name, role, appearance, enabled FROM agents ORDER BY id").all(),
+    teams: (db.prepare("SELECT id, name FROM teams ORDER BY id").all() as { id: number; name: string }[]).map((t) => ({
+      ...t,
+      members: (db.prepare("SELECT agent_id FROM team_members WHERE team_id = ? ORDER BY agent_id").all(t.id) as { agent_id: number }[]).map((m) => m.agent_id),
+    })),
     activity: bus.snapshot(),
   }));
   // ---------- live events (Server-Sent Events) ----------

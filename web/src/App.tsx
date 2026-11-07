@@ -16,6 +16,7 @@ import { ScrumPage } from "./pages/ScrumPage.tsx";
 import { ApprovalsBar } from "./components/Approvals.tsx";
 import { BudgetBar } from "./components/BudgetBar.tsx";
 import { Office } from "./office/Office.tsx";
+import { LogoMark } from "./office/LogoMark.tsx";
 
 export type Route = { page: string; id?: number; tab?: string };
 
@@ -53,12 +54,12 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
   const [projects, setProjects] = useState<Project[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
-  const [company, setCompany] = useState("");
+  const [settings, setSettings] = useState<Record<string, string>>({});
 
   const reload = useCallback(() => {
     get<Project[]>("/api/projects").then(setProjects);
     get<Chat[]>("/api/chats").then(setChats);
-    get<Record<string, string>>("/api/settings").then((s) => setCompany(s.company_name));
+    get<Record<string, string>>("/api/settings").then(setSettings);
   }, []);
   useEffect(() => { reload(); }, [reload, route.page]);
   useLiveEvents((ev) => { if (ev.type === "message" || ev.type === "task") get<Chat[]>("/api/chats").then(setChats); });
@@ -81,8 +82,8 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
     <div className="shell">
       <aside className="side">
         <div className="side-head">
-          <Building2 size={20} color="#e8b04b" />
-          <div className="brand">AgentDesk<small>{company}</small></div>
+          <LogoMark settings={settings} size={30} />
+          <div className="brand">AgentDesk<small>{settings.company_name}</small></div>
         </div>
         <div className="side-scroll">
           {nav("tasks", "Running tasks", ListChecks)}
