@@ -360,13 +360,14 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       if (!clause) return bad(reply, `Unknown task group: ${group}`);
       where.push(clause);
     }
-    return db.prepare(`SELECT t.*, c.title AS chat_title, p.name AS project_name FROM tasks t
+    return db.prepare(`SELECT t.*, c.title AS chat_title, p.name AS project_name,
+      (SELECT s.number FROM sprints s WHERE s.id = t.sprint_id) AS sprint_number, (SELECT s.status FROM sprints s WHERE s.id = t.sprint_id) AS sprint_status FROM tasks t
       JOIN chats c ON c.id = t.chat_id JOIN projects p ON p.id = t.project_id
       ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY t.updated_at DESC LIMIT 200`).all(...args);
   });
   app.get("/api/tasks/:id", async (req, reply) => {
     const taskId = id((req.params as Body).id);
-    const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId);
+    const task = db.prepare(`SELECT t.*, (SELECT s.number FROM sprints s WHERE s.id = t.sprint_id) AS sprint_number, (SELECT s.status FROM sprints s WHERE s.id = t.sprint_id) AS sprint_status FROM tasks t WHERE t.id = ?`).get(taskId);
     if (!task) return bad(reply, "Not found", 404);
     // The list leaves out the (large) transcripts; /api/runs/:id has them.
     return { task, runs: db.prepare(`SELECT id, task_id, chat_id, agent_id, kind, round, model, engine, status, turns, cost_usd, tokens_in, cache_read,

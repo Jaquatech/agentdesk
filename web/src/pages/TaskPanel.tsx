@@ -27,10 +27,10 @@ const EMPTY: Record<TaskGroup, string> = {
 };
 
 /** Task list + detail. With `chatId` only that chat's tasks; without, every task across projects. */
-export function TaskPanel({ chatId, agents }: { chatId?: number; agents: Agent[] }) {
+export function TaskPanel({ chatId, agents, initialGroup, initialTask }: { chatId?: number; agents: Agent[]; initialGroup?: string; initialTask?: number }) {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [group, setGroup] = useState<TaskGroup>("active");
+  const [selected, setSelected] = useState<number | null>(initialTask ?? null);
+  const [group, setGroup] = useState<TaskGroup>(TABS.some((t) => t.id === initialGroup) ? (initialGroup as TaskGroup) : "active");
   const tasksRef = useRef<Task[]>([]);
   tasksRef.current = tasks;
 
@@ -130,6 +130,7 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
         <span>Cost <b>{money(task.cost_usd)}</b></span>
         <span>Tokens <b>{(task.tokens / 1e6).toFixed(2)}M</b></span>
         {task.commit_sha && <span>Commit <b className="mono">{task.commit_sha}</b></span>}
+        {task.sprint_id ? <span>Sprint <a href={`#/scrum/${task.project_id}?tab=${task.sprint_status === "released" ? "releases" : "current"}&sprint=${task.sprint_id}`}><b>{task.sprint_number}</b>{task.sprint_status === "released" ? " · release" : ""} →</a></span> : null}
         {paths.length > 0 && <span>Paths <b className="mono">{paths.join(" ")}</b></span>}
       </div>
       <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>

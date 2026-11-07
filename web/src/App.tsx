@@ -18,13 +18,14 @@ import { BudgetBar } from "./components/BudgetBar.tsx";
 import { Office } from "./office/Office.tsx";
 import { LogoMark } from "./office/LogoMark.tsx";
 
-export type Route = { page: string; id?: number; tab?: string };
+export type Route = { page: string; id?: number; tab?: string; sprint?: number; task?: number; group?: string };
 
 function parseHash(): Route {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
   const [page, id] = path.split("/");
-  const tab = new URLSearchParams(query ?? "").get("tab") ?? undefined;
-  return { page: page || "home", id: id ? Number(id) : undefined, tab };
+  const q = new URLSearchParams(query ?? "");
+  const num = (k: string) => (q.get(k) ? Number(q.get(k)) : undefined);
+  return { page: page || "home", id: id ? Number(id) : undefined, tab: q.get("tab") ?? undefined, sprint: num("sprint"), task: num("task"), group: q.get("group") ?? undefined };
 }
 
 export function go(route: string) {
@@ -143,8 +144,8 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
           </div>
         )}
         {route.page === "chat" && route.id ? <ChatPage key={route.id} chatId={route.id} tab={route.tab} projects={projects} onChanged={reload} />
-          : route.page === "scrum" && route.id ? <ScrumPage key={route.id} projectId={route.id} />
-          : route.page === "tasks" ? <TasksBoard />
+          : route.page === "scrum" && route.id ? <ScrumPage key={`${route.id}-${route.tab}-${route.sprint}-${route.task}`} projectId={route.id} initial={{ tab: route.tab, sprint: route.sprint, task: route.task }} />
+          : route.page === "tasks" ? <TasksBoard key={`${route.group}-${route.task}`} group={route.group} task={route.task} />
           : route.page === "office" ? <><div className="page-head"><h1>Office</h1></div><div style={{ flex: 1, minHeight: 0 }}><Office /></div></>
           : route.page === "teams" ? <TeamsPage />
           : route.page === "guides" || route.page === "models" ? <GuidesPage tab={route.page === "models" ? "models" : route.tab} />

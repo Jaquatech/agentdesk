@@ -67,11 +67,11 @@ function UsageLine({ u, label }: { u: Usage | null; label?: string }) {
  * Backlog, PIs and releases of a Scrum project, laid out like Running tasks: a list on the left, the selected thing on the right.
  * Which PI is "coming" or "current" is worked out from its sprints (nothing started yet = coming).
  */
-export function ScrumPage({ projectId }: { projectId: number }) {
+export function ScrumPage({ projectId, initial }: { projectId: number; initial?: { tab?: string; sprint?: number; task?: number } }) {
   const { data, reload } = useLoad<Overview>(`/api/projects/${projectId}/scrum`);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [tab, setTab] = useState<Tab | null>(null);
-  const [sel, setSel] = useState<Sel | null>(null);
+  const [tab, setTab] = useState<Tab | null>(TABS.some((t) => t.id === initial?.tab) ? (initial!.tab as Tab) : null);
+  const [sel, setSel] = useState<Sel | null>(initial?.task ? { k: "task", id: initial.task } : initial?.sprint ? { k: "sprint", id: initial.sprint } : null);
   const [modal, setModal] = useState<{ kind: "pi" | "sprint"; pi?: number } | null>(null);
   useEffect(() => { get<Agent[]>("/api/agents").then(setAgents); }, []);
   useLiveEvents((ev) => { if ((ev.type === "scrum" && ev.projectId === projectId) || ev.type === "task") reload(); });
@@ -324,7 +324,8 @@ function PiView({ tab, groups, data, agents, sel, setSel, reload, onNew }: {
     ...g.sprints.flatMap((s) => [{ k: "sprint", id: s.id } as Sel, ...tasksOf(s).map((t) => ({ k: "task", id: t.id }) as Sel)]),
   ]);
   // Current PI opens on the first task (its detail is what you act on); the other tabs on their first row.
-  const current = entries.find((e) => same(sel, e)) ?? (tab === "current" ? entries.find((e) => e.k === "task") : undefined) ?? entries[0] ?? null;
+  // A task opened from a sprint is not always in the list (released sprints list no tasks), so it is kept as selected anyway.
+  const current = entries.find((e) => same(sel, e)) ?? (sel?.k === "task" ? sel : undefined) ?? (tab === "current" ? entries.find((e) => e.k === "task") : undefined) ?? entries[0] ?? null;
   const is = (e: Sel) => (same(current, e) ? "active" : "");
   const sprint = current?.k === "sprint" ? data.sprints.find((s) => s.id === current.id) : undefined;
   const pi = current?.k === "pi" ? data.pis.find((p) => p.id === current.id) : undefined;
@@ -379,7 +380,7 @@ function PiView({ tab, groups, data, agents, sel, setSel, reload, onNew }: {
           </div>
         ))}
       </div>
-      {current?.k === "task" ? <TaskPane key={current.id} id={current.id} agents={agents} onAction={reload} />
+      {current?.k === "task" ? <TaskPane key={current.id} id={current.id} agents={agents} onAction={reload} sprint={sprintOfTask(data, current.id)} onBack={(id) => setSel({ k: "sprint", id })} />
         : sprint ? <SprintDetail key={sprint.id} s={sprint} data={data} reload={reload} onTask={(id) => setSel({ k: "task", id })} />
         : pi ? <PiDetail key={pi.id} pi={pi} sprints={data.sprints.filter((s) => s.pi_id === pi.id)} reload={reload} onNewSprint={() => onNew("sprint", pi.id)} />
         : <div className="empty">Select a PI or a sprint.</div>}
@@ -387,15 +388,30 @@ function PiView({ tab, groups, data, agents, sel, setSel, reload, onNew }: {
   );
 }
 
+function sprintOfTask(d: Overview, taskId: number): Sprint | undefined {
+  const sid = d.tasks.find((t) => t.id === taskId)?.sprint_id;
+  return d.sprints.find((s) => s.id === sid);
+}
+
 /** The full task view of Running tasks (merge, retry, review, activity) for a task of the selected sprint. */
-function TaskPane({ id, agents, onAction }: { id: number; agents: Agent[]; onAction: () => void }) {
+function TaskPane({ id, agents, onAction, sprint, onBack }: { id: number; agents: Agent[]; onAction: () => void; sprint?: Sprint; onBack: (sprintId: number) => void }) {
   const [task, setTask] = useState<Task | null>(null);
   const load = () => get<{ task: Task }>(`/api/tasks/${id}`).then((d) => setTask(d.task));
   useEffect(() => { load(); }, [id]);
   useLiveEvents((ev) => { if (ev.type === "task" && ev.task.id === id) setTask((t) => (t ? { ...t, ...ev.task } : t)); });
   if (!task) return <div className="empty">Loading…</div>;
   const name = (aid: number | null) => agents.find((a) => a.id === aid)?.name ?? "–";
-  return <TaskDetail key={task.id} task={task} name={name} workers={agents.filter((a) => a.role === "worker" && a.enabled)} onAction={() => { load(); onAction(); }} />;
+  const group = task.status === "merged" ? (sprint?.status === "released" || !sprint ? "released" : "done") : "active";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, overflow: "auto" }}>
+      <div className="row" style={{ padding: "10px 16px 0", gap: 12 }}>
+        {sprint && <a href="#" onClick={(e) => { e.preventDefault(); onBack(sprint.id); }}>← Sprint {sprint.number}{sprint.status === "released" ? " release" : ""}</a>}
+        <span className="spacer" />
+        <a className="hint" href={`#/tasks?group=${group}&task=${task.id}`}>Open in Running tasks →</a>
+      </div>
+      <TaskDetail key={task.id} task={task} name={name} workers={agents.filter((a) => a.role === "worker" && a.enabled)} onAction={() => { load(); onAction(); }} />
+    </div>
+  );
 }
 
 function PiDetail({ pi, sprints, reload, onNewSprint }: { pi: Pi; sprints: Sprint[]; reload: () => void; onNewSprint: () => void }) {
