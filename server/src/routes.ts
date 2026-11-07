@@ -19,6 +19,14 @@ type Body = Record<string, any>;
 const id = (v: unknown) => Number(v);
 const bad = (reply: FastifyReply, error: string, code = 400) => reply.code(code).send({ error });
 
+/** Task tabs in Running tasks (SQL on `tasks t`). Disjoint, and together they cover every status. */
+const TASK_GROUPS: Record<string, string> = {
+  active: "t.status IN ('queued','building','verifying','reviewing')",
+  attention: "(t.status IN ('proposed','approved','needs_attention','failed','interrupted') OR (t.status = 'cancelled' AND t.worktree != ''))",
+  done: "t.status = 'merged'",
+  archive: "(t.status = 'cancelled' AND t.worktree = '')",
+};
+
 function sqlError(reply: FastifyReply, err: unknown) {
   const m = String((err as Error).message);
   if (m.includes("UNIQUE")) return bad(reply, "That name is already in use", 409);
@@ -332,8 +340,8 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
   app.post("/api/messages/:id/run", async (req) => ({ queued: orch.approvePlan(id((req.params as Body).id)) }));
 
   // ---------- tasks ----------
-  app.get("/api/tasks", async (req) => {
-    const { chat, active, ids } = req.query as Body;
+  app.get("/api/tasks", async (req, reply) => {
+    const { chat, group, ids } = req.query as Body;
     const where: string[] = [];
     const args: unknown[] = [];
     if (ids) {
@@ -342,9 +350,13 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       args.push(...list);
     }
     if (chat) { where.push("t.chat_id = ?"); args.push(id(chat)); }
-    // Open = everything still needing attention. Stopped (cancelled) and failed tasks stay so they can be retried;
-    // only merged tasks and discarded ones (branch deleted: branch set, worktree cleared) drop out.
-    if (active) where.push("t.status != 'merged' AND NOT (t.status = 'cancelled' AND t.branch != '' AND t.worktree = '')");
+    // Groups are disjoint and cover every task: active (in progress), attention (waiting for the user or retryable),
+    // done (merged) and archive (cancelled with no worktree left: discarded, dropped with a sprint, never started).
+    if (group) {
+      const clause = TASK_GROUPS[String(group)];
+      if (!clause) return bad(reply, `Unknown task group: ${group}`);
+      where.push(clause);
+    }
     return db.prepare(`SELECT t.*, c.title AS chat_title, p.name AS project_name FROM tasks t
       JOIN chats c ON c.id = t.chat_id JOIN projects p ON p.id = t.project_id
       ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY t.updated_at DESC LIMIT 200`).all(...args);

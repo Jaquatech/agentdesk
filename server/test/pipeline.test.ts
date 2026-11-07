@@ -228,20 +228,28 @@ describe("pipeline", () => {
     rmSync(bare, { recursive: true, force: true });
   });
 
-  it("keeps stopped and failed tasks in the Open list, but not merged or discarded ones", async () => {
+  it("sorts every task into exactly one tab: active, attention, done or archive", async () => {
     const call = (ctx as any).call;
     const project = await call("POST", "/api/projects", { name: "open", source: "local", path: repo });
     const chat = await call("POST", "/api/chats", { project_id: project.id });
     const add = (slug: string, status: string, branch: string, worktree: string) => ctx.db.prepare(
       "INSERT INTO tasks (chat_id, project_id, slug, title, spec, status, branch, worktree) VALUES (?, ?, ?, ?, 'x', ?, ?, ?)")
       .run(chat.id, project.id, slug, slug, status, branch, worktree);
-    add("failed", "failed", "task/failed", "/wt/failed");
-    add("stopped", "cancelled", "task/stopped", "/wt/stopped"); // stopped mid-run: worktree kept
-    add("stopped-early", "cancelled", "", "");                    // stopped before it started
-    add("discarded", "cancelled", "task/discarded", "");          // discarded: branch deleted
+    for (const s of ["queued", "building", "verifying", "reviewing"]) add(s, s, "task/" + s, "/wt/" + s);
+    for (const s of ["proposed", "approved", "needs_attention", "failed", "interrupted"]) add(s, s, s === "proposed" ? "" : "task/" + s, s === "proposed" ? "" : "/wt/" + s);
+    add("stopped", "cancelled", "task/stopped", "/wt/stopped"); // stopped mid-run: worktree kept, can still be retried
     add("merged", "merged", "task/merged", "");
-    const open = (await call("GET", "/api/tasks?active=1")) as { slug: string }[];
-    expect(open.map((t) => t.slug).sort()).toEqual(["failed", "stopped", "stopped-early"]);
+    add("stopped-early", "cancelled", "", "");                    // stopped before it started
+    add("discarded", "cancelled", "task/discarded", "");          // discarded or closed with a sprint: nothing left
+    const slugs = async (group: string) => ((await call("GET", `/api/tasks?group=${group}`)) as { slug: string }[]).map((t) => t.slug).sort();
+    const tabs = { active: await slugs("active"), attention: await slugs("attention"), done: await slugs("done"), archive: await slugs("archive") };
+    expect(tabs.active).toEqual(["building", "queued", "reviewing", "verifying"]);
+    expect(tabs.attention).toEqual(["approved", "failed", "interrupted", "needs_attention", "proposed", "stopped"]);
+    expect(tabs.done).toEqual(["merged"]);
+    expect(tabs.archive).toEqual(["discarded", "stopped-early"]);
+    const all = (await call("GET", `/api/tasks?chat=${chat.id}`)) as unknown[];
+    expect(all).toHaveLength(Object.values(tabs).flat().length); // every task is in exactly one tab
+    expect((await call("GET", "/api/tasks?group=nope")).error).toMatch(/Unknown task group/);
   });
 
   it("stores attachments, gives them to the planner, and clears the cache", async () => {

@@ -7,26 +7,46 @@ import { TaskActivity } from "../components/Activity.tsx";
 
 const STEPS = ["building", "verifying", "reviewing", "approved", "merged"] as const;
 const ACTIVE = ["queued", "building", "verifying", "reviewing"];
-const ORDER: Record<string, number> = { building: 0, verifying: 0, reviewing: 0, queued: 1, approved: 2, needs_attention: 2, failed: 2, interrupted: 2, proposed: 3 };
+const ORDER: Record<string, number> = { building: 0, verifying: 0, reviewing: 0, queued: 1, approved: 2, needs_attention: 2, failed: 2, interrupted: 2, cancelled: 2, proposed: 3 };
+
+/** Tabs in Running tasks. The server decides which task belongs to which (TASK_GROUPS in routes.ts). */
+type TaskGroup = "active" | "attention" | "done" | "archive";
+const TABS: { id: TaskGroup; label: string; hint: string }[] = [
+  { id: "active", label: "Active", hint: "Queued, building, verifying or in review" },
+  { id: "attention", label: "Needs you", hint: "Waiting for you, failed or stopped: run, merge, retry or discard" },
+  { id: "done", label: "Done", hint: "Merged" },
+  { id: "archive", label: "Archive", hint: "Cancelled with nothing left to retry (discarded, closed with a sprint)" },
+];
+const EMPTY: Record<TaskGroup, string> = {
+  active: "Nothing is running.",
+  attention: "Nothing waiting for you.",
+  done: "No merged tasks yet.",
+  archive: "Nothing archived.",
+};
 
 /** Task list + detail. With `chatId` only that chat's tasks; without, every task across projects. */
 export function TaskPanel({ chatId, agents }: { chatId?: number; agents: Agent[] }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
-  const [filter, setFilter] = useState<"active" | "all">("active");
+  const [group, setGroup] = useState<TaskGroup>("active");
+  const tasksRef = useRef<Task[]>([]);
+  tasksRef.current = tasks;
 
-  const load = () => get<Task[]>(`/api/tasks?${chatId ? `chat=${chatId}` : ""}${filter === "active" && !chatId ? "&active=1" : ""}`).then(setTasks);
-  useEffect(() => { load(); }, [chatId, filter]);
+  const load = () => get<Task[]>(`/api/tasks?${chatId ? `chat=${chatId}` : `group=${group}`}`).then(setTasks);
+  useEffect(() => { load(); }, [chatId, group]);
   useLiveEvents((ev) => {
-    if (ev.type === "task" && (!chatId || ev.chatId === chatId)) {
-      setTasks((list) => {
-        const i = list.findIndex((t) => t.id === ev.task.id);
-        if (i < 0) return [{ ...ev.task }, ...list];
-        const next = [...list];
-        next[i] = { ...next[i], ...ev.task };
-        return next;
-      });
-    }
+    if (ev.type !== "task" || (chatId && ev.chatId !== chatId)) return;
+    const known = tasksRef.current.find((t) => t.id === ev.task.id);
+    // A chat shows all its tasks, so an event just updates the row. In a tab, a task that is new here or changed
+    // status may now belong to another tab: reload the tab instead of guessing which one.
+    if (!chatId && (!known || known.status !== ev.task.status)) { load(); return; }
+    setTasks((list) => {
+      const i = list.findIndex((t) => t.id === ev.task.id);
+      if (i < 0) return [{ ...ev.task }, ...list];
+      const next = [...list];
+      next[i] = { ...next[i], ...ev.task };
+      return next;
+    });
   });
 
   const sorted = useMemo(() => [...tasks].sort((a, b) =>
@@ -40,12 +60,13 @@ export function TaskPanel({ chatId, agents }: { chatId?: number; agents: Agent[]
         {!chatId && (
           <div className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
             <div className="tabs" style={{ marginLeft: 0 }}>
-              <button className={`tab ${filter === "active" ? "active" : ""}`} onClick={() => setFilter("active")}>Open</button>
-              <button className={`tab ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>All</button>
+              {TABS.map((g) => (
+                <button key={g.id} className={`tab ${group === g.id ? "active" : ""}`} title={g.hint} onClick={() => setGroup(g.id)}>{g.label}</button>
+              ))}
             </div>
           </div>
         )}
-        {sorted.length === 0 && <div className="empty">No tasks yet. Ask the planner for something in a chat.</div>}
+        {sorted.length === 0 && <div className="empty">{chatId ? "No tasks yet. Ask the planner for something in a chat." : EMPTY[group]}</div>}
         {sorted.map((t) => (
           <div key={t.id} className={`task-row ${current?.id === t.id ? "active" : ""}`} onClick={() => setSelected(t.id)}>
             <div className="row" style={{ gap: 8 }}>
