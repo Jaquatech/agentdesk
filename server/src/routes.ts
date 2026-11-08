@@ -14,7 +14,7 @@ import { DEFAULT_WORKER_TOOLS } from "./engines/types.ts";
 import { deleteChatFiles } from "./attachments.ts";
 import { getCapabilities } from "./providers/capabilities.ts";
 import type { Orchestrator } from "./orchestrator/orchestrator.ts";
-import { commandProblem, folderOnDisk, suggestVerify, verifyWarnings } from "./verifyHelp.ts";
+import { commandProblem, folderOnDisk, suggestSetup, suggestVerify, verifyWarnings } from "./verifyHelp.ts";
 
 type Body = Record<string, any>;
 const id = (v: unknown) => Number(v);
@@ -284,8 +284,8 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
   app.post("/api/projects/verify-help", async (req) => {
     const b = req.body as Body;
     const folder = b.path ? folderOnDisk(String(b.path)) : null;
-    if (!folder) return { suggestions: [], warnings: [] };
-    return { suggestions: suggestVerify(folder), warnings: verifyWarnings(folder, lines(b.verify)) };
+    if (!folder) return { suggestions: [], setupSuggestions: [], warnings: [] };
+    return { suggestions: suggestVerify(folder), setupSuggestions: suggestSetup(folder), warnings: verifyWarnings(folder, lines(b.verify), lines(b.setup)) };
   });
 
   // ---------- chats ----------

@@ -73,14 +73,17 @@ function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; team
   }, [f.path]);
 
   // Verify commands that fit the folder (one click to add) and warnings for ones that cannot work there.
-  const [help, setHelp] = useState<{ suggestions: { command: string; label: string }[]; warnings: string[] }>({ suggestions: [], warnings: [] });
+  const [help, setHelp] = useState<{ suggestions: { command: string; label: string }[]; setupSuggestions: { command: string; label: string }[]; warnings: string[] }>({ suggestions: [], setupSuggestions: [], warnings: [] });
   useEffect(() => {
-    if (!f.path) { setHelp({ suggestions: [], warnings: [] }); return; }
-    const t = setTimeout(() => post<typeof help>("/api/projects/verify-help", { path: f.path, verify: f.verify }).then(setHelp).catch(() => {}), 400);
+    if (!f.path) { setHelp({ suggestions: [], setupSuggestions: [], warnings: [] }); return; }
+    const t = setTimeout(() => post<typeof help>("/api/projects/verify-help", { path: f.path, verify: f.verify, setup: f.setup }).then(setHelp).catch(() => {}), 400);
     return () => clearTimeout(t);
-  }, [f.path, f.verify]);
+  }, [f.path, f.verify, f.setup]);
   const verifyLines = String(f.verify ?? "").split("\n").map((l) => l.trim());
-  const addVerify = (command: string) => set("verify", `${String(f.verify ?? "").replace(/\s+$/, "")}${String(f.verify ?? "").trim() ? "\n" : ""}${command}`);
+  const setupLines = String(f.setup ?? "").split("\n").map((l) => l.trim());
+  const append = (key: "verify" | "setup", command: string) => { const cur = String(f[key] ?? ""); set(key, `${cur.replace(/\s+$/, "")}${cur.trim() ? "\n" : ""}${command}`); };
+  const addVerify = (command: string) => append("verify", command);
+  const addSetup = (command: string) => append("setup", command);
 
   const save = async () => {
     setError("");
@@ -154,6 +157,14 @@ function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; team
         </Field>
         <Field label="Setup commands (once per new worktree)" hint="E.g. installs. Developers cannot install packages themselves.">
           <textarea className="mono" rows={4} value={f.setup} onChange={(e) => set("setup", e.target.value)} placeholder="npm ci --no-audit --no-fund" />
+          {help.setupSuggestions.some((x) => !setupLines.includes(x.command)) && (
+            <div className="row" style={{ flexWrap: "wrap", gap: 6, marginTop: 6 }} title="Install commands that fit this folder. Click to add one; nothing is added by itself.">
+              <span className="hint">Add:</span>
+              {help.setupSuggestions.filter((x) => !setupLines.includes(x.command)).map((x) => (
+                <button key={x.command} type="button" className="btn" title={x.label} onClick={() => addSetup(x.command)}>+ <span className="mono">{x.command}</span></button>
+              ))}
+            </div>
+          )}
         </Field>
       </div>
       <div className="grid2">

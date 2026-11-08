@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { commandProblem, suggestVerify, verifyWarnings, type Folder } from "../src/verifyHelp.ts";
+import { commandProblem, suggestSetup, suggestVerify, verifyWarnings, type Folder } from "../src/verifyHelp.ts";
 
 const folder = (files: Record<string, string>): Folder => ({
   has: (n) => n in files,
@@ -53,5 +53,28 @@ describe("command problems", () => {
     expect(commandProblem("exit 127\nbash: ruff: command not found")).toContain("not found");
     expect(commandProblem("exit 1\nThe term 'cargo' is not recognized as the name of a cmdlet")).toContain("not found");
     expect(commandProblem("exit 1\n1) Team page > shows six cards\nAssertionError")).toBeUndefined();
+  });
+});
+
+describe("setup suggestions and the missing install warning", () => {
+  const deps = (scripts: Record<string, string>) => JSON.stringify({ scripts, devDependencies: { vitest: "^1" } });
+
+  it("offers the install command that matches the lockfile", () => {
+    expect(suggestSetup(folder({ "package.json": deps({}), "package-lock.json": "" })).map((s) => s.command)).toEqual(["npm ci --no-audit --no-fund"]);
+    expect(suggestSetup(folder({ "package.json": deps({}), "pnpm-lock.yaml": "" })).map((s) => s.command)).toEqual(["pnpm install --frozen-lockfile"]);
+    expect(suggestSetup(folder({ "package.json": deps({}), "yarn.lock": "" })).map((s) => s.command)).toEqual(["yarn install --frozen-lockfile"]);
+    expect(suggestSetup(folder({ "package.json": deps({}) })).map((s) => s.command)).toEqual(["npm install --no-audit --no-fund"]);
+    expect(suggestSetup(folder({ "requirements.txt": "" })).map((s) => s.command)).toEqual(["pip install -r requirements.txt"]);
+    expect(suggestSetup(folder({ "go.mod": "", "index.html": "" }))).toEqual([]);
+  });
+
+  it("warns when scripts are verified but nothing installs the packages", () => {
+    const f = folder({ "package.json": deps({ test: "vitest run" }) });
+    const w = verifyWarnings(f, ["npm test"], []);
+    expect(w).toEqual(['"npm test" will fail in a fresh worktree: nothing installs the packages. Add an install command under Setup.']);
+    expect(verifyWarnings(f, ["npm test"], ["npm ci --no-audit --no-fund"])).toEqual([]);
+    expect(verifyWarnings(f, ["npm ci", "npm test"], [])).toEqual([]); // an install in the verify box counts too
+    // no dependencies, nothing to install
+    expect(verifyWarnings(folder({ "package.json": pkg({ test: "node test.js" }) }), ["npm test"], [])).toEqual([]);
   });
 });

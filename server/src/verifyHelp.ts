@@ -25,7 +25,7 @@ export function folderOnDisk(dir: string): Folder | null {
   };
 }
 
-type Pkg = { scripts?: Record<string, string> };
+type Pkg = { scripts?: Record<string, string>; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
 const packageJson = (f: Folder): Pkg | null => {
   const text = f.read("package.json");
   if (text === undefined) return null;
@@ -66,10 +66,27 @@ export function suggestVerify(f: Folder): Suggestion[] {
   return out;
 }
 
+/** Install commands that fit the folder, for the setup box. Developers cannot install packages themselves. */
+export function suggestSetup(f: Folder): Suggestion[] {
+  const out: Suggestion[] = [];
+  if (packageJson(f)) {
+    if (f.has("pnpm-lock.yaml")) out.push({ command: "pnpm install --frozen-lockfile", label: "Install the packages from pnpm-lock.yaml" });
+    else if (f.has("yarn.lock")) out.push({ command: "yarn install --frozen-lockfile", label: "Install the packages from yarn.lock" });
+    else if (f.has("package-lock.json") || f.has("npm-shrinkwrap.json")) out.push({ command: "npm ci --no-audit --no-fund", label: "Install the packages from package-lock.json" });
+    else out.push({ command: "npm install --no-audit --no-fund", label: "Install the packages (no lockfile found)" });
+  }
+  if (f.has("requirements.txt")) out.push({ command: "pip install -r requirements.txt", label: "Install the Python packages" });
+  return out;
+}
+
+const INSTALL = /^(npm\s+(ci|install|i)\b|pnpm\s+(install|i)\b|yarn(\s+install)?$|yarn\s+install\b)/;
+const parts = (lines: string[]) => lines.flatMap((l) => l.split(/&&|;/).map((p) => p.trim()).filter(Boolean));
+
 /** One warning per verify line that cannot work in this folder. */
-export function verifyWarnings(f: Folder, lines: string[]): string[] {
+export function verifyWarnings(f: Folder, lines: string[], setup: string[] = []): string[] {
   const pkg = packageJson(f);
   const warnings: string[] = [];
+  let firstNodeCommand = "";
   for (const line of lines) {
     // A chain only passes when every part does: look at each part.
     for (const part of line.split(/&&|;/).map((p) => p.trim()).filter(Boolean)) {
@@ -83,7 +100,13 @@ export function verifyWarnings(f: Folder, lines: string[]): string[] {
       const name = isTest ? "test" : script;
       if (!scripts[name]) warnings.push(`"${part}" will fail: package.json has no "${name}" script.`);
       else if (isTest && isPlaceholderTest(scripts.test)) warnings.push(`"${part}" will fail: the "test" script in package.json is only the placeholder npm init writes.`);
+      else firstNodeCommand ||= part;
     }
+  }
+  // A fresh worktree has no node_modules: without an install step the scripts usually cannot find their tools.
+  const hasDeps = Object.keys(pkg?.dependencies ?? {}).length + Object.keys(pkg?.devDependencies ?? {}).length > 0;
+  if (firstNodeCommand && hasDeps && !parts([...setup, ...lines]).some((p) => INSTALL.test(p))) {
+    warnings.push(`"${firstNodeCommand}" will fail in a fresh worktree: nothing installs the packages. Add an install command under Setup.`);
   }
   return warnings;
 }

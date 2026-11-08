@@ -156,7 +156,9 @@ Then restart the server (Ctrl+C, `npm start`). The database updates itself on st
    verify commands (e.g. `npm test`) and setup commands (e.g. `npm ci`) that run in every task's worktree. Under the
    verify box, AgentDesk offers commands that fit the folder (npm scripts that exist, `pytest`, `go test ./...`,
    `cargo test`, `dotnet test`, and `git diff --check` for any repository) as buttons: nothing is added until you click.
-   It also warns about a command that cannot work there, such as `npm run lint` in a folder without `package.json`.
+   It also warns about a command that cannot work there, such as `npm run lint` in a folder without `package.json`, or npm scripts
+   with nothing that installs the packages. The setup box gets install buttons the same way (`npm ci` for a
+   `package-lock.json`, `pnpm` and `yarn` equivalents, `pip install -r requirements.txt`). An empty setup box runs nothing.
 6. Start a chat in the project. The planner answers and proposes tasks; press **Run plan** (or turn on "Run plans
    right away" in Settings).
 
