@@ -164,4 +164,34 @@ describe("scrum", () => {
     expect(row).toEqual({ status: "ready", sprint_id: null });
     expect((ctx.db.prepare("SELECT status FROM sprints WHERE id = ?").get(sprint.id) as any).status).toBe("done");
   });
+
+  it("a task retried after the sprint closed merges, marks its item done and rewrites the release notes", async () => {
+    const project = await call("POST", "/api/projects", { name: "demo", source: "local", path: repo });
+    await call("PUT", `/api/projects/${project.id}/scrum/settings`, { process: "scrum" });
+    const item = await call("POST", `/api/projects/${project.id}/backlog`, { title: "Add alpha", story: "s", acceptance: "a" });
+    points["Add alpha"] = 3;
+    await waitFor(() => (ctx.db.prepare("SELECT status FROM backlog_items WHERE id = ?").get(item.id) as any).status === "ready" || undefined);
+    const sprint = await call("POST", `/api/projects/${project.id}/sprints`, { name: "S" });
+    const orig = script;
+    engineOverride.engine = { run: async (req) => { if (req.agent.role === "worker") throw new Error("boom"); return orig(req); } };
+    await call("POST", `/api/sprints/${sprint.id}/start`, {});
+    await waitFor(() => (ctx.db.prepare("SELECT status FROM tasks WHERE item_id = ?").get(item.id) as any).status === "failed" || undefined);
+    await call("POST", `/api/sprints/${sprint.id}/close`);
+    const task = ctx.db.prepare("SELECT id FROM tasks WHERE item_id = ?").get(item.id) as any;
+    expect(ctx.db.prepare("SELECT release_notes n FROM sprints WHERE id = ?").get(sprint.id)).toEqual({ n: expect.stringContaining("Nothing was merged") });
+
+    // The developer works again after the sprint closed.
+    engineOverride.engine = { run: async (req) => orig(req) };
+    await call("POST", `/api/tasks/${task.id}/retry`, {});
+    expect(ctx.db.prepare("SELECT status, sprint_id FROM backlog_items WHERE id = ?").get(item.id)).toEqual({ status: "in_sprint", sprint_id: sprint.id });
+    await waitFor(() => (ctx.db.prepare("SELECT status FROM tasks WHERE id = ?").get(task.id) as any).status === "merged" || undefined);
+    await waitFor(() => (ctx.db.prepare("SELECT release_notes n FROM sprints WHERE id = ?").get(sprint.id) as any).n.includes("alpha") || undefined);
+    expect(ctx.db.prepare("SELECT status, sprint_id FROM backlog_items WHERE id = ?").get(item.id)).toEqual({ status: "done", sprint_id: sprint.id });
+
+    // After the release the sprint branch is gone: a retry is refused.
+    await call("POST", `/api/sprints/${sprint.id}/release`);
+    ctx.db.prepare("UPDATE tasks SET status = 'cancelled' WHERE id = ?").run(task.id);
+    const r = await call("POST", `/api/tasks/${task.id}/retry`, {});
+    expect(JSON.stringify(r)).toContain("already released");
+  });
 });

@@ -1,5 +1,11 @@
 # Release notes
 
+## 1.1.1 (2026-11-08)
+
+### Fixes
+- **Scrum:** a task that is retried after its sprint closed now marks its backlog item done and rewrites the sprint's release notes, instead of leaving "Nothing was merged" and the item back in the backlog.
+- A task of a sprint that is already released can no longer be retried (its branch is gone); plan the item again from the backlog.
+
 ## 1.1.0 (2026-11-08)
 
 ### Checks

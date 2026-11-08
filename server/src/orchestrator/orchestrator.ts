@@ -397,6 +397,15 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
   retry(taskId: number, workerId?: number) {
     const t = this.task(taskId);
     if (!["interrupted", "failed", "needs_attention", "cancelled"].includes(t.status)) throw new Error(`Task is ${t.status}`);
+    if (t.sprint_id) {
+      const sp = this.db.prepare("SELECT number, status FROM sprints WHERE id = ?").get(t.sprint_id) as { number: number; status: string } | undefined;
+      // The sprint branch is gone after the release: the work has to be planned again.
+      if (sp?.status === "released") throw new Error(`Sprint ${sp.number} was already released. Plan the item again from the backlog.`);
+      // A closed sprint that is not released yet can still take the work; keep the item from being planned twice meanwhile.
+      if (sp?.status === "done" && t.item_id) {
+        this.db.prepare("UPDATE backlog_items SET status = 'in_sprint', sprint_id = ?, updated_at = datetime('now') WHERE id = ? AND status = 'ready' AND sprint_id IS NULL").run(t.sprint_id, t.item_id);
+      }
+    }
     if (workerId) {
       const w = this.agent(workerId);
       if (!w || w.role !== "worker") throw new Error("Pick a developer agent");
@@ -645,8 +654,9 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
       }
       await removeWorktree(project, t.worktree, t.branch, true);
       this.updateTask(t.id, { status: "merged", worktree: "" });
-      if (t.item_id) this.db.prepare("UPDATE backlog_items SET status = 'done', updated_at = datetime('now') WHERE id = ?").run(t.item_id);
+      if (t.item_id) this.db.prepare("UPDATE backlog_items SET status = 'done', sprint_id = ?, updated_at = datetime('now') WHERE id = ?").run(sprintId, t.item_id);
       this.postMessage(t.chat_id, "event", `**${t.title}** passed QA and is merged into the sprint branch \`${sprint.branch}\`.`);
+      void this.scrum?.mergedLate(sprintId, t.title);
     };
     const prev = this.sprintMerges.get(sprintId) ?? Promise.resolve();
     const next = prev.then(run, run);

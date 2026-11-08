@@ -509,6 +509,16 @@ Anything the story and the technical notes do not ask for.`;
     }
   }
 
+  /** A task merged into a sprint that had already closed (it was retried): its notes were written without it, so write them again. */
+  async mergedLate(sprintId: number, title: string) {
+    const s = this.sprint(sprintId);
+    if (s.status !== "done") return;
+    try {
+      await this.writeNotes(sprintId);
+      this.orch.postMessage(this.ensureSprintChat(sprintId), "event", `**${title}** merged after sprint ${s.number} had closed. The release notes were written again to include it.`);
+    } finally { this.changed(s.project_id); }
+  }
+
   /** Release notes: the product manager writes them from what was delivered; a plain list is the fallback. */
   async writeNotes(sprintId: number) {
     const s = this.sprint(sprintId);
@@ -594,6 +604,9 @@ Only state what the items and commits support.`,
     await removeWorktree(project, wt, s.branch, false).catch(() => {});
     await deleteBranch(project, s.branch);
     this.db.prepare("UPDATE sprints SET status = 'released', released_at = datetime('now') WHERE id = ?").run(sprintId);
+    // Only work that really merged counts as done; an item whose retried task never finished goes back to the backlog.
+    this.db.prepare(`UPDATE backlog_items SET status = 'ready', sprint_id = NULL WHERE sprint_id = ? AND status = 'in_sprint'
+      AND id NOT IN (SELECT item_id FROM tasks WHERE sprint_id = ? AND status = 'merged' AND item_id IS NOT NULL)`).run(sprintId, sprintId);
     this.db.prepare("UPDATE backlog_items SET status = 'done' WHERE sprint_id = ? AND status = 'in_sprint'").run(sprintId);
     this.orch.postMessage(this.ensureSprintChat(sprintId), "event", `**Sprint ${s.number} released.** ${result}.`);
     this.changed(project.id);
