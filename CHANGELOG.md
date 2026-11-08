@@ -1,5 +1,10 @@
 # Release notes
 
+## Unreleased
+
+### Changes
+- Release notes now collect under **Unreleased** until a release is made, so the version number no longer goes up with every small fix.
+
 ## 1.3.1 (2026-11-08)
 
 ### Fixes

@@ -7,6 +7,8 @@ describe("app version", () => {
   });
   it("has release notes for the running version at the top of CHANGELOG.md", () => {
     const { version, notes } = appVersion();
-    expect(/^## (\S+)/m.exec(notes)?.[1]).toBe(version);
+    // Fixes wait under "## Unreleased" until a release; the first numbered section is the running version.
+    const first = [...notes.matchAll(/^## (\S+)/gm)].map((m) => m[1]).find((v) => v.toLowerCase() !== "unreleased");
+    expect(first).toBe(version);
   });
 });

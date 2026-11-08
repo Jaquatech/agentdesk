@@ -371,7 +371,7 @@ your own git repositories. The only network traffic is what you configure: calls
    `data/` back.
 
 Releases are tagged (`git tag`); see the repository's Releases page.
-The **Version** menu item shows which version and commit you are running, with the release notes (`CHANGELOG.md`) for every version. The version is also shown at the bottom of the sidebar.
+The **Version** menu item shows which version and commit you are running, with the release notes (`CHANGELOG.md`) for every version. Changes made since the last release are listed under **Unreleased**. The version is also shown at the bottom of the sidebar.
 
 ## Help and feedback
 
