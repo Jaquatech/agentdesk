@@ -634,7 +634,7 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
     const runId = this.startRun({ taskId, chatId, agent: worker, kind: "checks", round, model: "", engine: "shell" });
     const t0 = Date.now();
     const transcript: TranscriptEntry[] = [];
-    let failure = "", setupIssue: string | undefined;
+    let failure = "", setupIssue: string | undefined, stopped = false;
     let envFile: EnvFileHandle = { note: "", cleanup: () => {} };
     try {
       envFile = placeEnvFile(project.path, wt, project.checks_env_file ?? "", project.checks_env_target || ".env");
@@ -644,9 +644,12 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
         const started = Date.now();
         const r = await runCommandLine(cmd, shell, { cwd: wt, timeoutMs: 30 * 60_000, signal, onLine: (l) => this.log(taskId, l) });
         const out = tail(`${r.stdout}\n${r.stderr}`, 80);
-        const entry: TranscriptEntry = { t: started - t0, kind: "tool", tool: "command", input: cmd, output: `exit ${r.code}${r.timedOut ? " (timed out)" : ""}\n${out}`, isError: r.code !== 0, ms: Date.now() - started };
+        // Stop pressed while it ran: the command was ended by us, so it did not fail and says nothing about the code.
+        const cut = signal.aborted && r.code !== 0;
+        const entry: TranscriptEntry = { t: started - t0, kind: "tool", tool: "command", input: cmd, output: `exit ${r.code}${r.timedOut ? " (timed out)" : ""}${cut ? " (stopped)" : ""}\n${out}`, isError: r.code !== 0, ms: Date.now() - started };
         transcript.push(entry);
         this.step(runId, taskId, entry);
+        if (cut) { stopped = true; break; }
         if (r.code !== 0) {
           failure = `\`${cmd}\` failed (exit ${r.code}):\n\`\`\`\n${tail(`${r.stdout}\n${r.stderr}`, 40)}\n\`\`\``;
           setupIssue = setupProblem(`${r.stdout}\n${r.stderr}`);
@@ -663,7 +666,7 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
     } finally {
       envFile.cleanup();
     }
-    this.endRun(runId, { ok: !failure, summary: failure ? "A check failed" : "All checks passed", turns: transcript.length, costUsd: null,
+    this.endRun(runId, { ok: !failure && !stopped, summary: stopped ? "Stopped while the checks were running" : failure ? "A check failed" : "All checks passed", turns: transcript.length, costUsd: null,
       tokensIn: 0, cacheRead: 0, cacheWrite: 0, tokensOut: 0, seconds: Math.round((Date.now() - t0) / 1000), transcript }, []);
     return { failure, setupProblem: setupIssue };
   }

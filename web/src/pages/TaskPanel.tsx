@@ -99,8 +99,9 @@ function checksView(checks: TaskChecks, waiting: boolean) {
   const passed = checks.items.filter((c) => c.status === "passed").length;
   const notRun = checks.items.filter((c) => c.status === "not_run").length;
   const failed = checks.items.some((c) => c.status === "failed");
+  const stopped = checks.items.some((c) => c.status === "stopped");
   const summary = waiting ? `${checks.items.length} check${checks.items.length === 1 ? "" : "s"}, run after the build`
-    : `${passed} of ${checks.items.length} passed${notRun && !checks.running ? `, ${notRun} not run` : ""}${checks.running ? ", running" : ""}`;
+    : `${passed} of ${checks.items.length} passed${notRun && !checks.running ? `, ${notRun} not run` : ""}${checks.running ? ", running" : ""}${stopped ? ", stopped" : ""}`;
   const tone = failed ? "bad" : !waiting && passed === checks.items.length ? "good" : "";
   return { checks, summary, tone };
 }
@@ -125,7 +126,7 @@ function CheckRow({ check, runId, running, waiting }: { check: Check; runId: num
   const [output, setOutput] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const expandable = check.status === "failed" && runId !== null;
+  const expandable = (check.status === "failed" || check.status === "stopped") && runId !== null;
   const toggle = async () => {
     const next = !open;
     setOpen(next);
@@ -136,7 +137,7 @@ function CheckRow({ check, runId, running, waiting }: { check: Check; runId: num
       } catch (e) { setOutput(`Could not load the output: ${(e as Error).message}`); }
     }
   };
-  const result = check.status === "passed" ? "passed" : check.status === "failed" ? `failed${check.exit !== null ? ` (exit ${check.exit})` : ""}` : running || waiting ? "waiting" : "not run";
+  const result = check.status === "passed" ? "passed" : check.status === "failed" ? `failed${check.exit !== null ? ` (exit ${check.exit})` : ""}` : check.status === "stopped" ? "stopped (you stopped the task)" : running || waiting ? "waiting" : "not run";
   return (
     <div className={`check-row ${check.status}`}>
       <div className="row check-head" style={{ gap: 8 }} onClick={expandable ? toggle : undefined} role={expandable ? "button" : undefined} aria-expanded={expandable ? open : undefined}>

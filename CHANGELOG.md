@@ -1,5 +1,10 @@
 # Release notes
 
+## 1.3.1 (2026-11-08)
+
+### Fixes
+- A check that was cut off because you pressed **Stop** is now shown as **stopped** instead of "failed (exit 1)". It is not counted as a failure, and nothing is sent back to the developer.
+
 ## 1.3.0 (2026-11-08)
 
 ### Tasks

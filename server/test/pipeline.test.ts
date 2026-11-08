@@ -199,6 +199,25 @@ describe("pipeline", () => {
     expect((await ctx.app.inject({ method: "GET", url: `/api/tasks/${task.id}/export.md`, headers: { host: "localhost" } })).statusCode).toBe(401);
   });
 
+  it("a check ended by Stop is shown as stopped, not failed, and nothing goes back to the developer", async () => {
+    const { call, task } = await startChat(["node -e \"setTimeout(() => {}, 20000)\""]);
+    script = (req) => {
+      execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+      writeFileSync(join(req.cwd, "src", "s.txt"), "x");
+      return ok("Added s.txt");
+    };
+    await call("POST", `/api/messages/${task.message_id}/run`);
+    await waitFor(() => ctx.orch.task(task.id).status === "verifying" || undefined);
+    await new Promise((r) => setTimeout(r, 400)); // the command is running
+    ctx.orch.cancel(task.id);
+    await waitFor(() => (ctx.db.prepare("SELECT status FROM runs WHERE task_id = ? AND kind = 'checks'").get(task.id) as any)?.status !== "running" || undefined);
+    const { checks } = await call("GET", `/api/tasks/${task.id}`);
+    expect(checks.items.map((c: any) => c.status)).toEqual(["stopped"]);
+    expect(ctx.orch.task(task.id).status).toBe("cancelled");
+    expect(ctx.orch.task(task.id).feedback).toBe("");
+    expect(calls.filter((c) => c.startsWith("worker")).length).toBe(1);
+  });
+
   it("refuses a commit with files outside the task paths", async () => {
     const { call, task } = await startChat([]);
     script = (req) => { writeFileSync(join(req.cwd, "README.md"), "changed\n"); return ok("done"); };

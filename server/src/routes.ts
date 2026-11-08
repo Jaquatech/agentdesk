@@ -420,9 +420,10 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
         const s = steps[step];
         if (!s || s.input !== command) return { command, step, status: "not_run" as const, exit: null, ms: null, problem: null };
         const exit = /^exit (-?\d+)/.exec(s.output ?? "");
-        return { command, step, status: s.isError ? "failed" as const : "passed" as const, exit: exit ? Number(exit[1]) : null, ms: s.ms ?? null,
+        const stopped = s.isError && /^exit -?\d+[^\n]*\(stopped\)/.test(s.output ?? "");
+        return { command, step, status: stopped ? "stopped" as const : s.isError ? "failed" as const : "passed" as const, exit: exit ? Number(exit[1]) : null, ms: s.ms ?? null,
           // Set when the command itself cannot run (missing script, command not found), not when it found a problem.
-          problem: s.isError ? commandProblem(s.output ?? "") ?? null : null };
+          problem: s.isError && !stopped ? commandProblem(s.output ?? "") ?? null : null };
       }),
     };
   }
