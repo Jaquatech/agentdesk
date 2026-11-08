@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
-import { Check as CheckIcon, Circle, Copy, ExternalLink, GitMerge, RotateCcw, Square, Trash2, X } from "lucide-react";
+import { Check as CheckIcon, Circle, Copy, Download, ExternalLink, GitMerge, RotateCcw, Square, Trash2, X } from "lucide-react";
 import { get, post, parseJson, useLiveEvents, type Agent, type Check, type Run, type Task, type TaskChecks } from "../api.ts";
 import { StatusBadge, money, ago } from "../components/ui.tsx";
 import { TaskActivity } from "../components/Activity.tsx";
@@ -228,6 +228,7 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
           </span>
         )}
         <a className="btn" href={`#/chat/${task.chat_id}`}>Open chat</a>
+        <a className="btn" href={`/api/tasks/${task.id}/export.md`} download title="Everything about this task and what its agents did, as one Markdown file (to attach to a bug report or hand to a reviewer). It can contain output from your project: read it before you share it."><Download size={14} /> Export</a>
         {["failed", "needs_attention", "cancelled", "interrupted", "approved"].includes(task.status) && task.worktree && <button className="btn danger" disabled={!!busy} onClick={() => act("discard")}><Trash2 size={14} /> Discard branch</button>}
       </div>
       {error && <div className="error">{error}</div>}

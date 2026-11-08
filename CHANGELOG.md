@@ -1,5 +1,13 @@
 # Release notes
 
+## 1.3.0 (2026-11-08)
+
+### Tasks
+- **Export:** an **Export** button on every task downloads it as one Markdown file: the task, its problem, summary, review and spec, and every round with each tool call and its result. For bug reports and for handing a task to a reviewer. It can contain output from your project: read it before you share it.
+
+### Fixes
+- A task that is stopped and restarted after its work was already committed no longer fails with "The worker made no changes". Finding nothing left to do is fine when the work is on the branch, and the summary of what was done is kept.
+
 ## 1.2.3 (2026-11-08)
 
 ### Fixes

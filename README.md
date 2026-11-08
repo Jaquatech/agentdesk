@@ -193,6 +193,7 @@ chat message → planner (read-only) → tasks (proposed) → Run plan
 - One developer works on one task at a time; at most "Tasks running at the same time" run in parallel.
 - After the last fix round (Settings) a task stops as **needs attention**. **Retry**, **Stop** and **Discard
   branch** are on the task.
+- **Export** on a task downloads it as one Markdown file: the task, its problem, summary, review and spec, and every round with each tool call and result. Use it for a bug report or to hand the task to someone; it can contain output from your project, so read it before sharing.
 - Merge: GitHub = squash-merge of the PR; local projects = squash merge into the base branch (the folder must be
   clean and on the base branch); Azure DevOps = complete the PR there.
 - Every agent call is recorded (model, turns, tokens, cost, log). Settings shows usage per agent.

@@ -466,7 +466,7 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
 
       let feedback = t.round > 0 ? t.feedback : "";
       // What the task did, from the rounds that changed files: a later round that changes nothing must not replace it.
-      let delivered = t.round > 0 ? t.summary : "";
+      let delivered = t.round > 0 || t.commit_sha ? t.summary : "";
       for (let round = t.round; ; round++) {
         if (signal.aborted) return;
         t = this.updateTask(taskId, { status: "building", round });
@@ -482,7 +482,11 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
         if (commit.outside.length) {
           throw new Error(`Changed files outside the allowed paths, nothing committed: ${commit.outside.join(", ")}`);
         }
-        if (!commit.committed && round === 0) throw new Error("The worker made no changes");
+        if (!commit.committed && round === 0) {
+          // A restarted task has its earlier work on the branch already: finding nothing left to do is fine then.
+          const have = await diffAgainstBase(wt, sprint ? sprint.branch : project.base_branch, sprint ? false : remote).catch(() => "");
+          if (!have.trim()) throw new Error("The worker made no changes");
+        }
         if (commit.committed) delivered = delivered && round > 0 ? `${delivered}\n\nRound ${round + 1}: ${built.summary.slice(0, 1500)}` : built.summary.slice(0, 3000);
         const summary = delivered || built.summary;
         this.updateTask(taskId, { summary });

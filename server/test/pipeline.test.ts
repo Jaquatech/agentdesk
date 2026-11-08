@@ -153,6 +153,52 @@ describe("pipeline", () => {
     expect(done.summary).not.toContain("no file changed");
   });
 
+  it("a restarted task whose work is already on the branch is not failed for making no changes", async () => {
+    const { call, task } = await startChat([]);
+    let builds = 0;
+    script = (req) => {
+      if (req.agent.role === "worker") {
+        builds++;
+        if (builds === 1) { execFileSync("mkdir", ["-p", join(req.cwd, "src")]); writeFileSync(join(req.cwd, "src", "a.txt"), "x"); return ok("Added a.txt"); }
+        return ok("Nothing left to do: the change is already committed.");
+      }
+      return ok("r", { verdict: "approve", review: "Good" });
+    };
+    // First run: stopped after the commit (the checks fail, no rounds left to fix it).
+    await call("PUT", "/api/settings", { max_review_rounds: "0" });
+    ctx.db.prepare("UPDATE projects SET verify = ?").run(JSON.stringify(["exit 3"]));
+    await call("POST", `/api/messages/${task.message_id}/run`);
+    await waitFor(() => { const x = ctx.orch.task(task.id); return x.status === "needs_attention" ? x : undefined; });
+    // Second run (the user restarts it after stopping it): nothing to change, the work is there.
+    ctx.db.prepare("UPDATE projects SET verify = ?").run(JSON.stringify([]));
+    ctx.orch.cancel(task.id);
+    await waitFor(() => ctx.orch.task(task.id).status === "cancelled" || undefined);
+    await call("POST", `/api/tasks/${task.id}/retry`, {});
+    const t = await waitFor(() => { const x = ctx.orch.task(task.id); return ["approved", "failed", "needs_attention"].includes(x.status) ? x : undefined; });
+    expect(t.error).toBe("");
+    expect(t.status).toBe("approved");
+    expect(t.summary).toContain("Added a.txt"); // what was done is kept, not replaced by "nothing left to do"
+  });
+
+  it("exports a task and what its agents did as Markdown", async () => {
+    const { call, task } = await startChat([]);
+    script = (req) => {
+      if (req.agent.role === "worker") { execFileSync("mkdir", ["-p", join(req.cwd, "src")]); writeFileSync(join(req.cwd, "src", "e.txt"), "x"); return ok("Added e.txt"); }
+      return ok("r", { verdict: "approve", review: "Good" });
+    };
+    await call("POST", `/api/messages/${task.message_id}/run`);
+    await waitFor(() => { const x = ctx.orch.task(task.id); return x.status === "approved" ? x : undefined; });
+    const r = await ctx.app.inject({ method: "GET", url: `/api/tasks/${task.id}/export.md`, headers: { cookie, host: "localhost" } });
+    expect(r.statusCode).toBe(200);
+    expect(String(r.headers["content-type"])).toContain("text/markdown");
+    expect(String(r.headers["content-disposition"])).toContain("attachment");
+    expect(r.body).toContain("# Add hello");
+    expect(r.body).toContain("Added e.txt");
+    expect(r.body).toContain("## Activity");
+    expect((await ctx.app.inject({ method: "GET", url: "/api/tasks/99999/export.md", headers: { cookie, host: "localhost" } })).statusCode).toBe(404);
+    expect((await ctx.app.inject({ method: "GET", url: `/api/tasks/${task.id}/export.md`, headers: { host: "localhost" } })).statusCode).toBe(401);
+  });
+
   it("refuses a commit with files outside the task paths", async () => {
     const { call, task } = await startChat([]);
     script = (req) => { writeFileSync(join(req.cwd, "README.md"), "changed\n"); return ok("done"); };

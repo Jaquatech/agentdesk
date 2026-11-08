@@ -17,6 +17,7 @@ import type { Orchestrator } from "./orchestrator/orchestrator.ts";
 import { commandProblem, envFileCandidates, folderOnDisk, suggestSetup, suggestVerify, verifyWarnings } from "./verifyHelp.ts";
 import { validEnvFileName } from "./orchestrator/envFile.ts";
 import { blockingTask } from "./orchestrator/overlap.ts";
+import { taskToMarkdown } from "./taskExport.ts";
 import { appVersion } from "./version.ts";
 
 type Body = Record<string, any>;
@@ -451,6 +452,14 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     try {
       return orch.decide(id((req.params as Body).id), { allow: !!b.allow, always: !!b.always, prefix: b.prefix ? String(b.prefix) : undefined, by: user?.username ?? "user" });
     } catch (err) { return bad(reply, String((err as Error).message)); }
+  });
+  /** The task and everything its agents did as one Markdown file, to hand to someone who cannot open the screen. */
+  app.get("/api/tasks/:id/export.md", async (req, reply) => {
+    const taskId = id((req.params as Body).id);
+    const md = taskToMarkdown(db, taskId);
+    if (md === null) return bad(reply, "Not found", 404);
+    const slug = String((db.prepare("SELECT slug FROM tasks WHERE id = ?").get(taskId) as { slug?: string })?.slug ?? "task").replace(/[^\w.-]+/g, "-");
+    return reply.header("content-type", "text/markdown; charset=utf-8").header("content-disposition", `attachment; filename="task-${taskId}-${slug}.md"`).send(md);
   });
   app.get("/api/runs/:id", async (req, reply) => {
     const run = db.prepare(`SELECT r.*, a.name AS agent FROM runs r LEFT JOIN agents a ON a.id = r.agent_id WHERE r.id = ?`)
