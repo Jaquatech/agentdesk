@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { blockingTask, pathsOverlap, type PlanningTask } from "../src/orchestrator/overlap.ts";
+import { blockingTask, pathsOverlap, waitKey, type PlanningTask } from "../src/orchestrator/overlap.ts";
 
 const parse = (s: string) => JSON.parse(s) as string[];
 const task = (id: number, status: string, paths: string[], sprint = 1): PlanningTask => ({ id, title: `T${id}`, status, paths: JSON.stringify(paths), sprint_id: sprint });
@@ -36,5 +36,15 @@ describe("blocking task", () => {
     expect(blockingTask(me, [task(1, "building", readme, 2)], parse)).toBeUndefined();
     expect(blockingTask(me, [task(1, "building", ["docs/"])], parse)).toBeUndefined();
     expect(blockingTask({ ...me, sprint_id: null }, [task(1, "building", readme, 1)], parse)).toBeUndefined();
+  });
+});
+
+describe("waiting message key", () => {
+  it("stays the same while the blocker works, and changes once when it stops", () => {
+    const keys = ["queued", "building", "verifying", "reviewing"].map((status) => waitKey(2, { id: 1, status }));
+    expect(new Set(keys).size).toBe(1);
+    expect(waitKey(2, { id: 1, status: "needs_attention" })).not.toBe(keys[0]);
+    expect(waitKey(2, { id: 1, status: "failed" })).toBe(waitKey(2, { id: 1, status: "needs_attention" }));
+    expect(waitKey(3, { id: 1, status: "building" })).not.toBe(keys[0]);
   });
 });

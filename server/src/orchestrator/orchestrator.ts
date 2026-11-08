@@ -16,7 +16,7 @@ import { runCommandLine, tail, type ShellKind } from "./shell.ts";
 import { loadForPrompt, type AttachmentRow } from "../attachments.ts";
 import { getCapabilities } from "../providers/capabilities.ts";
 import { placeEnvFile, type EnvFileHandle } from "./envFile.ts";
-import { blockingTask } from "./overlap.ts";
+import { blockingTask, isStuck, waitKey } from "./overlap.ts";
 import { setupProblem } from "../verifyHelp.ts";
 import { DEFAULT_WORKER_TOOLS } from "../engines/types.ts";
 import { PLAN_TOOL, REVIEW_TOOL, NOTES_TOOL, ROLE_TEMPLATES, buildWorkerPrompt, buildReviewPrompt } from "./prompts.ts";
@@ -359,10 +359,11 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
       // Same files as an earlier task of the sprint: wait until that one has merged, then start from its result.
       const blocker = blockingTask(t, sprintTasks, (s) => json.parse<string[]>(s, []));
       if (blocker) {
-        const key = `${t.id}:wait:${blocker.id}:${blocker.status}`;
+        // Told once per blocker, and once more if it stops (a different message); not on every status change of the blocker.
+        const stuck = isStuck(blocker.status);
+        const key = waitKey(t.id, blocker);
         if (!this.budgetTold.has(key)) {
           this.budgetTold.add(key);
-          const stuck = ["needs_attention", "failed", "interrupted"].includes(blocker.status);
           this.postMessage(t.chat_id, "event", `**${t.title}** is waiting for **${blocker.title}**, which changes the same files${stuck ? ` and has stopped (${blocker.status.replace("_", " ")}). Retry or cancel it` : ""}.`);
         }
         continue;

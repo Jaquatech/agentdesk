@@ -223,7 +223,7 @@ describe("scrum", () => {
       expect(ctx.db.prepare("SELECT status FROM tasks WHERE sprint_id = ? ORDER BY id").all(sprint.id)).toEqual([{ status: "merged" }, { status: "merged" }]);
       const chat = ctx.db.prepare("SELECT chat_id FROM tasks WHERE sprint_id = ? ORDER BY id DESC").get(sprint.id) as any;
       const events = ctx.db.prepare("SELECT content FROM messages WHERE chat_id = ? AND role = 'event'").all(chat.chat_id) as { content: string }[];
-      expect(events.some((e) => e.content.includes("is waiting for"))).toBe(true);
+      expect(events.filter((e) => e.content.includes("is waiting for"))).toHaveLength(1); // told once, not on every status change
     } finally { Object.assign(points, saved); }
   });
 });

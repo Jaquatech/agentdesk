@@ -1,5 +1,10 @@
 # Release notes
 
+## 1.2.1 (2026-11-08)
+
+### Fixes
+- A task that waits for another one (same files) now says so once in the sprint chat, instead of again every time the other task changes status.
+
 ## 1.2.0 (2026-11-08)
 
 ### Scrum

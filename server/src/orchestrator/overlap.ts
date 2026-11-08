@@ -20,6 +20,12 @@ export function pathsOverlap(a: string[], b: string[]): boolean {
   return x.some((p) => y.some((q) => covers(p, q) || covers(q, p)));
 }
 
+/** A blocker that has stopped and needs the user (a different message than a blocker that is just working). */
+export const isStuck = (status: string) => ["needs_attention", "failed", "interrupted"].includes(status);
+
+/** One chat message per blocker, and one more if it stops: the key must not change with the blocker's other statuses. */
+export const waitKey = (taskId: number, blocker: { id: number; status: string }) => `${taskId}:wait:${blocker.id}:${isStuck(blocker.status)}`;
+
 export type PlanningTask = { id: number; title: string; status: string; paths: string; sprint_id: number | null };
 
 /** The earlier task of the same sprint that this one has to wait for, if any (merged and cancelled tasks never block). */
