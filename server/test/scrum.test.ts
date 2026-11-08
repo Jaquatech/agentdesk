@@ -218,7 +218,14 @@ describe("scrum", () => {
         return orig(req);
       } };
       await call("POST", `/api/sprints/${sprint.id}/start`, {});
+      // While the first task builds, the second one says what it waits for.
+      const ids = (ctx.db.prepare("SELECT id FROM tasks WHERE sprint_id = ? ORDER BY id").all(sprint.id) as { id: number }[]).map((r) => r.id);
+      let waiting: any = null;
+      for (let n = 0; n < 60 && !waiting; n++) { waiting = (await call("GET", `/api/tasks/${ids[1]}`)).waiting_for; if (!waiting) await new Promise((r) => setTimeout(r, 20)); }
+      expect(waiting).toMatchObject({ id: ids[0], title: "Add alpha" });
+      expect((await call("GET", `/api/tasks/${ids[0]}`)).waiting_for).toBeNull();
       await waitFor(() => (ctx.db.prepare("SELECT status FROM sprints WHERE id = ?").get(sprint.id) as any).status === "done" || undefined);
+      expect((await call("GET", `/api/tasks/${ids[1]}`)).waiting_for).toBeNull(); // merged: nothing to wait for
       expect(most).toBe(1);
       expect(ctx.db.prepare("SELECT status FROM tasks WHERE sprint_id = ? ORDER BY id").all(sprint.id)).toEqual([{ status: "merged" }, { status: "merged" }]);
       const chat = ctx.db.prepare("SELECT chat_id FROM tasks WHERE sprint_id = ? ORDER BY id DESC").get(sprint.id) as any;

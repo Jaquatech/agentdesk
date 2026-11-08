@@ -167,8 +167,11 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
   const [error, setError] = useState("");
 
   const [checks, setChecks] = useState<TaskChecks | null>(null);
-  const loadRuns = () => get<{ runs: Run[]; checks: TaskChecks }>(`/api/tasks/${task.id}`).then((d) => { setRuns(d.runs); setChecks(d.checks); });
+  const [waitingFor, setWaitingFor] = useState<{ id: number; title: string; status: string; worker: string } | null>(null);
+  const loadRuns = () => get<{ runs: Run[]; checks: TaskChecks; waiting_for: typeof waitingFor }>(`/api/tasks/${task.id}`).then((d) => { setRuns(d.runs); setChecks(d.checks); setWaitingFor(d.waiting_for ?? null); });
   useEffect(() => { loadRuns(); }, [task.id, task.status, task.round]);
+  // The task it waits for can stop while this one stays queued: look again when a task of the same chat changes.
+  useLiveEvents((e) => { if (e.type === "task" && task.status === "queued" && e.chatId === task.chat_id && e.task.id !== task.id) loadRuns(); });
 
   const [retryWorker, setRetryWorker] = useState("");
   const act = async (action: string, body: Record<string, unknown> = {}) => {
@@ -192,6 +195,12 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
           {STEPS.map((s, i) => <div key={s} className={`step ${stepIdx > i || task.status === "merged" ? "done" : stepIdx === i ? "on" : ""} ${failed && i === Math.max(0, stepIdx) ? "fail" : ""}`} />)}
         </div>
       </div>
+      {task.status === "queued" && waitingFor && (
+        <div className="card card-pad" style={{ borderColor: ["needs_attention", "failed", "interrupted"].includes(waitingFor.status) ? "var(--bad, #c0504d)" : undefined }}>
+          Waiting for <b>{waitingFor.title}</b>{waitingFor.worker ? ` (${waitingFor.worker})` : ""} to finish: it changes the same files, so this task starts after it has merged.
+          {["needs_attention", "failed", "interrupted"].includes(waitingFor.status) && <> <b>That task has stopped ({waitingFor.status.replace("_", " ")}).</b> Retry or stop it.</>}
+        </div>
+      )}
       <div className="meta">
         <span>Developer <b>{name(task.worker_id)}</b></span>
         <span>Reviewer <b>{name(task.reviewer_id)}</b></span>

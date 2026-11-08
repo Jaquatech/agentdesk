@@ -1,5 +1,10 @@
 # Release notes
 
+## 1.2.2 (2026-11-08)
+
+### Scrum
+- A queued task that waits for another one (same files) now says so in the task view: "Waiting for <task> (<developer>) to finish", and warns when that task has stopped and needs a retry.
+
 ## 1.2.1 (2026-11-08)
 
 ### Fixes

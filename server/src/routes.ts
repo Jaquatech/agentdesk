@@ -16,6 +16,7 @@ import { getCapabilities } from "./providers/capabilities.ts";
 import type { Orchestrator } from "./orchestrator/orchestrator.ts";
 import { commandProblem, envFileCandidates, folderOnDisk, suggestSetup, suggestVerify, verifyWarnings } from "./verifyHelp.ts";
 import { validEnvFileName } from "./orchestrator/envFile.ts";
+import { blockingTask } from "./orchestrator/overlap.ts";
 import { appVersion } from "./version.ts";
 
 type Body = Record<string, any>;
@@ -386,8 +387,16 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     const taskId = id((req.params as Body).id);
     const task = db.prepare(`SELECT t.*, (SELECT s.number FROM sprints s WHERE s.id = t.sprint_id) AS sprint_number, (SELECT s.status FROM sprints s WHERE s.id = t.sprint_id) AS sprint_status FROM tasks t WHERE t.id = ?`).get(taskId);
     if (!task) return bad(reply, "Not found", 404);
+    // A queued sprint task that waits for another one (same files): who, so the task can say why it has not started.
+    let waiting_for: { id: number; title: string; status: string; worker: string } | null = null;
+    const me = task as Body & { id: number; status: string; sprint_id: number | null; paths: string; title: string };
+    if (me.status === "queued" && me.sprint_id) {
+      const all = db.prepare("SELECT id, title, status, paths, sprint_id FROM tasks WHERE sprint_id = ?").all(me.sprint_id) as { id: number; title: string; status: string; paths: string; sprint_id: number | null }[];
+      const b = blockingTask(me, all, (s) => json.parse<string[]>(s, []));
+      if (b) waiting_for = { id: b.id, title: b.title, status: b.status, worker: String((db.prepare("SELECT a.name FROM tasks t JOIN agents a ON a.id = t.worker_id WHERE t.id = ?").get(b.id) as { name?: string } | undefined)?.name ?? "") };
+    }
     // The list leaves out the (large) transcripts; /api/runs/:id has them.
-    return { task, checks: taskChecks(taskId, (task as Body).project_id as number), runs: db.prepare(`SELECT id, task_id, chat_id, agent_id, kind, round, model, engine, status, turns, cost_usd, tokens_in, cache_read,
+    return { task, waiting_for, checks: taskChecks(taskId, (task as Body).project_id as number), runs: db.prepare(`SELECT id, task_id, chat_id, agent_id, kind, round, model, engine, status, turns, cost_usd, tokens_in, cache_read,
       cache_write, tokens_out, seconds, summary, log, started_at, ended_at, transcript IS NOT NULL AS has_transcript
       FROM runs WHERE task_id = ? ORDER BY id`).all(taskId) };
   });
