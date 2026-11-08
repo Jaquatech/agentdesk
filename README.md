@@ -302,6 +302,10 @@ Agents never get a free hand. Every rule below is enforced by the server, not by
    **Checks** section next to the Merge button: one row per command with its result and duration, so you can see
    whether a branch passed the tests or only the lint. A failed row opens its output on click; a command that did
    not run (an earlier one failed) shows as *not run*, never as passed.
+   **A stuck developer is stopped.** If the built-in agent keeps failing its file edits (typically an edit whose
+   text never matches, even when it reads the file again in between), it is told at the 3rd failure to change
+   approach, for example to write the whole file, and stopped at the 6th. The same failing call repeated 5 times
+   also stops it. Retry the task with another developer or model.
 6. **Agents never touch git.** AgentDesk commits; it pushes approved branches only when *Settings → Push approved
    branches* is on (never in demo mode); merging needs your **Merge** button (or the Merge button the planner offers
    in chat). **Discard branch** deletes only branches named `task/…`.
