@@ -299,6 +299,9 @@ Agents never get a free hand. Every rule below is enforced by the server, not by
    (`server/src/orchestrator/git.ts`, `commitChanges`)
 5. **Checks gate the review.** The project's verify commands run in the worktree after each round; all must pass
    before the reviewer sees the work. These are your commands, so they run without asking.
+   **A stuck developer is stopped.** If the built-in agent sends the same failing tool call (typically an edit whose
+   text never matches) three times in a row, it is told to read the file again and change approach; at five it is
+   stopped with a message, and twelve failed calls in a row also stop it. Retry the task with another developer or model.
 6. **Agents never touch git.** AgentDesk commits; it pushes approved branches only when *Settings → Push approved
    branches* is on (never in demo mode); merging needs your **Merge** button (or the Merge button the planner offers
    in chat). **Discard branch** deletes only branches named `task/…`.

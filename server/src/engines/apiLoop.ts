@@ -4,6 +4,7 @@ import { READ_TOOLS, WRITE_TOOLS, FINISH_TOOL, runTool } from "./tools.ts";
 import type { ChatMessage, Block, ToolDef } from "../providers/types.ts";
 import { textOf } from "../providers/types.ts";
 import { callCost } from "../pricing.ts";
+import { LoopGuard, loopWarning } from "./loopGuard.ts";
 
 /**
  * Built-in agent loop for any API provider (Anthropic, OpenAI-compatible, Ollama).
@@ -40,6 +41,7 @@ When you are done, call ${finalTool.name} exactly once. Do not ask questions; ta
     const maxTurns = Math.max(1, req.agent.max_turns || 60);
     let tokensIn = 0, tokensOut = 0, cacheRead = 0, cacheWrite = 0, cost = 0, turns = 0, lastText = "";
     let changedFiles = 0, nudges = 0;
+    const guard = new LoopGuard();
     const transcript: TranscriptEntry[] = [];
     const log = (e: Omit<TranscriptEntry, "t">) => {
       if (transcript.length >= 600) return;
@@ -128,7 +130,15 @@ When you are done, call ${finalTool.name} exactly once. Do not ask questions; ta
           req.onActivity?.(outcome.activity, outcome.detail);
           req.onLog?.(`${outcome.isError ? "✗" : "→"} ${outcome.detail}`);
           log({ kind: "tool", tool: call.name, input: call.input, output: outcome.content, isError: outcome.isError });
-          results.push({ type: "tool_result", tool_use_id: call.id, content: outcome.content.slice(0, 60_000), is_error: outcome.isError });
+          // An agent that keeps sending the same failing call is told to change approach, then stopped.
+          const verdict = guard.record(call.name, call.input, !!outcome.isError);
+          if (verdict.action === "stop") {
+            log({ kind: "note", text: `Stopped: ${verdict.reason}.` });
+            return done(false, lastText, undefined, `Stopped: it ${verdict.reason}. Retry with another developer or model.`);
+          }
+          const warning = verdict.action === "warn" ? loopWarning(call.name, verdict.repeats) : "";
+          if (verdict.action === "warn") log({ kind: "note", text: `The same ${call.name} call failed ${verdict.repeats} times in a row; the model was told to change approach.` });
+          results.push({ type: "tool_result", tool_use_id: call.id, content: (outcome.content + warning).slice(0, 60_000), is_error: outcome.isError });
         }
         messages.push({ role: "user", content: results });
       }
