@@ -131,6 +131,28 @@ describe("pipeline", () => {
     expect(csv.body.trim().split("\r\n")).toHaveLength(6);
   });
 
+  it("keeps what the earlier rounds did when the last round changes nothing", async () => {
+    const { call, task } = await startChat([]);
+    let reviews = 0;
+    script = (req) => {
+      if (req.agent.role === "worker") {
+        if (!req.prompt.includes("Round 2")) {
+          execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+          writeFileSync(join(req.cwd, "src", "hello.txt"), "hello\n");
+          return ok("Added hello.txt");
+        }
+        return ok("Round 2 result: no file changed in this round.");
+      }
+      reviews++;
+      return reviews === 1 ? ok("r", { verdict: "changes", review: "Check again", fixes: ["Look again"] }) : ok("r", { verdict: "approve", review: "Good" });
+    };
+    await call("POST", `/api/messages/${task.message_id}/run`);
+    const done = await waitFor(() => { const x = ctx.orch.task(task.id); return ["approved", "failed", "needs_attention"].includes(x.status) ? x : undefined; });
+    expect(done.status).toBe("approved");
+    expect(done.summary).toContain("Added hello.txt");
+    expect(done.summary).not.toContain("no file changed");
+  });
+
   it("refuses a commit with files outside the task paths", async () => {
     const { call, task } = await startChat([]);
     script = (req) => { writeFileSync(join(req.cwd, "README.md"), "changed\n"); return ok("done"); };

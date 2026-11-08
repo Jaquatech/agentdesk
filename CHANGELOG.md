@@ -1,5 +1,10 @@
 # Release notes
 
+## 1.1.2 (2026-11-08)
+
+### Fixes
+- The task summary (shown on the task, in the merge commit and in the release notes) now keeps what the earlier rounds did. Before, a last round that changed no files replaced it with "no file changed in this round".
+
 ## 1.1.1 (2026-11-08)
 
 ### Fixes
