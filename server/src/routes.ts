@@ -14,6 +14,7 @@ import { DEFAULT_WORKER_TOOLS } from "./engines/types.ts";
 import { deleteChatFiles } from "./attachments.ts";
 import { getCapabilities } from "./providers/capabilities.ts";
 import type { Orchestrator } from "./orchestrator/orchestrator.ts";
+import { commandProblem, folderOnDisk, suggestVerify, verifyWarnings } from "./verifyHelp.ts";
 
 type Body = Record<string, any>;
 const id = (v: unknown) => Number(v);
@@ -279,6 +280,13 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     const p = String(path ?? "");
     return { exists: !!p && existsSync(p), git: !!p && existsSync(join(p, ".git")) };
   });
+  // Verify commands that fit the project folder (offered, never applied) and warnings for ones that cannot work there.
+  app.post("/api/projects/verify-help", async (req) => {
+    const b = req.body as Body;
+    const folder = b.path ? folderOnDisk(String(b.path)) : null;
+    if (!folder) return { suggestions: [], warnings: [] };
+    return { suggestions: suggestVerify(folder), warnings: verifyWarnings(folder, lines(b.verify)) };
+  });
 
   // ---------- chats ----------
   app.get("/api/chats", async (req) => {
@@ -391,9 +399,11 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       running: run?.status === "running",
       items: commands.map((command, step) => {
         const s = steps[step];
-        if (!s || s.input !== command) return { command, step, status: "not_run" as const, exit: null, ms: null };
+        if (!s || s.input !== command) return { command, step, status: "not_run" as const, exit: null, ms: null, problem: null };
         const exit = /^exit (-?\d+)/.exec(s.output ?? "");
-        return { command, step, status: s.isError ? "failed" as const : "passed" as const, exit: exit ? Number(exit[1]) : null, ms: s.ms ?? null };
+        return { command, step, status: s.isError ? "failed" as const : "passed" as const, exit: exit ? Number(exit[1]) : null, ms: s.ms ?? null,
+          // Set when the command itself cannot run (missing script, command not found), not when it found a problem.
+          problem: s.isError ? commandProblem(s.output ?? "") ?? null : null };
       }),
     };
   }

@@ -153,7 +153,10 @@ Then restart the server (Ctrl+C, `npm start`). The database updates itself on st
 4. **Teams** (optional): group agents, e.g. "Web" and "Integration", and pick each team's planner and reviewer.
    An agent can be in several teams. Without teams, every enabled agent works on every project.
 5. **Projects**: pick a local git folder (Browse) or enter a GitHub / Azure DevOps URL, and the project's team. Add the
-   verify commands (e.g. `npm test`) and setup commands (e.g. `npm ci`) that run in every task's worktree.
+   verify commands (e.g. `npm test`) and setup commands (e.g. `npm ci`) that run in every task's worktree. Under the
+   verify box, AgentDesk offers commands that fit the folder (npm scripts that exist, `pytest`, `go test ./...`,
+   `cargo test`, `dotnet test`, and `git diff --check` for any repository) as buttons: nothing is added until you click.
+   It also warns about a command that cannot work there, such as `npm run lint` in a folder without `package.json`.
 6. Start a chat in the project. The planner answers and proposes tasks; press **Run plan** (or turn on "Run plans
    right away" in Settings).
 
@@ -301,7 +304,9 @@ Agents never get a free hand. Every rule below is enforced by the server, not by
    before the reviewer sees the work. These are your commands, so they run without asking. The task view shows a
    **Checks** section next to the Merge button: one row per command with its result and duration, so you can see
    whether a branch passed the tests or only the lint. A failed row opens its output on click; a command that did
-   not run (an earlier one failed) shows as *not run*, never as passed.
+   not run (an earlier one failed) shows as *not run*, never as passed. The same summary sits in the line at the top
+   of the task. If a check fails because the command itself cannot run (a missing script, a program that is not
+   installed), the row says so and points to the project settings, because the developer cannot fix that.
    **A stuck developer is stopped.** If the built-in agent keeps failing its file edits (typically an edit whose
    text never matches, even when it reads the file again in between), it is told at the 3rd failure to change
    approach, for example to write the whole file, and stopped at the 6th. The same failing call repeated 5 times

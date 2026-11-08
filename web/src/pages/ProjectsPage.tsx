@@ -72,6 +72,16 @@ function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; team
     return () => clearTimeout(t);
   }, [f.path]);
 
+  // Verify commands that fit the folder (one click to add) and warnings for ones that cannot work there.
+  const [help, setHelp] = useState<{ suggestions: { command: string; label: string }[]; warnings: string[] }>({ suggestions: [], warnings: [] });
+  useEffect(() => {
+    if (!f.path) { setHelp({ suggestions: [], warnings: [] }); return; }
+    const t = setTimeout(() => post<typeof help>("/api/projects/verify-help", { path: f.path, verify: f.verify }).then(setHelp).catch(() => {}), 400);
+    return () => clearTimeout(t);
+  }, [f.path, f.verify]);
+  const verifyLines = String(f.verify ?? "").split("\n").map((l) => l.trim());
+  const addVerify = (command: string) => set("verify", `${String(f.verify ?? "").replace(/\s+$/, "")}${String(f.verify ?? "").trim() ? "\n" : ""}${command}`);
+
   const save = async () => {
     setError("");
     try {
@@ -132,6 +142,15 @@ function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; team
       <div className="grid2">
         <Field label="Verify commands (one per line; all must pass)" hint="Run in the task's worktree after each build round.">
           <textarea className="mono" rows={4} value={f.verify} onChange={(e) => set("verify", e.target.value)} placeholder={"npm ci\nnpm test"} />
+          {help.warnings.map((w) => <div key={w} className="error" style={{ marginTop: 4 }}>⚠ {w}</div>)}
+          {help.suggestions.some((x) => !verifyLines.includes(x.command)) && (
+            <div className="row" style={{ flexWrap: "wrap", gap: 6, marginTop: 6 }} title="Commands that fit this folder. Click to add one; nothing is added by itself.">
+              <span className="hint">Add:</span>
+              {help.suggestions.filter((x) => !verifyLines.includes(x.command)).map((x) => (
+                <button key={x.command} type="button" className="btn" title={x.label} onClick={() => addVerify(x.command)}>+ <span className="mono">{x.command}</span></button>
+              ))}
+            </div>
+          )}
         </Field>
         <Field label="Setup commands (once per new worktree)" hint="E.g. installs. Developers cannot install packages themselves.">
           <textarea className="mono" rows={4} value={f.setup} onChange={(e) => set("setup", e.target.value)} placeholder="npm ci --no-audit --no-fund" />

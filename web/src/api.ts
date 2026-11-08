@@ -80,7 +80,7 @@ export type Run = {
   id: number; kind: string; round: number; model: string; status: string; turns: number | null; cost_usd: number | null;
   tokens_in: number; tokens_out: number; seconds: number | null; summary: string; log: string; agent_id: number | null; started_at: string;
 };
-export type Check = { command: string; step: number; status: "passed" | "failed" | "not_run"; exit: number | null; ms: number | null };
+export type Check = { command: string; step: number; status: "passed" | "failed" | "not_run"; exit: number | null; ms: number | null; problem: string | null };
 export type TaskChecks = { run_id: number | null; running: boolean; items: Check[] };
 export type AgentState = "idle" | "thinking" | "reading" | "typing" | "running" | "reviewing" | "waiting" | "error";
 export type Activity = { agentId: number; state: AgentState; detail?: string; taskId?: number; chatId?: number };

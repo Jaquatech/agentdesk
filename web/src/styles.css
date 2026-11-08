@@ -434,3 +434,6 @@ a.btn { text-decoration: none; color: inherit; }
 .check-row .dim { color: var(--muted); flex: none; }
 .check-out { margin-top: 6px; display: grid; gap: 6px; justify-items: start; }
 .check-out pre { margin: 0; width: 100%; box-sizing: border-box; max-height: 320px; overflow: auto; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; }
+.check-problem { margin: 4px 0 0 22px; }
+.meta b.bad { color: var(--bad); }
+.meta b.ok { color: var(--good); }

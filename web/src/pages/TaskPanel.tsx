@@ -93,19 +93,26 @@ export function TaskPanel({ chatId, agents, initialGroup, initialTask }: { chatI
   );
 }
 
-/** The project's verify commands, each with its own result; the output of a failed one opens on click. */
-function ChecksPanel({ checks, waiting }: { checks: TaskChecks; waiting: boolean }) {
-  // Before the checks start (still building, or a new round after a retry) an earlier round's results would mislead.
-  if (waiting) checks = { run_id: null, running: false, items: checks.items.map((c) => ({ ...c, status: "not_run" as const, exit: null, ms: null })) };
+/** What to show for the checks: before they start (still building, or a new round after a retry) earlier results would mislead. */
+function checksView(checks: TaskChecks, waiting: boolean) {
+  if (waiting) checks = { run_id: null, running: false, items: checks.items.map((c) => ({ ...c, status: "not_run" as const, exit: null, ms: null, problem: null })) };
   const passed = checks.items.filter((c) => c.status === "passed").length;
   const notRun = checks.items.filter((c) => c.status === "not_run").length;
   const failed = checks.items.some((c) => c.status === "failed");
-  const summary = waiting ? `${checks.items.length} check${checks.items.length === 1 ? "" : "s"}, run after the build` : `${passed} of ${checks.items.length} passed${notRun && !checks.running ? `, ${notRun} not run` : ""}${checks.running ? ", running" : ""}`;
+  const summary = waiting ? `${checks.items.length} check${checks.items.length === 1 ? "" : "s"}, run after the build`
+    : `${passed} of ${checks.items.length} passed${notRun && !checks.running ? `, ${notRun} not run` : ""}${checks.running ? ", running" : ""}`;
+  const tone = failed ? "bad" : !waiting && passed === checks.items.length ? "good" : "";
+  return { checks, summary, tone };
+}
+
+/** The project's verify commands, each with its own result; the output of a failed one opens on click. */
+function ChecksPanel({ checks: raw, waiting }: { checks: TaskChecks; waiting: boolean }) {
+  const { checks, summary, tone } = checksView(raw, waiting);
   return (
-    <div className="card card-pad checks">
+    <div className="card card-pad checks" id="task-checks">
       <div className="row" style={{ gap: 8 }}>
         <b>Checks</b>
-        <span className={`badge ${failed ? "bad" : passed === checks.items.length ? "good" : ""}`}>{summary}</span>
+        <span className={`badge ${tone}`}>{summary}</span>
       </div>
       <div className="check-list">
         {checks.items.map((c) => <CheckRow key={c.step} check={c} runId={checks.run_id} running={checks.running} waiting={waiting} />)}
@@ -139,6 +146,9 @@ function CheckRow({ check, runId, running, waiting }: { check: Check; runId: num
         <span className="hint">{result}{check.ms !== null ? ` · ${check.ms < 1000 ? `${check.ms} ms` : `${(check.ms / 1000).toFixed(1)} s`}` : ""}</span>
         {expandable && <span className="hint">{open ? "hide output" : "show output"}</span>}
       </div>
+      {check.problem && (
+        <div className="error check-problem">Cannot run here: {check.problem} Fix the command in the <a href="#/projects">project settings</a>; the developer cannot fix this.</div>
+      )}
       {open && output !== null && (
         <div className="check-out">
           <button className="btn" onClick={() => { navigator.clipboard?.writeText(output).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}>
@@ -189,6 +199,9 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
         <span>Cost <b>{money(task.cost_usd)}</b></span>
         <span>Tokens <b>{(task.tokens / 1e6).toFixed(2)}M</b></span>
         {task.commit_sha && <span>Commit <b className="mono">{task.commit_sha}</b></span>}
+        {checks && checks.items.length > 0 && (() => { const v = checksView(checks, ["proposed", "queued", "building"].includes(task.status)); return (
+          <span>Checks <a href="#/tasks" title="Show the checks" onClick={(e) => { e.preventDefault(); document.getElementById("task-checks")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }}><b className={v.tone === "bad" ? "bad" : v.tone === "good" ? "ok" : ""}>{v.summary}</b></a></span>
+        ); })()}
         {task.sprint_id ? <span>Sprint <a href={`#/scrum/${task.project_id}?tab=${task.sprint_status === "released" ? "releases" : "current"}&sprint=${task.sprint_id}`}><b>{task.sprint_number}</b>{task.sprint_status === "released" ? " · release" : ""} →</a></span> : null}
         {paths.length > 0 && <span>Paths <b className="mono">{paths.join(" ")}</b></span>}
       </div>
