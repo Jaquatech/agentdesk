@@ -420,3 +420,17 @@ a.btn { text-decoration: none; color: inherit; }
 .logo-editor { display: flex; gap: 20px; align-items: flex-start; }
 .logo-preview { display: grid; place-items: center; width: 132px; height: 132px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); flex: none; }
 @media (max-width: 640px) { .logo-editor { flex-direction: column; } }
+
+/* Checks section of a task: one row per verify command */
+.checks { display: grid; gap: 8px; }
+.check-list { display: grid; }
+.check-row { border-top: 1px solid var(--line); padding: 6px 0; }
+.check-row:first-child { border-top: 0; }
+.check-head { align-items: center; }
+.check-row.failed .check-head { cursor: pointer; }
+.check-cmd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.check-row .ok { color: var(--good); flex: none; }
+.check-row .bad { color: var(--bad); flex: none; }
+.check-row .dim { color: var(--muted); flex: none; }
+.check-out { margin-top: 6px; display: grid; gap: 6px; justify-items: start; }
+.check-out pre { margin: 0; width: 100%; box-sizing: border-box; max-height: 320px; overflow: auto; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; }

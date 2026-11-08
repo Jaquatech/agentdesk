@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
-import { ExternalLink, GitMerge, RotateCcw, Square, Trash2 } from "lucide-react";
-import { get, post, parseJson, useLiveEvents, type Agent, type Run, type Task } from "../api.ts";
+import { Check as CheckIcon, Circle, Copy, ExternalLink, GitMerge, RotateCcw, Square, Trash2, X } from "lucide-react";
+import { get, post, parseJson, useLiveEvents, type Agent, type Check, type Run, type Task, type TaskChecks } from "../api.ts";
 import { StatusBadge, money, ago } from "../components/ui.tsx";
 import { TaskActivity } from "../components/Activity.tsx";
 
@@ -93,12 +93,69 @@ export function TaskPanel({ chatId, agents, initialGroup, initialTask }: { chatI
   );
 }
 
+/** The project's verify commands, each with its own result; the output of a failed one opens on click. */
+function ChecksPanel({ checks }: { checks: TaskChecks }) {
+  const passed = checks.items.filter((c) => c.status === "passed").length;
+  const notRun = checks.items.filter((c) => c.status === "not_run").length;
+  const failed = checks.items.some((c) => c.status === "failed");
+  const summary = `${passed} of ${checks.items.length} passed${notRun && !checks.running ? `, ${notRun} not run` : ""}${checks.running ? ", running" : ""}`;
+  return (
+    <div className="card card-pad checks">
+      <div className="row" style={{ gap: 8 }}>
+        <b>Checks</b>
+        <span className={`badge ${failed ? "bad" : passed === checks.items.length ? "good" : ""}`}>{summary}</span>
+      </div>
+      <div className="check-list">
+        {checks.items.map((c) => <CheckRow key={c.step} check={c} runId={checks.run_id} running={checks.running} />)}
+      </div>
+    </div>
+  );
+}
+
+function CheckRow({ check, runId, running }: { check: Check; runId: number | null; running: boolean }) {
+  const [output, setOutput] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const expandable = check.status === "failed" && runId !== null;
+  const toggle = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && output === null && runId !== null) {
+      try {
+        const run = await get<{ transcript: { output?: string }[] }>(`/api/runs/${runId}`);
+        setOutput(run.transcript[check.step]?.output ?? "(no output saved)");
+      } catch (e) { setOutput(`Could not load the output: ${(e as Error).message}`); }
+    }
+  };
+  const result = check.status === "passed" ? "passed" : check.status === "failed" ? `failed${check.exit !== null ? ` (exit ${check.exit})` : ""}` : running ? "waiting" : "not run";
+  return (
+    <div className={`check-row ${check.status}`}>
+      <div className="row check-head" style={{ gap: 8 }} onClick={expandable ? toggle : undefined} role={expandable ? "button" : undefined} aria-expanded={expandable ? open : undefined}>
+        {check.status === "passed" ? <CheckIcon size={14} className="ok" /> : check.status === "failed" ? <X size={14} className="bad" /> : <Circle size={12} className="dim" />}
+        <code className="check-cmd">{check.command}</code>
+        <span className="spacer" />
+        <span className="hint">{result}{check.ms !== null ? ` · ${check.ms < 1000 ? `${check.ms} ms` : `${(check.ms / 1000).toFixed(1)} s`}` : ""}</span>
+        {expandable && <span className="hint">{open ? "hide output" : "show output"}</span>}
+      </div>
+      {open && output !== null && (
+        <div className="check-out">
+          <button className="btn" onClick={() => { navigator.clipboard?.writeText(output).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}>
+            <Copy size={13} /> {copied ? "Copied" : "Copy output"}
+          </button>
+          <pre>{output}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TaskDetail({ task, name, workers, onAction }: { task: Task; name: (id: number | null) => string; workers: Agent[]; onAction: () => void }) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
-  const loadRuns = () => get<{ runs: Run[] }>(`/api/tasks/${task.id}`).then((d) => setRuns(d.runs));
+  const [checks, setChecks] = useState<TaskChecks | null>(null);
+  const loadRuns = () => get<{ runs: Run[]; checks: TaskChecks }>(`/api/tasks/${task.id}`).then((d) => { setRuns(d.runs); setChecks(d.checks); });
   useEffect(() => { loadRuns(); }, [task.id, task.status, task.round]);
 
   const [retryWorker, setRetryWorker] = useState("");
@@ -150,6 +207,7 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
         {["failed", "needs_attention", "cancelled", "interrupted", "approved"].includes(task.status) && task.worktree && <button className="btn danger" disabled={!!busy} onClick={() => act("discard")}><Trash2 size={14} /> Discard branch</button>}
       </div>
       {error && <div className="error">{error}</div>}
+      {checks && checks.items.length > 0 && <ChecksPanel checks={checks} />}
       {task.error && <div className="card card-pad" style={{ borderColor: "var(--bad)" }}><b className="error">Problem</b><div className="msg-body"><Markdown>{task.error}</Markdown></div></div>}
       {task.summary && <details open><summary><b>Developer's summary</b></summary><div className="msg-body"><Markdown>{task.summary}</Markdown></div></details>}
       {task.review && <details open={task.verdict !== "approve"}><summary><b>Review: {task.verdict}</b></summary><div className="msg-body"><Markdown>{task.review}</Markdown></div></details>}

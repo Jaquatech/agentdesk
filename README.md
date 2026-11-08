@@ -298,7 +298,10 @@ Agents never get a free hand. Every rule below is enforced by the server, not by
    *always-allowed paths*. Otherwise nothing is committed and the task fails with the list of files.
    (`server/src/orchestrator/git.ts`, `commitChanges`)
 5. **Checks gate the review.** The project's verify commands run in the worktree after each round; all must pass
-   before the reviewer sees the work. These are your commands, so they run without asking.
+   before the reviewer sees the work. These are your commands, so they run without asking. The task view shows a
+   **Checks** section next to the Merge button: one row per command with its result and duration, so you can see
+   whether a branch passed the tests or only the lint. A failed row opens its output on click; a command that did
+   not run (an earlier one failed) shows as *not run*, never as passed.
 6. **Agents never touch git.** AgentDesk commits; it pushes approved branches only when *Settings → Push approved
    branches* is on (never in demo mode); merging needs your **Merge** button (or the Merge button the planner offers
    in chat). **Discard branch** deletes only branches named `task/…`.

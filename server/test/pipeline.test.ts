@@ -164,6 +164,27 @@ describe("pipeline", () => {
     expect(t2.feedback).toContain("exit 3");
   });
 
+  it("lists each verify command with its own result; the failure output is one request away", async () => {
+    const { call, task } = await startChat(["echo lint-ok", "exit 3", "echo tests-ok"]);
+    const before = await call("GET", `/api/tasks/${task.id}`);
+    expect(before.checks.items.map((c: any) => c.status)).toEqual(["not_run", "not_run", "not_run"]);
+    script = (req) => {
+      execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+      writeFileSync(join(req.cwd, "src", `h${Math.random()}.txt`), "x");
+      return ok("done");
+    };
+    await call("POST", `/api/messages/${task.message_id}/run`);
+    await waitFor(() => { const x = ctx.orch.task(task.id); return x.status === "needs_attention" ? x : undefined; });
+    const { checks } = await call("GET", `/api/tasks/${task.id}`);
+    // The command after the failed one did not run: it is "not_run", never "passed".
+    expect(checks.items.map((c: any) => [c.command, c.status, c.exit])).toEqual([
+      ["echo lint-ok", "passed", 0], ["exit 3", "failed", 3], ["echo tests-ok", "not_run", null],
+    ]);
+    expect(JSON.stringify(checks)).not.toContain("lint-ok\n");
+    const run = await call("GET", `/api/runs/${checks.run_id}`);
+    expect(run.transcript[checks.items[1].step].output).toContain("exit 3");
+  });
+
   it("never returns secret values from the API", async () => {
     const call = (ctx as any).call;
     const list = await call("GET", "/api/secrets");

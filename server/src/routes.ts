@@ -370,10 +370,33 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     const task = db.prepare(`SELECT t.*, (SELECT s.number FROM sprints s WHERE s.id = t.sprint_id) AS sprint_number, (SELECT s.status FROM sprints s WHERE s.id = t.sprint_id) AS sprint_status FROM tasks t WHERE t.id = ?`).get(taskId);
     if (!task) return bad(reply, "Not found", 404);
     // The list leaves out the (large) transcripts; /api/runs/:id has them.
-    return { task, runs: db.prepare(`SELECT id, task_id, chat_id, agent_id, kind, round, model, engine, status, turns, cost_usd, tokens_in, cache_read,
+    return { task, checks: taskChecks(taskId, (task as Body).project_id as number), runs: db.prepare(`SELECT id, task_id, chat_id, agent_id, kind, round, model, engine, status, turns, cost_usd, tokens_in, cache_read,
       cache_write, tokens_out, seconds, summary, log, started_at, ended_at, transcript IS NOT NULL AS has_transcript
       FROM runs WHERE task_id = ? ORDER BY id`).all(taskId) };
   });
+  /**
+   * The project's verify commands with the result of each one from the task's latest "checks" run, without the output
+   * (the UI fetches that from /api/runs/:id when a failed row is opened). A command that did not run, because an earlier
+   * one failed or the checks have not started, is "not run": it is never shown as passed.
+   */
+  function taskChecks(taskId: number, projectId: number) {
+    const project = db.prepare("SELECT verify FROM projects WHERE id = ?").get(projectId) as { verify: string } | undefined;
+    const commands = json.parse<string[]>(project?.verify ?? "[]", []);
+    const run = db.prepare("SELECT id, status, transcript FROM runs WHERE task_id = ? AND kind = 'checks' ORDER BY id DESC LIMIT 1")
+      .get(taskId) as { id: number; status: string; transcript: string | null } | undefined;
+    const steps = (run ? (run.transcript ? json.parse<any[]>(run.transcript, []) : orch.liveTranscript(run.id) ?? []) : []) as
+      { input?: string; output?: string; isError?: boolean; ms?: number }[];
+    return {
+      run_id: run?.id ?? null,
+      running: run?.status === "running",
+      items: commands.map((command, step) => {
+        const s = steps[step];
+        if (!s || s.input !== command) return { command, step, status: "not_run" as const, exit: null, ms: null };
+        const exit = /^exit (-?\d+)/.exec(s.output ?? "");
+        return { command, step, status: s.isError ? "failed" as const : "passed" as const, exit: exit ? Number(exit[1]) : null, ms: s.ms ?? null };
+      }),
+    };
+  }
   app.put("/api/tasks/:id", async (req, reply) => {
     const taskId = id((req.params as Body).id);
     const t = orch.task(taskId);
