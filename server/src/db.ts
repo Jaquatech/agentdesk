@@ -342,6 +342,10 @@ const MIGRATIONS: string[] = [
   ALTER TABLE runs ADD COLUMN sprint_id INTEGER;
   CREATE INDEX idx_runs_sprint ON runs(sprint_id);
   `,
+  // A file (e.g. .env.test) copied into the worktree only while the verify commands run.
+  `
+  ALTER TABLE projects ADD COLUMN checks_env_file TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 export function openDb(file: string): DB {

@@ -164,6 +164,49 @@ describe("pipeline", () => {
     expect(t2.feedback).toContain("exit 3");
   });
 
+  it("stops at once, without a fix round, when a check fails because of the project setup", async () => {
+    const { call, task } = await startChat(["echo 'Error: environment variable ATTACHMENTS_ROOT is not set' && exit 1"]);
+    script = (req) => {
+      execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+      writeFileSync(join(req.cwd, "src", "a.txt"), "x");
+      return ok("done");
+    };
+    await call("POST", `/api/messages/${task.message_id}/run`);
+    const t = await waitFor(() => { const x = ctx.orch.task(task.id); return x.status === "needs_attention" ? x : undefined; });
+    expect(t.round).toBe(0);
+    expect(t.error).toContain("ATTACHMENTS_ROOT");
+    expect(t.error).toContain("project setup");
+    expect(calls.filter((c) => c.startsWith("worker")).length).toBe(1);
+  });
+
+  it("copies the env file for the checks only while they run, and removes it after", async () => {
+    const { call, task } = await startChat(["node -e \"process.exit(require('fs').readFileSync('.env.test','utf8').includes('A=1')?0:1)\""]);
+    writeFileSync(join(repo, ".env.test"), "A=1\n");
+    ctx.db.prepare("UPDATE projects SET checks_env_file = '.env.test'").run();
+    let seen = false;
+    script = (req) => {
+      if (req.agent.role === "worker") {
+        seen = seen || existsSync(join(req.cwd, ".env.test"));
+        execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+        writeFileSync(join(req.cwd, "src", "b.txt"), "x");
+        return ok("done");
+      }
+      seen = seen || existsSync(join(req.cwd, ".env.test"));
+      return ok("r", { verdict: "approve", review: "Good" });
+    };
+    await call("POST", `/api/messages/${task.message_id}/run`);
+    const t = await waitFor(() => { const x = ctx.orch.task(task.id); return ["approved", "failed", "needs_attention"].includes(x.status) ? x : undefined; });
+    expect(t.status).toBe("approved");
+    expect(seen).toBe(false);
+    expect(existsSync(join(t.worktree, ".env.test"))).toBe(false);
+  });
+
+  it("rejects an env file name that leaves the project folder", async () => {
+    const call = (ctx as any).call;
+    const r = await call("POST", "/api/projects", { name: "x", source: "local", path: repo, checks_env_file: "../secret.env" });
+    expect(JSON.stringify(r)).toContain("Env file for checks");
+  });
+
   it("lists each verify command with its own result; the failure output is one request away", async () => {
     const { call, task } = await startChat(["echo lint-ok", "exit 3", "echo tests-ok"]);
     const before = await call("GET", `/api/tasks/${task.id}`);

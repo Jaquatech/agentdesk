@@ -15,6 +15,8 @@ import {
 import { runCommandLine, tail, type ShellKind } from "./shell.ts";
 import { loadForPrompt, type AttachmentRow } from "../attachments.ts";
 import { getCapabilities } from "../providers/capabilities.ts";
+import { placeEnvFile, type EnvFileHandle } from "./envFile.ts";
+import { setupProblem } from "../verifyHelp.ts";
 import { DEFAULT_WORKER_TOOLS } from "../engines/types.ts";
 import { PLAN_TOOL, REVIEW_TOOL, NOTES_TOOL, ROLE_TEMPLATES, buildWorkerPrompt, buildReviewPrompt } from "./prompts.ts";
 
@@ -441,7 +443,7 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
         t = this.updateTask(taskId, { status: "building", round });
         say(round === 0 ? `${worker.name} started **${t.title}**` : `${worker.name} works on review round ${round + 1} of **${t.title}**`, worker.id);
 
-        const prompt = buildWorkerPrompt({ title: t.title, spec: t.spec, branch, round, feedback, paths, verify });
+        const prompt = buildWorkerPrompt({ title: t.title, spec: t.spec, branch, round, feedback, paths, verify, envForChecks: !!project.checks_env_file });
         const built = await this.callAgent({ agent: worker, kind: "build", chatId: t.chat_id, taskId, round, cwd: wt, prompt, mode: "write", signal });
         if (signal.aborted) return;
         if (!built.ok) throw new Error(`${worker.name} did not finish: ${built.error ?? "unknown error"}`);
@@ -457,10 +459,17 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
         // Verify: every command must pass.
         this.updateTask(taskId, { status: "verifying" });
         this.activity(worker.id, "waiting", "running checks", taskId, t.chat_id);
-        let failure = "";
-        if (verify.length) failure = await this.runChecks(taskId, t.chat_id, worker, round, verify, shell, wt, signal);
+        let failure = "", setupIssue: string | undefined;
+        if (verify.length) ({ failure, setupProblem: setupIssue } = await this.runChecks(taskId, t.chat_id, worker, round, verify, shell, wt, signal, project));
         this.activity(worker.id, "idle");
         if (signal.aborted) return;
+        if (failure && setupIssue) {
+          // Nothing the developer changes in the code can fix this: stop now instead of spending more rounds.
+          const error = `A check cannot pass because of the project setup, not the code: ${setupIssue}\n\n${failure}\n\nFix it in the project settings (Verify, Setup or Env file for checks), then press Retry.`;
+          this.updateTask(taskId, { status: "needs_attention", error, feedback: "" });
+          say(`Checks cannot pass on **${t.title}**: ${setupIssue} This is a project setup problem, so it was not sent back to ${worker.name}. Fix it in the project settings and press Retry.`);
+          return;
+        }
         if (failure) {
           feedback = `## Verify failed\n${failure}\nFix the cause; do not weaken or skip the check.`;
           if (round >= maxRounds) {
@@ -580,25 +589,47 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
     return this.approval(id);
   }
 
-  /** Runs the verify commands as a "checks" run, so they show in the task's Activity like an agent call. */
-  private async runChecks(taskId: number, chatId: number, worker: AgentRow, round: number, verify: string[], shell: ShellKind, wt: string, signal: AbortSignal) {
+  /**
+   * Runs the verify commands as a "checks" run, so they show in the task's Activity like an agent call.
+   * The project's env file (if set) is in the worktree only while they run. `setupProblem` is set when the failure is the
+   * project's setup (missing script, command, environment variable), which no code change fixes.
+   */
+  private async runChecks(taskId: number, chatId: number, worker: AgentRow, round: number, verify: string[], shell: ShellKind, wt: string, signal: AbortSignal, project: ProjectRow) {
     const runId = this.startRun({ taskId, chatId, agent: worker, kind: "checks", round, model: "", engine: "shell" });
     const t0 = Date.now();
     const transcript: TranscriptEntry[] = [];
-    let failure = "";
-    for (const cmd of verify) {
-      this.log(taskId, `$ ${cmd}`);
-      const started = Date.now();
-      const r = await runCommandLine(cmd, shell, { cwd: wt, timeoutMs: 30 * 60_000, signal, onLine: (l) => this.log(taskId, l) });
-      const out = tail(`${r.stdout}\n${r.stderr}`, 80);
-      const entry: TranscriptEntry = { t: started - t0, kind: "tool", tool: "command", input: cmd, output: `exit ${r.code}${r.timedOut ? " (timed out)" : ""}\n${out}`, isError: r.code !== 0, ms: Date.now() - started };
+    let failure = "", setupIssue: string | undefined;
+    let envFile: EnvFileHandle = { note: "", cleanup: () => {} };
+    try {
+      envFile = placeEnvFile(project.path, wt, project.checks_env_file ?? "");
+      if (envFile.note) this.log(taskId, envFile.note);
+      for (const cmd of verify) {
+        this.log(taskId, `$ ${cmd}`);
+        const started = Date.now();
+        const r = await runCommandLine(cmd, shell, { cwd: wt, timeoutMs: 30 * 60_000, signal, onLine: (l) => this.log(taskId, l) });
+        const out = tail(`${r.stdout}\n${r.stderr}`, 80);
+        const entry: TranscriptEntry = { t: started - t0, kind: "tool", tool: "command", input: cmd, output: `exit ${r.code}${r.timedOut ? " (timed out)" : ""}\n${out}`, isError: r.code !== 0, ms: Date.now() - started };
+        transcript.push(entry);
+        this.step(runId, taskId, entry);
+        if (r.code !== 0) {
+          failure = `\`${cmd}\` failed (exit ${r.code}):\n\`\`\`\n${tail(`${r.stdout}\n${r.stderr}`, 40)}\n\`\`\``;
+          setupIssue = setupProblem(`${r.stdout}\n${r.stderr}`);
+          break;
+        }
+      }
+    } catch (err) {
+      // The env file could not be placed: a project setting problem, not the developer's.
+      failure = (err as Error).message;
+      setupIssue = failure;
+      const entry: TranscriptEntry = { t: Date.now() - t0, kind: "error", text: failure, isError: true };
       transcript.push(entry);
       this.step(runId, taskId, entry);
-      if (r.code !== 0) { failure = `\`${cmd}\` failed (exit ${r.code}):\n\`\`\`\n${tail(`${r.stdout}\n${r.stderr}`, 40)}\n\`\`\``; break; }
+    } finally {
+      envFile.cleanup();
     }
     this.endRun(runId, { ok: !failure, summary: failure ? "A check failed" : "All checks passed", turns: transcript.length, costUsd: null,
       tokensIn: 0, cacheRead: 0, cacheWrite: 0, tokensOut: 0, seconds: Math.round((Date.now() - t0) / 1000), transcript }, []);
-    return failure;
+    return { failure, setupProblem: setupIssue };
   }
 
   /** Approved in a sprint: no pull request; the work merges into the sprint branch, one task at a time. */

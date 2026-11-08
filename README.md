@@ -159,6 +159,14 @@ Then restart the server (Ctrl+C, `npm start`). The database updates itself on st
    It also warns about a command that cannot work there, such as `npm run lint` in a folder without `package.json`, or npm scripts
    with nothing that installs the packages. The setup box gets install buttons the same way (`npm ci` for a
    `package-lock.json`, `pnpm` and `yarn` equivalents, `pip install -r requirements.txt`). An empty setup box runs nothing.
+   If your tests need settings from a `.env` file (many variables), set **Env file for checks** to a file in the project
+   folder, for example `.env.test` (buttons offer `.env.test` and `.env` when they exist). It is copied into the task's
+   worktree only while the verify commands run and is removed right after, so agents never see it. Prefer a `.env.test`
+   with test values: when a check fails, its output goes back to the developer. If the repository already has a file
+   with that name, it is used as is. It applies to verify commands, not to setup commands.
+   A check that fails because of the setup (a missing variable, a missing script, a command not found) cannot be fixed
+   by the developer, so the task stops at once as *needs attention* with the reason, instead of starting new rounds.
+   Fix the project setting and press Retry.
 6. Start a chat in the project. The planner answers and proposes tasks; press **Run plan** (or turn on "Run plans
    right away" in Settings).
 
@@ -326,6 +334,7 @@ Agents never get a free hand. Every rule below is enforced by the server, not by
   network. Keep lists narrow (`npm test`, `dotnet test`) and prefer *Allow once* for anything unusual. Running agents
   in a container or a separate Windows user is the way to a hard boundary.
 - **Setup commands** (project settings) run without asking, like verify commands: they are yours.
+- **Env file for checks** is read from the project folder and copied into the worktree only while verify commands run (never while an agent works), then deleted. It is never sent to a model by AgentDesk; check output can contain its values if a test prints them.
 - **Model output is not trusted**, but the code an agent writes is only as safe as your review: read the diff before
   you press **Merge**.
 

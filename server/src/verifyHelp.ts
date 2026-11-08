@@ -111,6 +111,23 @@ export function verifyWarnings(f: Folder, lines: string[], setup: string[] = [])
   return warnings;
 }
 
+/** Env files that exist in the folder, safest first: a test file before the real .env. */
+export function envFileCandidates(f: Folder): string[] {
+  return [".env.test", ".env"].filter((n) => f.has(n));
+}
+
+/**
+ * A failure that no change to the code can fix: the project setup is the problem (a command that cannot run, a missing
+ * environment variable). The pipeline stops the task at once instead of sending it back to the developer.
+ */
+export function setupProblem(output: string): string | undefined {
+  const cmd = commandProblem(output);
+  if (cmd) return cmd;
+  const env = /(?:missing|undefined|unset|not set)[^\n]{0,40}environment variable:?\s*[`'"]?([A-Z][A-Z0-9_]+)|environment variable[`'"]?\s*[`'"]?([A-Z][A-Z0-9_]+)[`'"]?\s+(?:is |was )?(?:not set|missing|undefined|required)/i.exec(output);
+  if (env) return `the environment variable ${env[1] ?? env[2]} is not set.`;
+  return undefined;
+}
+
 /**
  * Why a failed check could not run at all (as opposed to running and finding a problem), from its output.
  * Returns undefined when the command ran and simply failed.

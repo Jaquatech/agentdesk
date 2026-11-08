@@ -78,6 +78,8 @@ export const REVIEW_TOOL: ToolDef = {
 
 export function buildWorkerPrompt(o: {
   title: string; spec: string; branch: string; round: number; feedback?: string; paths: string[]; verify: string[];
+  /** The project gives its checks an env file that agents do not get: they must not look for or recreate it. */
+  envForChecks?: boolean;
 }) {
   const round = o.round > 0 && o.feedback
     ? `\n\n# Round ${o.round + 1}: fix\nThis branch already holds the earlier rounds of this task. Make these changes on top of them; keep everything else.\n\n${o.feedback}\n\nIn your final message, list only what changed in this round.`
@@ -89,7 +91,9 @@ ${o.spec}${round}
 # How to finish
 - You are in a git worktree on branch \`${o.branch}\`. Work only inside this folder.
 - ${o.paths.length ? `Change only these paths: ${o.paths.join(", ")}.` : "Keep changes to what the task needs."}
-- ${o.verify.length ? `After you finish, the team tool runs: ${o.verify.join(" ; ")}. Run the relevant ones yourself first.` : "Run the relevant tests yourself."}
+- ${o.verify.length ? `After you finish, the team tool runs: ${o.verify.join(" ; ")}. ${o.envForChecks
+    ? "These need settings that only the team tool has: do not run them yourself, do not look for .env files and do not create one; a failure about missing settings is not yours to fix."
+    : "Run the relevant ones yourself first."}` : "Run the relevant tests yourself."}
 - Do not commit, push or open a PR; leave changes in the working tree.
 - Your final message becomes the PR description: what changed (short bullets), tests run and results, anything left open.
   No diffs, no logs, no secrets.`;

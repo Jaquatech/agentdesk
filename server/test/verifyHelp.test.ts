@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { commandProblem, suggestSetup, suggestVerify, verifyWarnings, type Folder } from "../src/verifyHelp.ts";
+import { commandProblem, envFileCandidates, setupProblem, suggestSetup, suggestVerify, verifyWarnings, type Folder } from "../src/verifyHelp.ts";
 
 const folder = (files: Record<string, string>): Folder => ({
   has: (n) => n in files,
@@ -76,5 +76,18 @@ describe("setup suggestions and the missing install warning", () => {
     expect(verifyWarnings(f, ["npm ci", "npm test"], [])).toEqual([]); // an install in the verify box counts too
     // no dependencies, nothing to install
     expect(verifyWarnings(folder({ "package.json": pkg({ test: "node test.js" }) }), ["npm test"], [])).toEqual([]);
+  });
+});
+
+describe("env files and setup problems", () => {
+  it("offers the test env file before the real one, only when they exist", () => {
+    expect(envFileCandidates(folder({ ".env": "", ".env.test": "" }))).toEqual([".env.test", ".env"]);
+    expect(envFileCandidates(folder({ "index.html": "" }))).toEqual([]);
+  });
+  it("recognises failures that no code change can fix", () => {
+    expect(setupProblem("Error: Missing environment variable: SESSION_SECRET")).toContain("SESSION_SECRET");
+    expect(setupProblem("environment variable ATTACHMENTS_ROOT is not set")).toContain("ATTACHMENTS_ROOT");
+    expect(setupProblem('npm error Missing script: "lint"')).toContain("lint");
+    expect(setupProblem("1) shows six cards\nAssertionError")).toBeUndefined();
   });
 });

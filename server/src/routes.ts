@@ -14,7 +14,8 @@ import { DEFAULT_WORKER_TOOLS } from "./engines/types.ts";
 import { deleteChatFiles } from "./attachments.ts";
 import { getCapabilities } from "./providers/capabilities.ts";
 import type { Orchestrator } from "./orchestrator/orchestrator.ts";
-import { commandProblem, folderOnDisk, suggestSetup, suggestVerify, verifyWarnings } from "./verifyHelp.ts";
+import { commandProblem, envFileCandidates, folderOnDisk, suggestSetup, suggestVerify, verifyWarnings } from "./verifyHelp.ts";
+import { validEnvFileName } from "./orchestrator/envFile.ts";
 
 type Body = Record<string, any>;
 const id = (v: unknown) => Number(v);
@@ -202,6 +203,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       setup: JSON.stringify(lines(b.setup)), verify: JSON.stringify(lines(b.verify)),
       allowed_paths: JSON.stringify(lines(b.allowed_paths)), context: String(b.context ?? ""),
       team_id: b.team_id ? id(b.team_id) : null,
+      checks_env_file: String(b.checks_env_file ?? "").trim(),
     };
   };
   /** How the project's work is run: "free" chat or "scrum"; and the points one developer does per sprint. Only when sent. */
@@ -214,18 +216,21 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     if (!f.name) return bad(reply, "Name is required");
     if (!f.path) return bad(reply, "Folder is required");
     if (f.source !== "local" && !f.repo_url) return bad(reply, "Repository URL is required");
+    if (!validEnvFileName(f.checks_env_file)) return bad(reply, "Env file for checks must be a file name inside the project folder, for example .env.test");
     try {
-      const info = db.prepare(`INSERT INTO projects (name, source, path, repo_url, base_branch, shell, setup, verify, allowed_paths, context, team_id)
-        VALUES (@name, @source, @path, @repo_url, @base_branch, @shell, @setup, @verify, @allowed_paths, @context, @team_id)`).run(f);
+      const info = db.prepare(`INSERT INTO projects (name, source, path, repo_url, base_branch, shell, setup, verify, allowed_paths, context, team_id, checks_env_file)
+        VALUES (@name, @source, @path, @repo_url, @base_branch, @shell, @setup, @verify, @allowed_paths, @context, @team_id, @checks_env_file)`).run(f);
       processFields(Number(info.lastInsertRowid), req.body as Body);
       return { id: Number(info.lastInsertRowid) };
     } catch (err) { return sqlError(reply, err); }
   });
   app.put("/api/projects/:id", async (req, reply) => {
     const f = projectFields(req.body as Body);
+    if (!validEnvFileName(f.checks_env_file)) return bad(reply, "Env file for checks must be a file name inside the project folder, for example .env.test");
     try {
       db.prepare(`UPDATE projects SET name = @name, source = @source, path = @path, repo_url = @repo_url, base_branch = @base_branch,
-        shell = @shell, setup = @setup, verify = @verify, allowed_paths = @allowed_paths, context = @context, team_id = @team_id WHERE id = @id`)
+        shell = @shell, setup = @setup, verify = @verify, allowed_paths = @allowed_paths, context = @context, team_id = @team_id,
+        checks_env_file = @checks_env_file WHERE id = @id`)
         .run({ ...f, id: id((req.params as Body).id) });
       processFields(id((req.params as Body).id), req.body as Body);
       return { ok: true };
@@ -284,8 +289,8 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
   app.post("/api/projects/verify-help", async (req) => {
     const b = req.body as Body;
     const folder = b.path ? folderOnDisk(String(b.path)) : null;
-    if (!folder) return { suggestions: [], setupSuggestions: [], warnings: [] };
-    return { suggestions: suggestVerify(folder), setupSuggestions: suggestSetup(folder), warnings: verifyWarnings(folder, lines(b.verify), lines(b.setup)) };
+    if (!folder) return { suggestions: [], setupSuggestions: [], envFiles: [], warnings: [] };
+    return { suggestions: suggestVerify(folder), setupSuggestions: suggestSetup(folder), envFiles: envFileCandidates(folder), warnings: verifyWarnings(folder, lines(b.verify), lines(b.setup)) };
   });
 
   // ---------- chats ----------

@@ -6,6 +6,8 @@ import { runProgram, tail } from "./shell.ts";
 export type ProjectRow = {
   id: number; name: string; source: "local" | "github" | "azure"; path: string; repo_url: string;
   base_branch: string; shell: string; setup: string; verify: string; allowed_paths: string; context: string;
+  /** File in the project folder copied into the worktree only while the verify commands run (e.g. .env.test). */
+  checks_env_file?: string;
 };
 
 export async function git(cwd: string, ...args: string[]): Promise<string> {

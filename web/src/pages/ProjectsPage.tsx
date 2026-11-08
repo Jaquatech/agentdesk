@@ -73,9 +73,9 @@ function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; team
   }, [f.path]);
 
   // Verify commands that fit the folder (one click to add) and warnings for ones that cannot work there.
-  const [help, setHelp] = useState<{ suggestions: { command: string; label: string }[]; setupSuggestions: { command: string; label: string }[]; warnings: string[] }>({ suggestions: [], setupSuggestions: [], warnings: [] });
+  const [help, setHelp] = useState<{ suggestions: { command: string; label: string }[]; setupSuggestions: { command: string; label: string }[]; envFiles: string[]; warnings: string[] }>({ suggestions: [], setupSuggestions: [], envFiles: [], warnings: [] });
   useEffect(() => {
-    if (!f.path) { setHelp({ suggestions: [], setupSuggestions: [], warnings: [] }); return; }
+    if (!f.path) { setHelp({ suggestions: [], setupSuggestions: [], envFiles: [], warnings: [] }); return; }
     const t = setTimeout(() => post<typeof help>("/api/projects/verify-help", { path: f.path, verify: f.verify, setup: f.setup }).then(setHelp).catch(() => {}), 400);
     return () => clearTimeout(t);
   }, [f.path, f.verify, f.setup]);
@@ -167,6 +167,14 @@ function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; team
           )}
         </Field>
       </div>
+      <Field label="Env file for checks (optional)" hint="A file in the project folder, such as .env.test, that the verify commands need. It is copied into the task's worktree only while they run, then removed, and agents never see it. Prefer test values over real secrets: when a check fails, its output goes back to the developer.">
+        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+          <NoFillInput className="mono" style={{ maxWidth: 260 }} value={f.checks_env_file ?? ""} onChange={(e) => set("checks_env_file", e.target.value)} placeholder=".env.test" />
+          {help.envFiles.filter((n) => n !== f.checks_env_file).map((n) => (
+            <button key={n} type="button" className="btn" title={`Use ${n} from the project folder`} onClick={() => set("checks_env_file", n)}>Use <span className="mono">{n}</span></button>
+          ))}
+        </div>
+      </Field>
       <div className="grid2">
         <Field label="Always-allowed paths (one per line)" hint="Added to every task's own paths, e.g. a docs file agents keep up to date.">
           <textarea className="mono" rows={3} value={f.allowed_paths} onChange={(e) => set("allowed_paths", e.target.value)} placeholder="AGENTS.md" />
