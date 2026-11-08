@@ -11,20 +11,21 @@ describe("env file for checks", () => {
     for (const ok of ["", ".env.test", "config/.env"]) expect(validEnvFileName(ok)).toBe(true);
     for (const bad of ["../x", "a/../../x", "/etc/passwd", "C:\\x\\.env", "*.env"]) expect(validEnvFileName(bad)).toBe(false);
   });
-  it("copies the file and removes it again", () => {
+  it("copies the file under the target name and removes it again", () => {
     const { project, wt } = dirs();
-    writeFileSync(join(project, ".env.test"), "A=1");
-    const h = placeEnvFile(project, wt, ".env.test");
-    expect(readFileSync(join(wt, ".env.test"), "utf8")).toBe("A=1");
+    writeFileSync(join(project, ".env.demo"), "A=1");
+    const h = placeEnvFile(project, wt, ".env.demo");
+    expect(readFileSync(join(wt, ".env"), "utf8")).toBe("A=1");
+    expect(existsSync(join(wt, ".env.demo"))).toBe(false);
     h.cleanup();
-    expect(existsSync(join(wt, ".env.test"))).toBe(false);
+    expect(existsSync(join(wt, ".env"))).toBe(false);
   });
-  it("never overwrites or deletes a file the repository already has", () => {
+  it("puts a file the repository already has back as it was", () => {
     const { project, wt } = dirs();
-    writeFileSync(join(project, ".env.test"), "real");
-    writeFileSync(join(wt, ".env.test"), "tracked");
-    placeEnvFile(project, wt, ".env.test").cleanup();
-    expect(readFileSync(join(wt, ".env.test"), "utf8")).toBe("tracked");
+    writeFileSync(join(project, ".env.demo"), "real");
+    writeFileSync(join(wt, ".env"), "");
+    placeEnvFile(project, wt, ".env.demo").cleanup();
+    expect(readFileSync(join(wt, ".env"), "utf8")).toBe("");
   });
   it("explains a missing file", () => {
     const { project, wt } = dirs();

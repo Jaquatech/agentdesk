@@ -160,10 +160,11 @@ Then restart the server (Ctrl+C, `npm start`). The database updates itself on st
    with nothing that installs the packages. The setup box gets install buttons the same way (`npm ci` for a
    `package-lock.json`, `pnpm` and `yarn` equivalents, `pip install -r requirements.txt`). An empty setup box runs nothing.
    If your tests need settings from a `.env` file (many variables), set **Env file for checks** to a file in the project
-   folder, for example `.env.test` (buttons offer `.env.test` and `.env` when they exist). It is copied into the task's
-   worktree only while the verify commands run and is removed right after, so agents never see it. Prefer a `.env.test`
-   with test values: when a check fails, its output goes back to the developer. If the repository already has a file
-   with that name, it is used as is. It applies to verify commands, not to setup commands.
+   folder, for example `.env.demo` or `.env.test` (buttons offer the ones that exist). It is copied into the task's
+   worktree as `.env` (change the name with **Copy as**, since apps read `.env`, not `.env.test`) only while the verify
+   commands run, and removed right after, so agents never see it. A `.env` the repository already has is put back as it
+   was. Prefer a file with test values (and a separate test database): when a check fails, its output goes back to the
+   developer. It applies to verify commands, not to setup commands.
    A check that fails because of the setup (a missing variable, a missing script, a command not found) cannot be fixed
    by the developer, so the task stops at once as *needs attention* with the reason, instead of starting new rounds.
    Fix the project setting and press Retry.

@@ -601,7 +601,7 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
     let failure = "", setupIssue: string | undefined;
     let envFile: EnvFileHandle = { note: "", cleanup: () => {} };
     try {
-      envFile = placeEnvFile(project.path, wt, project.checks_env_file ?? "");
+      envFile = placeEnvFile(project.path, wt, project.checks_env_file ?? "", project.checks_env_target || ".env");
       if (envFile.note) this.log(taskId, envFile.note);
       for (const cmd of verify) {
         this.log(taskId, `$ ${cmd}`);

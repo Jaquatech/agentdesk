@@ -204,6 +204,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       allowed_paths: JSON.stringify(lines(b.allowed_paths)), context: String(b.context ?? ""),
       team_id: b.team_id ? id(b.team_id) : null,
       checks_env_file: String(b.checks_env_file ?? "").trim(),
+      checks_env_target: String(b.checks_env_target ?? "").trim(),
     };
   };
   /** How the project's work is run: "free" chat or "scrum"; and the points one developer does per sprint. Only when sent. */
@@ -216,21 +217,21 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     if (!f.name) return bad(reply, "Name is required");
     if (!f.path) return bad(reply, "Folder is required");
     if (f.source !== "local" && !f.repo_url) return bad(reply, "Repository URL is required");
-    if (!validEnvFileName(f.checks_env_file)) return bad(reply, "Env file for checks must be a file name inside the project folder, for example .env.test");
+    if (!validEnvFileName(f.checks_env_file) || !validEnvFileName(f.checks_env_target)) return bad(reply, "Env file for checks must be a file name inside the project folder, for example .env.test (and so must Copy as)");
     try {
-      const info = db.prepare(`INSERT INTO projects (name, source, path, repo_url, base_branch, shell, setup, verify, allowed_paths, context, team_id, checks_env_file)
-        VALUES (@name, @source, @path, @repo_url, @base_branch, @shell, @setup, @verify, @allowed_paths, @context, @team_id, @checks_env_file)`).run(f);
+      const info = db.prepare(`INSERT INTO projects (name, source, path, repo_url, base_branch, shell, setup, verify, allowed_paths, context, team_id, checks_env_file, checks_env_target)
+        VALUES (@name, @source, @path, @repo_url, @base_branch, @shell, @setup, @verify, @allowed_paths, @context, @team_id, @checks_env_file, @checks_env_target)`).run(f);
       processFields(Number(info.lastInsertRowid), req.body as Body);
       return { id: Number(info.lastInsertRowid) };
     } catch (err) { return sqlError(reply, err); }
   });
   app.put("/api/projects/:id", async (req, reply) => {
     const f = projectFields(req.body as Body);
-    if (!validEnvFileName(f.checks_env_file)) return bad(reply, "Env file for checks must be a file name inside the project folder, for example .env.test");
+    if (!validEnvFileName(f.checks_env_file) || !validEnvFileName(f.checks_env_target)) return bad(reply, "Env file for checks must be a file name inside the project folder, for example .env.test (and so must Copy as)");
     try {
       db.prepare(`UPDATE projects SET name = @name, source = @source, path = @path, repo_url = @repo_url, base_branch = @base_branch,
         shell = @shell, setup = @setup, verify = @verify, allowed_paths = @allowed_paths, context = @context, team_id = @team_id,
-        checks_env_file = @checks_env_file WHERE id = @id`)
+        checks_env_file = @checks_env_file, checks_env_target = @checks_env_target WHERE id = @id`)
         .run({ ...f, id: id((req.params as Body).id) });
       processFields(id((req.params as Body).id), req.body as Body);
       return { ok: true };

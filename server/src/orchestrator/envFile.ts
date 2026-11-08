@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, normalize } from "node:path";
 
 /**
@@ -17,20 +17,26 @@ export function validEnvFileName(name: string): boolean {
 export type EnvFileHandle = { note: string; cleanup: () => void };
 
 /**
- * Copies `name` from the project folder into the worktree. Returns a cleanup that removes only what it created,
- * so a tracked file with the same name in the worktree is never overwritten or deleted.
- * Throws a message meant for the user when the file is not there.
+ * Copies `name` from the project folder into the worktree as `target` (default `.env`, the name apps read).
+ * A file already at the target (for example a tracked placeholder) is put back exactly as it was by the cleanup,
+ * and a file that was not there is removed again. Throws a message meant for the user when the file is not found.
  */
-export function placeEnvFile(projectDir: string, worktree: string, name: string): EnvFileHandle {
+export function placeEnvFile(projectDir: string, worktree: string, name: string, target = ".env"): EnvFileHandle {
   if (!name) return { note: "", cleanup: () => {} };
-  if (!validEnvFileName(name)) throw new Error(`Env file for checks "${name}" is not a file name inside the project folder.`);
+  target = target || ".env";
+  if (!validEnvFileName(name) || !validEnvFileName(target)) throw new Error(`Env file for checks "${name}" is not a file name inside the project folder.`);
   const from = join(projectDir, name);
-  const to = join(worktree, name);
+  const to = join(worktree, target);
   if (!existsSync(from) || !statSync(from).isFile()) {
     throw new Error(`Env file for checks "${name}" was not found in the project folder (${projectDir}). Create it there or clear the setting.`);
   }
-  if (existsSync(to)) return { note: `${name} is already part of the repository: not copied`, cleanup: () => {} };
+  const before = existsSync(to) ? readFileSync(to) : undefined;
   mkdirSync(dirname(to), { recursive: true });
   copyFileSync(from, to);
-  return { note: `copied ${name} for the checks`, cleanup: () => { try { rmSync(to, { force: true }); } catch { /* best effort */ } } };
+  return {
+    note: `copied ${name} to ${target} for the checks`,
+    cleanup: () => {
+      try { if (before) writeFileSync(to, before); else rmSync(to, { force: true }); } catch { /* best effort */ }
+    },
+  };
 }

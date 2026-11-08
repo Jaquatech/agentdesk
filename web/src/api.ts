@@ -48,7 +48,7 @@ export type Secret = { id: number; name: string; hint: string; updated_at: strin
 export type Project = {
   id: number; name: string; source: "local" | "github" | "azure"; path: string; repo_url: string; base_branch: string;
   shell: string; setup: string; verify: string; allowed_paths: string; context: string; chat_count?: number; team_id?: number | null;
-  process?: "free" | "scrum"; points_per_dev?: number; checks_env_file?: string;
+  process?: "free" | "scrum"; points_per_dev?: number; checks_env_file?: string; checks_env_target?: string;
 };
 export type Chat = { id: number; project_id: number; title: string; updated_at: string; active_tasks?: number; team_id?: number | null };
 export type AttachmentInfo = { id: number; name: string; mime: string; size: number };

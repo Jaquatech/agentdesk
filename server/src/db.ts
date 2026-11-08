@@ -346,6 +346,10 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE projects ADD COLUMN checks_env_file TEXT NOT NULL DEFAULT '';
   `,
+  // The name the file gets in the worktree (apps read .env, not .env.test); empty means .env.
+  `
+  ALTER TABLE projects ADD COLUMN checks_env_target TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 export function openDb(file: string): DB {

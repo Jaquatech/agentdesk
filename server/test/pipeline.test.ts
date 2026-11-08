@@ -180,25 +180,25 @@ describe("pipeline", () => {
   });
 
   it("copies the env file for the checks only while they run, and removes it after", async () => {
-    const { call, task } = await startChat(["node -e \"process.exit(require('fs').readFileSync('.env.test','utf8').includes('A=1')?0:1)\""]);
+    const { call, task } = await startChat(["node -e \"process.exit(require('fs').readFileSync('.env','utf8').includes('A=1')?0:1)\""]);
     writeFileSync(join(repo, ".env.test"), "A=1\n");
     ctx.db.prepare("UPDATE projects SET checks_env_file = '.env.test'").run();
     let seen = false;
     script = (req) => {
       if (req.agent.role === "worker") {
-        seen = seen || existsSync(join(req.cwd, ".env.test"));
+        seen = seen || existsSync(join(req.cwd, ".env"));
         execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
         writeFileSync(join(req.cwd, "src", "b.txt"), "x");
         return ok("done");
       }
-      seen = seen || existsSync(join(req.cwd, ".env.test"));
+      seen = seen || existsSync(join(req.cwd, ".env"));
       return ok("r", { verdict: "approve", review: "Good" });
     };
     await call("POST", `/api/messages/${task.message_id}/run`);
     const t = await waitFor(() => { const x = ctx.orch.task(task.id); return ["approved", "failed", "needs_attention"].includes(x.status) ? x : undefined; });
     expect(t.status).toBe("approved");
     expect(seen).toBe(false);
-    expect(existsSync(join(t.worktree, ".env.test"))).toBe(false);
+    expect(existsSync(join(t.worktree, ".env"))).toBe(false);
   });
 
   it("rejects an env file name that leaves the project folder", async () => {
