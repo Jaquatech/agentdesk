@@ -172,8 +172,9 @@ function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; team
           <NoFillInput className="mono" style={{ maxWidth: 220 }} value={f.checks_env_file ?? ""} onChange={(e) => set("checks_env_file", e.target.value)} placeholder=".env.test" />
           <span className="muted">copy as</span>
           <NoFillInput className="mono" style={{ maxWidth: 160 }} value={f.checks_env_target ?? ""} onChange={(e) => set("checks_env_target", e.target.value)} placeholder=".env" />
+          {help.envFiles.length > 0 && <span className="muted">Pick one:</span>}
           {help.envFiles.filter((n) => n !== f.checks_env_file).map((n) => (
-            <button key={n} type="button" className="btn" title={`Use ${n} from the project folder`} onClick={() => set("checks_env_file", n)}>Use <span className="mono">{n}</span></button>
+            <button key={n} type="button" className="btn" title={`Replace the file name with ${n}`} onClick={() => set("checks_env_file", n)}>Use <span className="mono">{n}</span></button>
           ))}
         </div>
       </Field>

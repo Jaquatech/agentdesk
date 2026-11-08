@@ -111,9 +111,10 @@ export function verifyWarnings(f: Folder, lines: string[], setup: string[] = [])
   return warnings;
 }
 
-/** Env files that exist in the folder, safest first: a test file before the real .env. */
+/** Env files in the folder, safest first: .env.test, then other .env.* files (not examples), the real .env last. */
 export function envFileCandidates(f: Folder): string[] {
-  return [".env.test", ".env"].filter((n) => f.has(n));
+  const others = f.names().filter((n) => /^\.env\./.test(n) && n !== ".env.test" && !/\.(example|sample|template)$/i.test(n)).sort();
+  return [".env.test", ...others, ".env"].filter((n, i, a) => f.has(n) && a.indexOf(n) === i);
 }
 
 /**

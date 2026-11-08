@@ -82,6 +82,7 @@ describe("setup suggestions and the missing install warning", () => {
 describe("env files and setup problems", () => {
   it("offers the test env file before the real one, only when they exist", () => {
     expect(envFileCandidates(folder({ ".env": "", ".env.test": "" }))).toEqual([".env.test", ".env"]);
+    expect(envFileCandidates(folder({ ".env": "", ".env.demo": "", ".env.example": "" }))).toEqual([".env.demo", ".env"]);
     expect(envFileCandidates(folder({ "index.html": "" }))).toEqual([]);
   });
   it("recognises failures that no code change can fix", () => {
