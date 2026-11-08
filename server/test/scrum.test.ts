@@ -194,4 +194,36 @@ describe("scrum", () => {
     const r = await call("POST", `/api/tasks/${task.id}/retry`, {});
     expect(JSON.stringify(r)).toContain("already released");
   });
+
+  it("runs sprint tasks that change the same files one after the other", async () => {
+    const project = await call("POST", "/api/projects", { name: "demo", source: "local", path: repo });
+    await call("PUT", `/api/projects/${project.id}/scrum/settings`, { process: "scrum" });
+    const saved = { ...points };
+    points["Add alpha"] = 3; points["Add beta"] = 3;
+    try {
+      const a = await call("POST", `/api/projects/${project.id}/backlog`, { title: "Add alpha", story: "s", acceptance: "a" });
+      const b = await call("POST", `/api/projects/${project.id}/backlog`, { title: "Add beta", story: "s", acceptance: "a" });
+      await waitFor(() => [a, b].every((x) => (ctx.db.prepare("SELECT status FROM backlog_items WHERE id = ?").get(x.id) as any).status === "ready") || undefined);
+      const sprint = await call("POST", `/api/projects/${project.id}/sprints`, { name: "S" });
+      // Both items are allowed to change src/: the developers must not work at the same time (so there are two of them).
+      const prov = (ctx.db.prepare("SELECT id FROM providers").get() as any).id;
+      await call("POST", "/api/agents", { name: "Di", role: "worker", provider_id: prov });
+      let active = 0, most = 0;
+      const orig = script;
+      engineOverride.engine = { run: async (req) => {
+        if (req.agent.role !== "worker") return orig(req);
+        active++; most = Math.max(most, active);
+        await new Promise((r) => setTimeout(r, 200));
+        active--;
+        return orig(req);
+      } };
+      await call("POST", `/api/sprints/${sprint.id}/start`, {});
+      await waitFor(() => (ctx.db.prepare("SELECT status FROM sprints WHERE id = ?").get(sprint.id) as any).status === "done" || undefined);
+      expect(most).toBe(1);
+      expect(ctx.db.prepare("SELECT status FROM tasks WHERE sprint_id = ? ORDER BY id").all(sprint.id)).toEqual([{ status: "merged" }, { status: "merged" }]);
+      const chat = ctx.db.prepare("SELECT chat_id FROM tasks WHERE sprint_id = ? ORDER BY id DESC").get(sprint.id) as any;
+      const events = ctx.db.prepare("SELECT content FROM messages WHERE chat_id = ? AND role = 'event'").all(chat.chat_id) as { content: string }[];
+      expect(events.some((e) => e.content.includes("is waiting for"))).toBe(true);
+    } finally { Object.assign(points, saved); }
+  });
 });

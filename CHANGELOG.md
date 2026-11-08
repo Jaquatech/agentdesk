@@ -1,5 +1,10 @@
 # Release notes
 
+## 1.2.0 (2026-11-08)
+
+### Scrum
+- **Tasks that change the same files now run one after the other.** Before, two items of a sprint that both touched the README started at the same time: the second could not see the first one's work and either did nothing or conflicted. Now the later task waits (and says so in the sprint chat), then starts from the sprint branch with the earlier work in it. Tasks on different files still run in parallel.
+
 ## 1.1.2 (2026-11-08)
 
 ### Fixes

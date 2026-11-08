@@ -16,6 +16,7 @@ import { runCommandLine, tail, type ShellKind } from "./shell.ts";
 import { loadForPrompt, type AttachmentRow } from "../attachments.ts";
 import { getCapabilities } from "../providers/capabilities.ts";
 import { placeEnvFile, type EnvFileHandle } from "./envFile.ts";
+import { blockingTask } from "./overlap.ts";
 import { setupProblem } from "../verifyHelp.ts";
 import { DEFAULT_WORKER_TOOLS } from "../engines/types.ts";
 import { PLAN_TOOL, REVIEW_TOOL, NOTES_TOOL, ROLE_TEMPLATES, buildWorkerPrompt, buildReviewPrompt } from "./prompts.ts";
@@ -350,8 +351,22 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
     const maxParallel = Math.max(1, Number(settings.max_parallel) || 3);
     if (this.running.size >= maxParallel) return;
     const queued = this.db.prepare("SELECT * FROM tasks WHERE status = 'queued' ORDER BY id").all() as TaskRow[];
+    const sprintTasks = queued.some((q) => q.sprint_id)
+      ? this.db.prepare("SELECT id, title, status, paths, sprint_id FROM tasks WHERE sprint_id IS NOT NULL").all() as { id: number; title: string; status: string; paths: string; sprint_id: number | null }[]
+      : [];
     for (const t of queued) {
       if (this.running.size >= maxParallel) break;
+      // Same files as an earlier task of the sprint: wait until that one has merged, then start from its result.
+      const blocker = blockingTask(t, sprintTasks, (s) => json.parse<string[]>(s, []));
+      if (blocker) {
+        const key = `${t.id}:wait:${blocker.id}:${blocker.status}`;
+        if (!this.budgetTold.has(key)) {
+          this.budgetTold.add(key);
+          const stuck = ["needs_attention", "failed", "interrupted"].includes(blocker.status);
+          this.postMessage(t.chat_id, "event", `**${t.title}** is waiting for **${blocker.title}**, which changes the same files${stuck ? ` and has stopped (${blocker.status.replace("_", " ")}). Retry or cancel it` : ""}.`);
+        }
+        continue;
+      }
       // Over a spending limit: the task waits (it stays queued) and starts when the limit is raised or the day turns.
       const stop = overBudget(this.db, t.sprint_id);
       if (stop) {
@@ -390,6 +405,7 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
     if (["proposed", "queued", "interrupted", "needs_attention", "failed", "approved"].includes(t.status) || ctrl) {
       this.updateTask(taskId, { status: "cancelled" });
       if (t.sprint_id) void this.scrum?.settle(t.sprint_id);
+      this.tick(); // a task that waited for this one can start
     }
   }
 

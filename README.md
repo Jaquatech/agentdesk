@@ -220,6 +220,7 @@ you set the priority (▲▼)
   team's planner and reviewer. Gallery has a *Scrum product manager* and an *Architect* template.
 - **Capacity.** The Scrum master keeps priority: it takes items in order and stops at the first one that does not fit. An item bigger
   than a whole sprint (13 points) is skipped and flagged. You can tick other items by hand before pressing Start.
+- **Items that touch the same files.** Tasks of a sprint with overlapping paths (the same file, or a file inside a folder another task may change) run one after the other, in backlog priority order. The later one waits, says so in the sprint chat, and starts from the sprint branch after the earlier one has merged, so it sees that work. Tasks on different files still run side by side. If the earlier task stops (needs attention, failed), the later one keeps waiting: retry or cancel the earlier one.
 - **PIs** are optional: a goal that groups sprints. Release notes and token use add up under the PI.
 - **The page** works like Running tasks: a list on the left, the selected thing on the right. Four tabs follow the life of the work:
   **Backlog** (items by priority; edit one on the right), **Coming PI** (planned PIs and sprints, nothing started), **Current PI**
