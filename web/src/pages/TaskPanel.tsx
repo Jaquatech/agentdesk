@@ -94,11 +94,13 @@ export function TaskPanel({ chatId, agents, initialGroup, initialTask }: { chatI
 }
 
 /** The project's verify commands, each with its own result; the output of a failed one opens on click. */
-function ChecksPanel({ checks }: { checks: TaskChecks }) {
+function ChecksPanel({ checks, waiting }: { checks: TaskChecks; waiting: boolean }) {
+  // Before the checks start (still building, or a new round after a retry) an earlier round's results would mislead.
+  if (waiting) checks = { run_id: null, running: false, items: checks.items.map((c) => ({ ...c, status: "not_run" as const, exit: null, ms: null })) };
   const passed = checks.items.filter((c) => c.status === "passed").length;
   const notRun = checks.items.filter((c) => c.status === "not_run").length;
   const failed = checks.items.some((c) => c.status === "failed");
-  const summary = `${passed} of ${checks.items.length} passed${notRun && !checks.running ? `, ${notRun} not run` : ""}${checks.running ? ", running" : ""}`;
+  const summary = waiting ? `${checks.items.length} check${checks.items.length === 1 ? "" : "s"}, run after the build` : `${passed} of ${checks.items.length} passed${notRun && !checks.running ? `, ${notRun} not run` : ""}${checks.running ? ", running" : ""}`;
   return (
     <div className="card card-pad checks">
       <div className="row" style={{ gap: 8 }}>
@@ -106,13 +108,13 @@ function ChecksPanel({ checks }: { checks: TaskChecks }) {
         <span className={`badge ${failed ? "bad" : passed === checks.items.length ? "good" : ""}`}>{summary}</span>
       </div>
       <div className="check-list">
-        {checks.items.map((c) => <CheckRow key={c.step} check={c} runId={checks.run_id} running={checks.running} />)}
+        {checks.items.map((c) => <CheckRow key={c.step} check={c} runId={checks.run_id} running={checks.running} waiting={waiting} />)}
       </div>
     </div>
   );
 }
 
-function CheckRow({ check, runId, running }: { check: Check; runId: number | null; running: boolean }) {
+function CheckRow({ check, runId, running, waiting }: { check: Check; runId: number | null; running: boolean; waiting: boolean }) {
   const [output, setOutput] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -127,7 +129,7 @@ function CheckRow({ check, runId, running }: { check: Check; runId: number | nul
       } catch (e) { setOutput(`Could not load the output: ${(e as Error).message}`); }
     }
   };
-  const result = check.status === "passed" ? "passed" : check.status === "failed" ? `failed${check.exit !== null ? ` (exit ${check.exit})` : ""}` : running ? "waiting" : "not run";
+  const result = check.status === "passed" ? "passed" : check.status === "failed" ? `failed${check.exit !== null ? ` (exit ${check.exit})` : ""}` : running || waiting ? "waiting" : "not run";
   return (
     <div className={`check-row ${check.status}`}>
       <div className="row check-head" style={{ gap: 8 }} onClick={expandable ? toggle : undefined} role={expandable ? "button" : undefined} aria-expanded={expandable ? open : undefined}>
@@ -207,7 +209,7 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
         {["failed", "needs_attention", "cancelled", "interrupted", "approved"].includes(task.status) && task.worktree && <button className="btn danger" disabled={!!busy} onClick={() => act("discard")}><Trash2 size={14} /> Discard branch</button>}
       </div>
       {error && <div className="error">{error}</div>}
-      {checks && checks.items.length > 0 && <ChecksPanel checks={checks} />}
+      {checks && checks.items.length > 0 && <ChecksPanel checks={checks} waiting={["proposed", "queued", "building"].includes(task.status)} />}
       {task.error && <div className="card card-pad" style={{ borderColor: "var(--bad)" }}><b className="error">Problem</b><div className="msg-body"><Markdown>{task.error}</Markdown></div></div>}
       {task.summary && <details open><summary><b>Developer's summary</b></summary><div className="msg-body"><Markdown>{task.summary}</Markdown></div></details>}
       {task.review && <details open={task.verdict !== "approve"}><summary><b>Review: {task.verdict}</b></summary><div className="msg-body"><Markdown>{task.review}</Markdown></div></details>}
