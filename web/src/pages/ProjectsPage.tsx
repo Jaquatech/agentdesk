@@ -167,7 +167,7 @@ function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; team
           )}
         </Field>
       </div>
-      <Field label="Env file for checks (optional)" hint="A file in the project folder with the settings the verify commands need, such as .env.demo. It is copied into the task's worktree as the \"copy as\" name (default .env) only while they run, then removed (a file already there is restored), and agents never see it. Prefer test values over real secrets: when a check fails, its output goes back to the developer.">
+      <Field label="Env file for checks (optional)" hint="A file in the project folder with the settings the verify commands need, such as .env.demo. It is copied into the task's worktree under the name in the copy-as box (default .env) only while they run, then removed (a file already there is restored), and agents never see it. Prefer test values over real secrets: when a check fails, its output goes back to the developer.">
         <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <NoFillInput className="mono" style={{ maxWidth: 220 }} value={f.checks_env_file ?? ""} onChange={(e) => set("checks_env_file", e.target.value)} placeholder=".env.test" />
           <span className="muted">copy as</span>
