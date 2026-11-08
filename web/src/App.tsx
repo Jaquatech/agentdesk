@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, BookOpen, Bot, Kanban, Users, Building2, FolderGit2, KeyRound, ListChecks, LogOut, MessageSquarePlus, Plus, Settings, ChevronDown, ChevronRight } from "lucide-react";
+import { BarChart3, BookOpen, Bot, Kanban, Users, Building2, FolderGit2, KeyRound, ListChecks, LogOut, MessageSquarePlus, Plus, Settings, ChevronDown, ChevronRight, Info } from "lucide-react";
 import { get, post, closeLiveEvents, useLiveEvents, type Chat, type Project } from "./api.ts";
 import { LoginPage } from "./pages/LoginPage.tsx";
 import { ChatPage } from "./pages/ChatPage.tsx";
@@ -13,6 +13,7 @@ import { TasksBoard } from "./pages/TasksBoard.tsx";
 import { HomePage } from "./pages/HomePage.tsx";
 import { UsagePage } from "./pages/UsagePage.tsx";
 import { ScrumPage } from "./pages/ScrumPage.tsx";
+import { VersionPage } from "./pages/VersionPage.tsx";
 import { ApprovalsBar } from "./components/Approvals.tsx";
 import { BudgetBar } from "./components/BudgetBar.tsx";
 import { Office } from "./office/Office.tsx";
@@ -56,6 +57,8 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
   const [chats, setChats] = useState<Chat[]>([]);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const [ver, setVer] = useState<{ version: string; commit: string } | null>(null);
+  useEffect(() => { get<{ version: string; commit: string }>("/api/version").then(setVer).catch(() => {}); }, []);
 
   const reload = useCallback(() => {
     get<Project[]>("/api/projects").then(setProjects);
@@ -128,9 +131,13 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
           {nav("usage", "Usage & billing", BarChart3)}
           {nav("projects", "Projects", FolderGit2)}
           {nav("settings", "Settings", Settings)}
+          {nav("version", "Version", Info)}
         </div>
         <div className="side-foot row">
-          <span className="hint" style={{ color: "#8b938c", paddingLeft: 8 }}>{username}</span>
+          <div style={{ paddingLeft: 8, minWidth: 0 }}>
+            <div className="hint" style={{ color: "#8b938c" }}>{username}</div>
+            {ver?.version && <a className="hint" href="#/version" style={{ color: "#6f786f", fontSize: 11, textDecoration: "none" }} title={ver.commit ? `Version ${ver.version}, commit ${ver.commit}` : `Version ${ver.version}`}>v{ver.version}{ver.commit ? ` · ${ver.commit}` : ""}</a>}
+          </div>
           <span className="spacer" />
           <button className="icon-btn" title="Sign out" onClick={onSignOut}><LogOut size={15} /></button>
         </div>
@@ -154,6 +161,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
           : route.page === "projects" ? <ProjectsPage openNew={route.id === undefined && location.hash.includes("new")} onChanged={reload} />
           : route.page === "usage" ? <UsagePage />
           : route.page === "settings" ? <SettingsPage onChanged={reload} />
+          : route.page === "version" ? <VersionPage />
           : <HomePage projects={projects} onNewChat={newChat} />}
       </main>
     </div>

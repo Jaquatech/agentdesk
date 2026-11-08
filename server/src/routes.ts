@@ -16,6 +16,7 @@ import { getCapabilities } from "./providers/capabilities.ts";
 import type { Orchestrator } from "./orchestrator/orchestrator.ts";
 import { commandProblem, envFileCandidates, folderOnDisk, suggestSetup, suggestVerify, verifyWarnings } from "./verifyHelp.ts";
 import { validEnvFileName } from "./orchestrator/envFile.ts";
+import { appVersion } from "./version.ts";
 
 type Body = Record<string, any>;
 const id = (v: unknown) => Number(v);
@@ -40,6 +41,8 @@ function sqlError(reply: FastifyReply, err: unknown) {
 
 export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch: Orchestrator, dataDir: string) {
   // ---------- settings ----------
+  const version = appVersion();
+  app.get("/api/version", async () => version);
   app.get("/api/settings", async () => getSettings(db));
   app.put("/api/settings", async (req) => {
     const body = req.body as Body;
