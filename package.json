@@ -1,6 +1,6 @@
 {
   "name": "agentdesk",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "private": true,
   "description": "Local AI dev team: a planner splits work, worker agents build it, QA reviews it. Runs on your own machine.",
   "workspaces": [

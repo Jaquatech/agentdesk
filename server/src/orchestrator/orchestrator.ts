@@ -357,7 +357,8 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
     for (const t of queued) {
       if (this.running.size >= maxParallel) break;
       // Same files as an earlier task of the sprint: wait until that one has merged, then start from its result.
-      const blocker = blockingTask(t, sprintTasks, (s) => json.parse<string[]>(s, []));
+      // A task that was just started still says "queued" in the database for a moment: count it as working.
+      const blocker = blockingTask(t, sprintTasks.map((o) => (this.running.has(o.id) && o.status === "queued" ? { ...o, status: "building" } : o)), (s) => json.parse<string[]>(s, []));
       if (blocker) {
         // Told once per blocker, and once more if it stops (a different message); not on every status change of the blocker.
         const stuck = isStuck(blocker.status);

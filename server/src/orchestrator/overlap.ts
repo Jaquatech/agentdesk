@@ -28,10 +28,16 @@ export const waitKey = (taskId: number, blocker: { id: number; status: string })
 
 export type PlanningTask = { id: number; title: string; status: string; paths: string; sprint_id: number | null };
 
-/** The earlier task of the same sprint that this one has to wait for, if any (merged and cancelled tasks never block). */
+const WORKING = ["building", "verifying", "reviewing"];
+
+/**
+ * The task of the same sprint that this one has to wait for, if any: one that is working on the same files right now
+ * (whatever its place in the backlog; it cannot be stopped to make room), or an earlier one that is not finished yet.
+ * Merged and cancelled tasks never block.
+ */
 export function blockingTask(task: PlanningTask, all: PlanningTask[], parse: (s: string) => string[]): PlanningTask | undefined {
   if (!task.sprint_id) return undefined;
   const mine = parse(task.paths);
   if (!mine.length) return undefined;
-  return all.find((o) => o.id < task.id && o.sprint_id === task.sprint_id && !["merged", "cancelled"].includes(o.status) && pathsOverlap(mine, parse(o.paths)));
+  return all.find((o) => o.id !== task.id && o.sprint_id === task.sprint_id && !["merged", "cancelled"].includes(o.status) && (o.id < task.id || WORKING.includes(o.status)) && pathsOverlap(mine, parse(o.paths)));
 }

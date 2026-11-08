@@ -1,5 +1,10 @@
 # Release notes
 
+## 1.2.3 (2026-11-08)
+
+### Fixes
+- A restarted task no longer starts beside a task that is already working on the same files: it waits for it. Before, only tasks higher in the backlog were waited for, so stopping one task and restarting it while the other had started could run both at once.
+
 ## 1.2.2 (2026-11-08)
 
 ### Scrum

@@ -32,10 +32,21 @@ describe("blocking task", () => {
     const me = task(2, "queued", readme);
     expect(blockingTask(me, [task(1, "merged", readme)], parse)).toBeUndefined();
     expect(blockingTask(me, [task(1, "cancelled", readme)], parse)).toBeUndefined();
-    expect(blockingTask(me, [task(3, "building", readme)], parse)).toBeUndefined();
+    expect(blockingTask(me, [task(3, "queued", readme)], parse)).toBeUndefined();
+    expect(blockingTask(me, [task(3, "needs_attention", readme)], parse)).toBeUndefined();
     expect(blockingTask(me, [task(1, "building", readme, 2)], parse)).toBeUndefined();
     expect(blockingTask(me, [task(1, "building", ["docs/"])], parse)).toBeUndefined();
     expect(blockingTask({ ...me, sprint_id: null }, [task(1, "building", readme, 1)], parse)).toBeUndefined();
+  });
+});
+
+describe("a task that is already working", () => {
+  it("is waited for even when it is later in the backlog (a restarted task does not start beside it)", () => {
+    const restarted = task(1, "queued", ["README.md"]);
+    for (const status of ["building", "verifying", "reviewing"]) {
+      expect(blockingTask(restarted, [restarted, task(2, status, ["README.md"])], parse)?.id).toBe(2);
+    }
+    expect(blockingTask(restarted, [restarted, task(2, "building", ["docs/"])], parse)).toBeUndefined();
   });
 });
 
