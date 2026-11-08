@@ -167,16 +167,20 @@ function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; team
           )}
         </Field>
       </div>
-      <Field label="Env file for checks (optional)" hint="A file in the project folder with the settings the verify commands need, such as .env.demo. It is copied into the task's worktree under the name below only while they run, then removed (a file already there is restored), and agents never see it. Prefer test values over real secrets: when a check fails, its output goes back to the developer.">
+      <Field label="Env file for checks (optional)" hint="A file in the project folder with the settings the verify commands need, such as .env.demo. It is copied into the task's worktree as the \"copy as\" name (default .env) only while they run, then removed (a file already there is restored), and agents never see it. Prefer test values over real secrets: when a check fails, its output goes back to the developer.">
         <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <NoFillInput className="mono" style={{ maxWidth: 220 }} value={f.checks_env_file ?? ""} onChange={(e) => set("checks_env_file", e.target.value)} placeholder=".env.test" />
           <span className="muted">copy as</span>
           <NoFillInput className="mono" style={{ maxWidth: 160 }} value={f.checks_env_target ?? ""} onChange={(e) => set("checks_env_target", e.target.value)} placeholder=".env" />
-          {help.envFiles.length > 0 && <span className="muted">Pick one:</span>}
-          {help.envFiles.filter((n) => n !== f.checks_env_file).map((n) => (
-            <button key={n} type="button" className="btn" title={`Replace the file name with ${n}`} onClick={() => set("checks_env_file", n)}>Use <span className="mono">{n}</span></button>
-          ))}
         </div>
+        {help.envFiles.some((n) => n !== f.checks_env_file) && (
+          <div className="row" style={{ flexWrap: "wrap", gap: 6, marginTop: 6 }} title="Env files found in the project folder. Click to use one; it replaces the file name above.">
+            <span className="hint">Use:</span>
+            {help.envFiles.filter((n) => n !== f.checks_env_file).map((n) => (
+              <button key={n} type="button" className="btn" onClick={() => set("checks_env_file", n)}><span className="mono">{n}</span></button>
+            ))}
+          </div>
+        )}
       </Field>
       <div className="grid2">
         <Field label="Always-allowed paths (one per line)" hint="Added to every task's own paths, e.g. a docs file agents keep up to date.">
