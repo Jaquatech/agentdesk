@@ -81,6 +81,9 @@ describe("scrum", () => {
 
   afterEach(async () => {
     engineOverride.engine = undefined;
+    // Background Scrum work (refining, writing release notes) may still be running; closing the database under it throws.
+    const working = (ctx.orch.scrum as any).working as Set<string>;
+    for (let i = 0; i < 100 && working.size; i++) await new Promise((r) => setTimeout(r, 50));
     await ctx.app.close();
     rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     rmSync(repo, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
