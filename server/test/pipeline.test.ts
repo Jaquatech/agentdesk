@@ -106,11 +106,11 @@ describe("pipeline", () => {
     expect(done.status).toBe("approved");
     expect(done.round).toBe(1);
     expect(calls).toEqual(["planner:read", "worker:write", "reviewer:read", "worker:write", "reviewer:read"]);
-    expect(readFileSync(join(done.worktree, "src", "hello.txt"), "utf8")).toBe("hello, world\n");
+    expect(readFileSync(join(done.worktree, "src", "hello.txt"), "utf8").replace(/\r\n/g, "\n")).toBe("hello, world\n");
 
     const merged = await call("POST", `/api/tasks/${task.id}/merge`);
     expect(merged.result).toContain("Squash-merged into main");
-    expect(readFileSync(join(repo, "src", "hello.txt"), "utf8")).toBe("hello, world\n");
+    expect(readFileSync(join(repo, "src", "hello.txt"), "utf8").replace(/\r\n/g, "\n")).toBe("hello, world\n");
     expect(ctx.orch.task(task.id).status).toBe("merged");
     expect(existsSync(done.worktree)).toBe(false);
 
