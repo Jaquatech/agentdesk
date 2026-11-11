@@ -82,8 +82,8 @@ describe("scrum", () => {
   afterEach(async () => {
     engineOverride.engine = undefined;
     await ctx.app.close();
-    rmSync(data, { recursive: true, force: true });
-    rmSync(repo, { recursive: true, force: true });
+    rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    rmSync(repo, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
 
   it("refines the backlog, plans by capacity, merges into a sprint branch, and releases", async () => {
@@ -133,7 +133,7 @@ describe("scrum", () => {
     // Release = merge the sprint branch into main.
     const rel = await call("POST", `/api/sprints/${sprint.id}/release`);
     expect(rel.result).toContain("Merged into main");
-    expect(readFileSync(join(repo, "src", "alpha.txt"), "utf8")).toBe("alpha\n");
+    expect(readFileSync(join(repo, "src", "alpha.txt"), "utf8").replace(/\r\n/g, "\n")).toBe("alpha\n");
     expect(gitOut(repo, "branch", "--list", "sprint/1-first")).toBe("");
     const after = await call("GET", `/api/projects/${project.id}/scrum`);
     expect(after.sprints[0].status).toBe("released");

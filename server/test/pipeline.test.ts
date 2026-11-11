@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, existsSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, existsSync, rmSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
@@ -60,8 +60,8 @@ describe("pipeline", () => {
   afterEach(async () => {
     engineOverride.engine = undefined;
     await ctx.app.close();
-    rmSync(data, { recursive: true, force: true });
-    rmSync(repo, { recursive: true, force: true });
+    rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    rmSync(repo, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
 
   async function startChat(verify: string[], paths = ["src/"]) {
@@ -88,7 +88,7 @@ describe("pipeline", () => {
     script = (req) => {
       if (req.agent.role === "worker") {
         const f = join(req.cwd, "src", "hello.txt");
-        execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+        mkdirSync(join(req.cwd, "src"), { recursive: true });
         writeFileSync(f, req.prompt.includes("Round 2") ? "hello, world\n" : "hello\n");
         return ok("Added hello");
       }
@@ -137,7 +137,7 @@ describe("pipeline", () => {
     script = (req) => {
       if (req.agent.role === "worker") {
         if (!req.prompt.includes("Round 2")) {
-          execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+          mkdirSync(join(req.cwd, "src"), { recursive: true });
           writeFileSync(join(req.cwd, "src", "hello.txt"), "hello\n");
           return ok("Added hello.txt");
         }
@@ -159,7 +159,7 @@ describe("pipeline", () => {
     script = (req) => {
       if (req.agent.role === "worker") {
         builds++;
-        if (builds === 1) { execFileSync("mkdir", ["-p", join(req.cwd, "src")]); writeFileSync(join(req.cwd, "src", "a.txt"), "x"); return ok("Added a.txt"); }
+        if (builds === 1) { mkdirSync(join(req.cwd, "src"), { recursive: true }); writeFileSync(join(req.cwd, "src", "a.txt"), "x"); return ok("Added a.txt"); }
         return ok("Nothing left to do: the change is already committed.");
       }
       return ok("r", { verdict: "approve", review: "Good" });
@@ -183,7 +183,7 @@ describe("pipeline", () => {
   it("exports a task and what its agents did as Markdown", async () => {
     const { call, task } = await startChat([]);
     script = (req) => {
-      if (req.agent.role === "worker") { execFileSync("mkdir", ["-p", join(req.cwd, "src")]); writeFileSync(join(req.cwd, "src", "e.txt"), "x"); return ok("Added e.txt"); }
+      if (req.agent.role === "worker") { mkdirSync(join(req.cwd, "src"), { recursive: true }); writeFileSync(join(req.cwd, "src", "e.txt"), "x"); return ok("Added e.txt"); }
       return ok("r", { verdict: "approve", review: "Good" });
     };
     await call("POST", `/api/messages/${task.message_id}/run`);
@@ -202,7 +202,7 @@ describe("pipeline", () => {
   it("a check ended by Stop is shown as stopped, not failed, and nothing goes back to the developer", async () => {
     const { call, task } = await startChat(["node -e \"setTimeout(() => {}, 20000)\""]);
     script = (req) => {
-      execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+      mkdirSync(join(req.cwd, "src"), { recursive: true });
       writeFileSync(join(req.cwd, "src", "s.txt"), "x");
       return ok("Added s.txt");
     };
@@ -230,7 +230,7 @@ describe("pipeline", () => {
   it("sends a failed verify back to the worker and stops after the last round", async () => {
     const { call, task } = await startChat(["exit 3"]);
     script = (req) => {
-      execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+      mkdirSync(join(req.cwd, "src"), { recursive: true });
       writeFileSync(join(req.cwd, "src", `f${Math.random()}.txt`), "x");
       return ok("done");
     };
@@ -254,7 +254,7 @@ describe("pipeline", () => {
   it("stops at once, without a fix round, when a check fails because of the project setup", async () => {
     const { call, task } = await startChat(["echo 'Error: environment variable ATTACHMENTS_ROOT is not set' && exit 1"]);
     script = (req) => {
-      execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+      mkdirSync(join(req.cwd, "src"), { recursive: true });
       writeFileSync(join(req.cwd, "src", "a.txt"), "x");
       return ok("done");
     };
@@ -274,7 +274,7 @@ describe("pipeline", () => {
     script = (req) => {
       if (req.agent.role === "worker") {
         seen = seen || existsSync(join(req.cwd, ".env"));
-        execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+        mkdirSync(join(req.cwd, "src"), { recursive: true });
         writeFileSync(join(req.cwd, "src", "b.txt"), "x");
         return ok("done");
       }
@@ -299,7 +299,7 @@ describe("pipeline", () => {
     const before = await call("GET", `/api/tasks/${task.id}`);
     expect(before.checks.items.map((c: any) => c.status)).toEqual(["not_run", "not_run", "not_run"]);
     script = (req) => {
-      execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+      mkdirSync(join(req.cwd, "src"), { recursive: true });
       writeFileSync(join(req.cwd, "src", `h${Math.random()}.txt`), "x");
       return ok("done");
     };
@@ -351,7 +351,7 @@ describe("pipeline", () => {
           : ok("p", { reply: "merging", tasks: [], merge: ["one", "not-a-task"] });
       }
       if (req.agent.role === "worker") {
-        execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+        mkdirSync(join(req.cwd, "src"), { recursive: true });
         writeFileSync(join(req.cwd, "src", `${req.prompt.includes("One") ? "one" : "two"}.txt`), "x");
         return ok("done");
       }
@@ -376,7 +376,7 @@ describe("pipeline", () => {
     await call("POST", `/api/tasks/${two.id}/discard`);
     expect(remoteBranches()).not.toContain("task/two");
     expect(remoteBranches()).toContain("task/one");
-    rmSync(bare, { recursive: true, force: true });
+    rmSync(bare, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
 
   it("sorts every task into exactly one tab: active, attention, done (in a sprint), released or archive", async () => {
@@ -466,7 +466,7 @@ describe("pipeline", () => {
         return ok("p", { reply: "new", tasks: [{ slug: "landing", title: "Another", spec: "y", paths: ["src/"] }] });
       }
       if (req.agent.name === "Bo") return { ...ok(""), ok: false, error: "model pasted code" };
-      execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+      mkdirSync(join(req.cwd, "src"), { recursive: true });
       writeFileSync(join(req.cwd, "src", "landing.html"), "<h1>hi</h1>");
       return req.agent.role === "reviewer" ? ok("r", { verdict: "approve", review: "ok" }) : ok("built");
     };
@@ -508,7 +508,7 @@ describe("pipeline", () => {
       if (req.agent.role === "reviewer") return ok("r", { verdict: "approve", review: "ok" });
       return (async () => {
         answers.push(await req.askApproval!({ kind: "command", command: "npm install left-pad", cwd: req.cwd }));
-        execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+        mkdirSync(join(req.cwd, "src"), { recursive: true });
         writeFileSync(join(req.cwd, "src", "p.txt"), "x");
         return ok("built");
       })() as any;
@@ -560,7 +560,7 @@ describe("pipeline", () => {
       who.push(req.agent.name);
       if (req.agent.role === "planner") return ok("p", { reply: "t", tasks: [{ slug: `t-${who.length}`, title: "T", spec: "x", paths: ["src/"], worker: "Bo" }] });
       if (req.agent.role === "reviewer") return ok("r", { verdict: "approve", review: "ok" });
-      execFileSync("mkdir", ["-p", join(req.cwd, "src")]);
+      mkdirSync(join(req.cwd, "src"), { recursive: true });
       writeFileSync(join(req.cwd, "src", `${who.length}.txt`), "x");
       return ok("built");
     };

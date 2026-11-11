@@ -30,8 +30,8 @@ describe("spending limits", () => {
   afterEach(async () => {
     engineOverride.engine = undefined;
     await ctx.app.close();
-    rmSync(data, { recursive: true, force: true });
-    rmSync(repo, { recursive: true, force: true });
+    rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    rmSync(repo, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
 
   it("refuses new agent calls once the daily limit is reached, and resumes when it is raised", async () => {
