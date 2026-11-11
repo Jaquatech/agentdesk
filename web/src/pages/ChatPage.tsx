@@ -10,7 +10,7 @@ import { MessageFiles, PendingFiles, type Pending } from "../components/Attachme
 import { useCapabilities } from "../components/Capabilities.tsx";
 import { go } from "../App.tsx";
 
-type ChatData = { chat: Chat; planning: boolean; messages: Message[]; tasks: Task[] };
+type ChatData = { chat: Chat; planner_id: number | null; planning: boolean; messages: Message[]; tasks: Task[] };
 
 export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId: number; tab?: string; projects: Project[]; onChanged: () => void }) {
   const [data, setData] = useState<ChatData | null>(null);
@@ -54,7 +54,16 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
   const team = teams.find((t) => t.id === (data.chat.team_id ?? project?.team_id));
   const setTeam = async (teamId: number | null) => {
     await put(`/api/chats/${chatId}`, { team_id: teamId });
-    setData({ ...data, chat: { ...data.chat, team_id: teamId } });
+    // The team decides the default planner, so ask the server who plans now.
+    const fresh = await get<ChatData>(`/api/chats/${chatId}`);
+    setData((d) => d && { ...d, chat: { ...d.chat, team_id: teamId }, planner_id: fresh.planner_id });
+  };
+  // Picks who plans this chat's next message; empty goes back to the project's or team's planner.
+  const planners = agents.filter((a) => a.role === "planner" && a.enabled);
+  const setPlanner = async (plannerId: number | null) => {
+    await put(`/api/chats/${chatId}`, { planner_id: plannerId });
+    const fresh = await get<ChatData>(`/api/chats/${chatId}`);
+    setData((d) => d && { ...d, chat: { ...d.chat, planner_id: plannerId }, planner_id: fresh.planner_id });
   };
   const rename = async () => {
     const title = prompt("Chat title", data.chat.title);
@@ -83,6 +92,13 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
             value={data.chat.team_id ?? ""} onChange={(e) => setTeam(e.target.value ? Number(e.target.value) : null)}>
             <option value="">{`Team: ${teams.find((t) => t.id === project?.team_id)?.name ?? "all agents"} (project's)`}</option>
             {teams.filter((t) => t.id !== project?.team_id).map((t) => <option key={t.id} value={t.id}>Team: {t.name}</option>)}
+          </select>
+        )}
+        {planners.length > 0 && (
+          <select className="team-select" title="Planner who answers the next message in this chat"
+            value={data.chat.planner_id ?? ""} onChange={(e) => setPlanner(e.target.value ? Number(e.target.value) : null)}>
+            <option value="">{data.chat.planner_id ? "Planner: automatic (project / team)" : `Planner: ${agents.find((a) => a.id === data.planner_id)?.name ?? "none"} (automatic)`}</option>
+            {planners.map((a) => <option key={a.id} value={a.id}>Planner: {a.name}</option>)}
           </select>
         )}
         <div className="tabs">
@@ -132,7 +148,7 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
   });
   const uploading = files.some((f) => !f.id && !f.error);
   // Can the planner see images? Asked once per chat; Ollama reports it per model.
-  const caps = useCapabilities(`/api/chats/${data.chat.id}/planner-capabilities?team=${data.chat.team_id ?? ""}`);
+  const caps = useCapabilities(`/api/chats/${data.chat.id}/planner-capabilities?team=${data.chat.team_id ?? ""}&planner=${data.planner_id ?? ""}`);
   const hasImages = files.some((f) => f.mime.startsWith("image/"));
   const ready = files.filter((f) => f.id);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -152,7 +168,7 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
   };
 
   const agent = (id: number | null) => agents.find((a) => a.id === id);
-  const planner = agents.find((a) => a.role === "planner" && a.enabled);
+  const planner = agents.find((a) => a.id === data.planner_id) ?? agents.find((a) => a.role === "planner" && a.enabled);
 
   return (
     <div className="chat">

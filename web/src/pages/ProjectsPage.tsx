@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FolderGit2, FolderOpen, Plus, ArrowUp, GitBranch, Sparkles } from "lucide-react";
-import { get, post, put, del, parseJson, type Project, type Team } from "../api.ts";
+import { get, post, put, del, parseJson, type Agent, type Project, type Team } from "../api.ts";
 import { Field, Modal } from "../components/ui.tsx";
 import { NoFillInput } from "../components/inputs.tsx";
 import { go } from "../App.tsx";
@@ -17,8 +17,9 @@ export function ProjectsPage({ openNew, onChanged }: { openNew: boolean; onChang
   const [projects, setProjects] = useState<Project[]>([]);
   const [editing, setEditing] = useState<Partial<Project> | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
-  const load = () => { get<Project[]>("/api/projects").then(setProjects); get<Team[]>("/api/teams").then(setTeams); };
-  const blank = (): Partial<Project> => ({ name: "", source: "local", path: "", repo_url: "", base_branch: "main", shell: "auto", setup: "[]", verify: "[]", allowed_paths: "[]", context: "", team_id: null });
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const load = () => { get<Agent[]>("/api/agents").then(setAgents); get<Project[]>("/api/projects").then(setProjects); get<Team[]>("/api/teams").then(setTeams); };
+  const blank = (): Partial<Project> => ({ name: "", source: "local", path: "", repo_url: "", base_branch: "main", shell: "auto", setup: "[]", verify: "[]", allowed_paths: "[]", context: "", team_id: null, planner_id: null });
   useEffect(() => { load(); if (openNew) setEditing(blank()); }, [openNew]);
 
   return (
@@ -45,13 +46,13 @@ export function ProjectsPage({ openNew, onChanged }: { openNew: boolean; onChang
           ))}
         </div>
       </div></div>
-      {editing && <ProjectForm p={editing} teams={teams} onClose={() => { setEditing(null); if (openNew) go("projects"); }}
+      {editing && <ProjectForm p={editing} teams={teams} agents={agents} onClose={() => { setEditing(null); if (openNew) go("projects"); }}
         onSaved={() => { setEditing(null); load(); onChanged(); if (openNew) go("projects"); }} />}
     </>
   );
 }
 
-function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; teams: Team[]; onClose: () => void; onSaved: () => void }) {
+function ProjectForm({ p, teams, agents, onClose, onSaved }: { p: Partial<Project>; teams: Team[]; agents: Agent[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({ ...p, setup: join(p.setup ?? "[]"), verify: join(p.verify ?? "[]"), allowed_paths: join(p.allowed_paths ?? "[]") });
   const [picker, setPicker] = useState(false);
   const [check, setCheck] = useState<{ exists: boolean; git: boolean } | null>(null);
@@ -114,6 +115,12 @@ function ProjectForm({ p, teams, onClose, onSaved }: { p: Partial<Project>; team
         <select value={f.team_id ?? ""} onChange={(e) => set("team_id", e.target.value ? Number(e.target.value) : null)}>
           <option value="">No team: every enabled agent</option>
           {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+      </Field>
+      <Field label="Planner" hint="Answers this project's chats unless a chat picks another. Automatic = the team's planner.">
+        <select value={f.planner_id ?? ""} onChange={(e) => set("planner_id", e.target.value ? Number(e.target.value) : null)}>
+          <option value="">Automatic (team's planner)</option>
+          {agents.filter((a) => a.role === "planner" && a.enabled).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
       </Field>
       <div className="grid2">

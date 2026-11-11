@@ -57,6 +57,28 @@ export function pickAgent(db: DB, role: Role, o: { teamId?: number | null; prefe
   return all.find((a) => a.id === lead) ?? all[0];
 }
 
+/**
+ * Who plans: the planner picked for the chat, else the one picked for the project (both must still be enabled planners),
+ * else the team's planner. Read on every call, so a change applies to the next message.
+ */
+export function pickPlanner(db: DB, o: { chatId?: number; projectId?: number }): AgentRow | undefined {
+  let projectId = o.projectId;
+  let chosen: (number | null)[] = [];
+  let teamId: number | null;
+  if (o.chatId) {
+    const c = db.prepare("SELECT planner_id, project_id FROM chats WHERE id = ?").get(o.chatId) as { planner_id: number | null; project_id: number } | undefined;
+    projectId ??= c?.project_id;
+    chosen.push(c?.planner_id ?? null);
+    teamId = teamOfChat(db, o.chatId);
+  } else teamId = teamOfProject(db, projectId);
+  if (projectId) chosen.push((db.prepare("SELECT planner_id FROM projects WHERE id = ?").get(projectId) as { planner_id: number | null } | undefined)?.planner_id ?? null);
+  for (const id of chosen) {
+    const a = id ? db.prepare("SELECT * FROM agents WHERE id = ? AND role = 'planner' AND enabled = 1").get(id) as AgentRow | undefined : undefined;
+    if (a) return a;
+  }
+  return pickAgent(db, "planner", { teamId });
+}
+
 function teamsWithMembers(db: DB) {
   const teams = db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM projects p WHERE p.team_id = t.id) AS project_count
     FROM teams t ORDER BY t.name`).all() as (TeamRow & { project_count: number })[];

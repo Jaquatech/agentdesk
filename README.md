@@ -189,6 +189,8 @@ chat message → planner (read-only) → tasks (proposed) → Run plan
 - Who works on a chat: the chat's team (switch it in the chat header), else the project's team. The team's planner
   answers, tasks go only to the team's developers (the planner picks by each developer's first context line, e.g.
   "Specialty: frontend"; otherwise the one with the fewest open tasks), and the team's reviewer reviews.
+- Who plans: the **Planner** selector in the chat header picks a planner for that chat (it applies to the next message).
+  Without a pick, the project's planner (Projects form) answers, else the team's planner.
 - One task = one branch + one worktree under `data/worktrees/`; your own checkout is not touched while agents work.
 - One developer works on one task at a time; at most "Tasks running at the same time" run in parallel.
 - After the last fix round (Settings) a task stops as **needs attention**. **Retry**, **Stop** and **Discard

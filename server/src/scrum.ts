@@ -4,7 +4,7 @@ import type { DB } from "./db.ts";
 import { getSettings, json } from "./db.ts";
 import { bus } from "./bus.ts";
 import type { Orchestrator, TaskRow } from "./orchestrator/orchestrator.ts";
-import { architectOf, securityOf, teamAgents, teamOfChat, teamOfProject, pickAgent } from "./teams.ts";
+import { architectOf, securityOf, teamAgents, teamOfChat, teamOfProject, pickAgent, pickPlanner } from "./teams.ts";
 import {
   ensureProjectCheckout, createSprintBranch, ensureSprintWorktree, diffAgainstBase, projectHasRemote, branchLog, releaseSprint,
   removeWorktree, deleteBranch, type ProjectRow,
@@ -115,7 +115,7 @@ export class Scrum {
   async chat(chatId: number) {
     const chat = this.db.prepare("SELECT * FROM chats WHERE id = ?").get(chatId) as { id: number; project_id: number };
     const teamId = teamOfChat(this.db, chatId);
-    const pm = pickAgent(this.db, "planner", { teamId });
+    const pm = pickPlanner(this.db, { chatId });
     if (!pm) {
       this.orch.postMessage(chatId, "event", "The team has no planner to act as product manager. Add one under Teams.");
       return;
@@ -257,7 +257,7 @@ ${items.map((i) => `- #${i.id} [${i.status}${i.points ? `, ${i.points} pts` : ""
       await ensureProjectCheckout(project);
       // 1. Product manager: the story and acceptance criteria, unless the item came with them.
       if (!item.story.trim()) {
-        const pm = pickAgent(this.db, "planner", { teamId });
+        const pm = pickPlanner(this.db, { projectId: project.id });
         if (!pm) throw new Error("The team has no planner (product manager)");
         set({ step: "product" });
         const r = await call(pm, "backlog", `# Write one backlog item
@@ -529,7 +529,7 @@ Anything the story and the technical notes do not ask for.`;
       .all(project.id, sprintId) as { title: string }[]).map((r) => r.title);
     const fallback = `## Sprint ${s.number}: ${s.name}\n${s.goal ? `\n${s.goal}\n` : ""}\n### Delivered\n${done.map((d) => `- **${d.title}**`).join("\n") || "- Nothing was merged."}\n${returned.length ? `\n### Not finished (back in the backlog)\n${returned.map((t) => `- ${t}`).join("\n")}\n` : ""}`;
     let notes = fallback;
-    const pm = pickAgent(this.db, "planner", { teamId: this.teamOf(project.id) });
+    const pm = pickPlanner(this.db, { projectId: project.id });
     if (pm && done.length) {
       const log = await branchLog(project, s.branch, project.base_branch);
       const r = await this.orch.callAgent({

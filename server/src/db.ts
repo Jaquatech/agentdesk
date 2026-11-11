@@ -350,6 +350,11 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE projects ADD COLUMN checks_env_target TEXT NOT NULL DEFAULT '';
   `,
+  // A planner picked for a project, or for one chat; empty = the team's planner.
+  `
+  ALTER TABLE projects ADD COLUMN planner_id INTEGER REFERENCES agents(id) ON DELETE SET NULL;
+  ALTER TABLE chats ADD COLUMN planner_id INTEGER REFERENCES agents(id) ON DELETE SET NULL;
+  `,
 ];
 
 export function openDb(file: string): DB {

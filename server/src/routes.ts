@@ -208,6 +208,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       setup: JSON.stringify(lines(b.setup)), verify: JSON.stringify(lines(b.verify)),
       allowed_paths: JSON.stringify(lines(b.allowed_paths)), context: String(b.context ?? ""),
       team_id: b.team_id ? id(b.team_id) : null,
+      planner_id: b.planner_id ? id(b.planner_id) : null,
       checks_env_file: String(b.checks_env_file ?? "").trim(),
       checks_env_target: String(b.checks_env_target ?? "").trim(),
     };
@@ -224,8 +225,8 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     if (f.source !== "local" && !f.repo_url) return bad(reply, "Repository URL is required");
     if (!validEnvFileName(f.checks_env_file) || !validEnvFileName(f.checks_env_target)) return bad(reply, "Env file for checks must be a file name inside the project folder, for example .env.test (and so must Copy as)");
     try {
-      const info = db.prepare(`INSERT INTO projects (name, source, path, repo_url, base_branch, shell, setup, verify, allowed_paths, context, team_id, checks_env_file, checks_env_target)
-        VALUES (@name, @source, @path, @repo_url, @base_branch, @shell, @setup, @verify, @allowed_paths, @context, @team_id, @checks_env_file, @checks_env_target)`).run(f);
+      const info = db.prepare(`INSERT INTO projects (name, source, path, repo_url, base_branch, shell, setup, verify, allowed_paths, context, team_id, planner_id, checks_env_file, checks_env_target)
+        VALUES (@name, @source, @path, @repo_url, @base_branch, @shell, @setup, @verify, @allowed_paths, @context, @team_id, @planner_id, @checks_env_file, @checks_env_target)`).run(f);
       processFields(Number(info.lastInsertRowid), req.body as Body);
       return { id: Number(info.lastInsertRowid) };
     } catch (err) { return sqlError(reply, err); }
@@ -235,7 +236,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     if (!validEnvFileName(f.checks_env_file) || !validEnvFileName(f.checks_env_target)) return bad(reply, "Env file for checks must be a file name inside the project folder, for example .env.test (and so must Copy as)");
     try {
       db.prepare(`UPDATE projects SET name = @name, source = @source, path = @path, repo_url = @repo_url, base_branch = @base_branch,
-        shell = @shell, setup = @setup, verify = @verify, allowed_paths = @allowed_paths, context = @context, team_id = @team_id,
+        shell = @shell, setup = @setup, verify = @verify, allowed_paths = @allowed_paths, context = @context, team_id = @team_id, planner_id = @planner_id,
         checks_env_file = @checks_env_file, checks_env_target = @checks_env_target WHERE id = @id`)
         .run({ ...f, id: id((req.params as Body).id) });
       processFields(id((req.params as Body).id), req.body as Body);
@@ -317,6 +318,8 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     if (b.title !== undefined) db.prepare("UPDATE chats SET title = ? WHERE id = ?").run(String(b.title ?? "").slice(0, 120), chatId);
     // team_id null = the project's team
     if (b.team_id !== undefined) db.prepare("UPDATE chats SET team_id = ? WHERE id = ?").run(b.team_id ? id(b.team_id) : null, chatId);
+    // planner_id null = the project's planner, else the team's
+    if (b.planner_id !== undefined) db.prepare("UPDATE chats SET planner_id = ? WHERE id = ?").run(b.planner_id ? id(b.planner_id) : null, chatId);
     return { ok: true };
   });
   app.delete("/api/chats/:id", async (req) => {
@@ -330,6 +333,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     if (!chat) return bad(reply, "Not found", 404);
     return {
       chat,
+      planner_id: orch.plannerFor(chatId)?.id ?? null, // who answers the next message
       planning: orch.isPlanning(chatId),
       messages: (() => {
         const files = db.prepare("SELECT id, message_id, name, mime, size FROM attachments WHERE chat_id = ? AND message_id IS NOT NULL ORDER BY id")

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { DB } from "../db.ts";
 import { getSettings, json } from "../db.ts";
-import { pickAgent, teamAgents, teamOfChat, teamOfProject, team } from "../teams.ts";
+import { pickAgent, pickPlanner, teamAgents, teamOfChat, teamOfProject, team } from "../teams.ts";
 import type { Scrum } from "../scrum.ts";
 import { overBudget } from "../budget.ts";
 import type { Vault } from "../crypto.ts";
@@ -135,9 +135,9 @@ export class Orchestrator {
     return pickAgent(this.db, role, o);
   }
 
-  /** The planner that answers a chat: its team's planner (or the default one when no team is set). */
+  /** The planner that answers a chat: the one picked for the chat or project, else its team's planner (or the default one when no team is set). */
   plannerFor(chatId: number) {
-    return this.pickAgent("planner", { teamId: teamOfChat(this.db, chatId) });
+    return pickPlanner(this.db, { chatId });
   }
 
   private startRun(o: { taskId?: number; chatId?: number; projectId?: number; sprintId?: number; itemId?: number; agent: AgentRow; kind: string; round: number; model: string; engine: string }) {
@@ -228,7 +228,7 @@ export class Orchestrator {
       return;
     }
     const teamId = teamOfChat(this.db, chatId);
-    const planner = this.pickAgent("planner", { teamId });
+    const planner = pickPlanner(this.db, { chatId });
     if (!planner) {
       const t = team(this.db, teamId);
       this.postMessage(chatId, "event", t
@@ -731,7 +731,7 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
   /** Reads a repository with the planner (read-only) and drafts the project notes every agent gets. */
   async draftProjectNotes(path: string): Promise<string> {
     const projectId = (this.db.prepare("SELECT id FROM projects WHERE path = ?").get(path) as { id: number } | undefined)?.id;
-    const planner = this.pickAgent("planner", { teamId: teamOfProject(this.db, projectId) });
+    const planner = pickPlanner(this.db, { projectId });
     if (!planner) throw new Error("Create a planner agent first; it writes the draft.");
     const r = await this.callAgent({
       agent: planner, kind: "notes", cwd: path, mode: "read", output: NOTES_TOOL,
