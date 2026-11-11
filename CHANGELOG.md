@@ -1,6 +1,6 @@
 # Release notes
 
-## Unreleased
+## 1.3.2 (2026-11-11)
 
 ### Changes
 - **Planner picker in the chat.** The chat header has a Planner selector next to Team; the choice applies to the next message. A project can also have its own planner (Projects form). Order: chat, then project, then the team's planner. Before, changing the planner in a team or in Settings could leave a chat on the old one.
