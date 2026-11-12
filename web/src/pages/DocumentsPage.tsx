@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { FileText, Plus } from "lucide-react";
 import { del, post, put, type Project } from "../api.ts";
@@ -39,11 +39,19 @@ export function DocumentsPage({ id, builtin }: { id?: number; builtin?: string }
   const selected = id ?? docs?.find((d) => d.builtin === builtin)?.id;
   const { data: doc, reload: reloadDoc } = useLoad<Doc>(selected ? `/api/documents/${selected}` : null);
   useLiveEvents((ev) => { if (ev.type === "task" && doc?.task_id === ev.task.id) reloadDoc(); });
+  const pageScroll = useRef<HTMLDivElement>(null);
+  const shown = useRef<number | undefined>(undefined);
+  // A new page starts at the top. A refresh of the page already open keeps the place the reader stopped.
+  useLayoutEffect(() => {
+    if (shown.current === selected) return;
+    shown.current = selected;
+    if (pageScroll.current) pageScroll.current.scrollTop = 0;
+  }, [selected]);
 
   return (
     <Page title={<><FileText /> Documents</>} actions={<Button onClick={() => setCreating(true)}><Plus data-icon="inline-start" /> New page</Button>} bleed>
       <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[minmax(260px,340px)_1fr]">
-        <div className="overflow-auto border-r">
+        <div className="min-h-0 overflow-auto border-r">
           <Group label="General">
             {generalPages(docs).map((d) => <Row key={d.id} doc={d} active={d.id === selected} />)}
           </Group>
@@ -52,7 +60,7 @@ export function DocumentsPage({ id, builtin }: { id?: number; builtin?: string }
             {docs && projectGroups(docs).length === 0 && <p className="px-4 py-2 text-xs text-muted-foreground">No projects yet.</p>}
           </Group>
         </div>
-        <div className="min-h-0 overflow-auto p-6">
+        <div ref={pageScroll} className="min-h-0 overflow-auto p-6">
           {!selected && (
             <Empty>
               <EmptyHeader>

@@ -8,6 +8,7 @@
 - The Checks box on a task no longer clips the command and its result. The card was shrinking inside the task pane and hiding that line.
 - **Documents** replaces Guides. Pages are stored in the local database.
 - Documents is a wiki. **General** holds Coding guidelines, Choosing AI models, and Development cycle. Each project has Overview, Architecture, Decisions, Road map, Release notes, Setup, and a page per task. A task page stays in step with the task's spec, summary, and review. Pages can link to each other. The planner and a developer read that project's pages and can update them. General pages stay free of project names. Upload is not in this version.
+- Opening another page in Documents no longer jumps the list back to the top. A refresh of the page you are reading keeps your place.
 - Vite is 8.3.8 and `@vitejs/plugin-react` is 6.3.0. React stays on 19.3.1, the latest stable.
 
 ## 1.3.2 (2026-11-11)

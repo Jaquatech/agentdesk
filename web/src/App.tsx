@@ -219,7 +219,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
             : route.page === "tasks" ? <TasksBoard key={`${route.group}-${route.task}`} group={route.group} task={route.task} />
             : route.page === "office" ? <OfficePage />
             : route.page === "teams" ? <TeamsPage />
-            : route.page === "documents" ? <DocumentsPage key={`${route.id ?? ""}-${route.tab ?? ""}`} id={route.id} builtin={route.tab} />
+            : route.page === "documents" ? <DocumentsPage id={route.id} builtin={route.tab} />
             : route.page === "guides" || route.page === "models" ? <DocumentsPage builtin={route.page === "models" || route.tab === "models" ? "models" : "cycle"} />
             : route.page === "agents" ? <AgentsPage />
             : route.page === "providers" ? <ProvidersPage />
