@@ -1,5 +1,10 @@
 # Release notes
 
+## Unreleased
+
+### Fixes
+- **Release notes now appear in Documents.** Each sprint's release notes are a page under the project's Release notes section, created when the notes are written and refreshed when they are written again. Sprints released before this version get their page the next time the server starts. Editing the page edits the sprint's release notes.
+
 ## 1.4.0 (2026-11-12)
 
 ### Changes

@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 type DocList = {
   id: number; title: string; kind: "generic" | "project"; project_id: number | null; project_name: string | null;
-  builtin: string | null; section: string; slot: string; task_id: number | null; updated_at: string;
+  builtin: string | null; section: string; slot: string; task_id: number | null; sprint_id: number | null; updated_at: string;
 };
 type Doc = DocList & { body: string; created_at: string; links?: { id: number; title: string }[]; backlinks?: { id: number; title: string }[] };
 
@@ -164,9 +164,10 @@ function DocView({ doc, onChanged }: { doc: Doc; onChanged: () => void }) {
         <Badge variant="secondary">{doc.kind === "project" ? doc.project_name ?? "Project" : "General"}</Badge>
         {doc.builtin && <Badge variant="outline">Guide</Badge>}
         {doc.task_id && <a className="text-xs" href={`#/tasks?task=${doc.task_id}`}>Open task</a>}
+        {doc.sprint_id && doc.project_id && <a className="text-xs" href={`#/scrum/${doc.project_id}?tab=releases&sprint=${doc.sprint_id}`}>Open sprint</a>}
         <div className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" onClick={() => { setTitle(doc.title); setBody(doc.body); setEditing((v) => !v); }}>{editing ? "Cancel" : "Edit"}</Button>
-          {!doc.builtin && !doc.slot && !doc.task_id && <Button variant="destructive" size="sm" onClick={remove}>Delete</Button>}
+          {!doc.builtin && !doc.slot && !doc.task_id && !doc.sprint_id && <Button variant="destructive" size="sm" onClick={remove}>Delete</Button>}
         </div>
       </div>
       {editing ? (

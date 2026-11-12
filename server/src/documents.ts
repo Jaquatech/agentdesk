@@ -106,11 +106,12 @@ export function seedDocuments(db: DB) {
     }
     for (const p of db.prepare("SELECT id FROM projects").all() as { id: number }[]) ensureProjectPages(db, p.id);
     for (const t of db.prepare("SELECT id FROM tasks").all() as { id: number }[]) ensureTaskPage(db, t.id);
+    for (const s of db.prepare("SELECT id FROM sprints WHERE release_notes != ''").all() as { id: number }[]) ensureReleasePage(db, s.id);
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('documents_seeded', '1')").run();
   })();
 }
 
-/** Overview, Architecture, Road map, and Setup. Decisions and Release notes stay empty sections. */
+/** Overview, Architecture, Road map, and Setup. Decisions stays an empty section; Release notes gets a page per sprint (syncReleasePage). */
 export function ensureProjectPages(db: DB, projectId: number) {
   const ins = db.prepare("INSERT INTO documents (project_id, title, body, kind, section, slot) VALUES (?, ?, ?, 'project', ?, ?)");
   for (const page of STANDARD_PAGES) {
@@ -168,6 +169,32 @@ export function syncTaskPage(db: DB, taskId: number) {
 
 export function ensureTaskPage(db: DB, taskId: number) {
   if (!db.prepare("SELECT id FROM documents WHERE task_id = ?").get(taskId)) syncTaskPage(db, taskId);
+}
+
+/** The sprint's release notes as a page in the project's Release notes section; created when the notes exist, refreshed when they are rewritten. */
+export function syncReleasePage(db: DB, sprintId: number) {
+  const s = db.prepare("SELECT id, project_id, number, name, release_notes FROM sprints WHERE id = ?").get(sprintId) as
+    { id: number; project_id: number; number: number; name: string; release_notes: string } | undefined;
+  if (!s || !s.release_notes.trim()) return;
+  const title = `Sprint ${s.number}: ${s.name}`;
+  const existing = db.prepare("SELECT id FROM documents WHERE sprint_id = ?").get(sprintId) as { id: number } | undefined;
+  if (existing) {
+    db.prepare("UPDATE documents SET title = ?, body = ?, project_id = ?, updated_at = datetime('now') WHERE id = ?").run(title, s.release_notes, s.project_id, existing.id);
+    refreshLinks(db, existing.id, s.release_notes);
+    return;
+  }
+  const info = db.prepare("INSERT INTO documents (project_id, title, body, kind, section, sprint_id) VALUES (?, ?, ?, 'project', 'releases', ?)")
+    .run(s.project_id, title, s.release_notes, sprintId);
+  refreshLinks(db, Number(info.lastInsertRowid), s.release_notes);
+}
+
+export function ensureReleasePage(db: DB, sprintId: number) {
+  if (!db.prepare("SELECT id FROM documents WHERE sprint_id = ?").get(sprintId)) syncReleasePage(db, sprintId);
+}
+
+/** A release page was edited in the wiki: the text becomes the sprint's release notes. */
+export function applyReleasePage(db: DB, sprintId: number, body: string) {
+  db.prepare("UPDATE sprints SET release_notes = ? WHERE id = ?").run(body, sprintId);
 }
 
 /** A task page was edited in the wiki: copy Spec, summary, and Review back onto the task. */

@@ -4,6 +4,7 @@ import type { DB } from "./db.ts";
 import { getSettings, json } from "./db.ts";
 import { bus } from "./bus.ts";
 import type { Orchestrator, TaskRow } from "./orchestrator/orchestrator.ts";
+import { syncReleasePage } from "./documents.ts";
 import { architectOf, securityOf, teamAgents, teamOfChat, teamOfProject, pickAgent, pickPlanner } from "./teams.ts";
 import {
   ensureProjectCheckout, createSprintBranch, ensureSprintWorktree, diffAgainstBase, projectHasRemote, branchLog, releaseSprint,
@@ -548,6 +549,7 @@ Only state what the items and commits support.`,
       if (r.ok && r.output?.notes) notes = String(r.output.notes);
     }
     this.db.prepare("UPDATE sprints SET release_notes = ? WHERE id = ?").run(notes, sprintId);
+    syncReleasePage(this.db, sprintId); // the same text as a page under Documents > Release notes
     return notes;
   }
 

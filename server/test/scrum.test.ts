@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { buildApp } from "../src/index.ts";
+import { seedDocuments } from "../src/documents.ts";
 import { engineOverride } from "../src/providers/index.ts";
 import type { EngineRequest, EngineResult } from "../src/engines/types.ts";
 
@@ -125,6 +126,16 @@ describe("scrum", () => {
       return s.status === "done" && s.release_notes ? s : undefined;
     });
     expect(done.release_notes).toContain("Release notes");
+    // The notes are also a page in the project's wiki, and editing the page edits the sprint's notes.
+    const page = ctx.db.prepare("SELECT id, title, body, section FROM documents WHERE sprint_id = ?").get(sprint.id) as any;
+    expect(page.section).toBe("releases");
+    expect(page.title).toBe(`Sprint ${done.number}: ${done.name}`);
+    expect(page.body).toBe(done.release_notes);
+    await call("PUT", `/api/documents/${page.id}`, { title: page.title, body: "Edited in the wiki" });
+    expect((ctx.db.prepare("SELECT release_notes n FROM sprints WHERE id = ?").get(sprint.id) as any).n).toBe("Edited in the wiki");
+    ctx.db.prepare("DELETE FROM documents WHERE id = ?").run(page.id); // a startup seed brings a missing page back
+    seedDocuments(ctx.db);
+    expect((ctx.db.prepare("SELECT body FROM documents WHERE sprint_id = ?").get(sprint.id) as any).body).toBe("Edited in the wiki");
     expect(gitOut(repo, "show", "sprint/1-first:src/alpha.txt")).toBe("alpha\n");
     expect(existsSync(join(repo, "src", "alpha.txt"))).toBe(false); // main untouched until Release
     expect(ctx.db.prepare("SELECT status FROM backlog_items WHERE id = ?").get(items[0].id)).toEqual({ status: "done" }); // merged into the sprint branch

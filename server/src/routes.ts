@@ -18,7 +18,7 @@ import { commandProblem, envFileCandidates, folderOnDisk, suggestSetup, suggestV
 import { validEnvFileName } from "./orchestrator/envFile.ts";
 import { blockingTask } from "./orchestrator/overlap.ts";
 import { taskToMarkdown } from "./taskExport.ts";
-import { applyTaskPage, ensureProjectPages, refreshLinks, syncTaskPage } from "./documents.ts";
+import { applyReleasePage, applyTaskPage, ensureProjectPages, refreshLinks, syncTaskPage } from "./documents.ts";
 import { appVersion } from "./version.ts";
 
 type Body = Record<string, any>;
@@ -291,7 +291,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
   });
 
   // ---------- documents (wiki pages in the database, not files on disk) ----------
-  const docRow = `SELECT d.id, d.title, d.body, d.kind, d.project_id, d.builtin, d.section, d.slot, d.task_id, d.created_at, d.updated_at, p.name AS project_name
+  const docRow = `SELECT d.id, d.title, d.body, d.kind, d.project_id, d.builtin, d.section, d.slot, d.task_id, d.sprint_id, d.created_at, d.updated_at, p.name AS project_name
     FROM documents d LEFT JOIN projects p ON p.id = d.project_id`;
   app.get("/api/documents", async () =>
     db.prepare(`${docRow} ORDER BY d.kind, COALESCE(p.name, ''), d.title`).all());
@@ -325,7 +325,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
   });
   app.put("/api/documents/:id", async (req, reply) => {
     const docId = id((req.params as Body).id);
-    const existing = db.prepare("SELECT id, builtin, project_id, task_id FROM documents WHERE id = ?").get(docId) as { builtin: string | null; project_id: number | null; task_id: number | null } | undefined;
+    const existing = db.prepare("SELECT id, builtin, project_id, task_id, sprint_id FROM documents WHERE id = ?").get(docId) as { builtin: string | null; project_id: number | null; task_id: number | null; sprint_id: number | null } | undefined;
     if (!existing) return bad(reply, "No such document", 404);
     const body = req.body as Body;
     const title = String(body.title ?? "").trim();
@@ -339,6 +339,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       const updated = { ...orch.task(existing.task_id), document_id: docId };
       bus.publish({ type: "task", chatId: updated.chat_id, task: updated });
     }
+    if (existing.sprint_id) applyReleasePage(db, existing.sprint_id, text);
     return db.prepare(`${docRow} WHERE d.id = ?`).get(docId);
   });
   app.delete("/api/documents/:id", async (req, reply) => {
@@ -346,8 +347,8 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     const existing = db.prepare("SELECT builtin FROM documents WHERE id = ?").get(docId) as { builtin: string | null } | undefined;
     if (!existing) return bad(reply, "No such document", 404);
     if (existing.builtin) return bad(reply, "This guide stays in Documents");
-    const locked = db.prepare("SELECT slot, task_id FROM documents WHERE id = ?").get(docId) as { slot: string; task_id: number | null };
-    if (locked.slot || locked.task_id) return bad(reply, "This page stays with the project");
+    const locked = db.prepare("SELECT slot, task_id, sprint_id FROM documents WHERE id = ?").get(docId) as { slot: string; task_id: number | null; sprint_id: number | null };
+    if (locked.slot || locked.task_id || locked.sprint_id) return bad(reply, "This page stays with the project");
     db.prepare("DELETE FROM documents WHERE id = ?").run(docId);
     return { ok: true };
   });

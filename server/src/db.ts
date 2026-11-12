@@ -385,6 +385,10 @@ const MIGRATIONS: string[] = [
     CHECK (from_id != to_id)
   );
   `,
+  // The wiki page of a sprint's release notes.
+  `
+  ALTER TABLE documents ADD COLUMN sprint_id INTEGER REFERENCES sprints(id) ON DELETE CASCADE;
+  `,
 ];
 
 export function openDb(file: string): DB {
