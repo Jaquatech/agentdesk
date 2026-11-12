@@ -58,6 +58,19 @@ export const PLAN_TOOL: ToolDef = {
         type: "array", items: { type: "string" },
         description: "0-3 short notes for later chats in this project: decisions, findings, state (not a summary of this reply)",
       },
+      wiki: {
+        type: "array",
+        description: "Project wiki pages to write. Never a General page, and never a project name, dataset, or customer name that would belong on a General page.",
+        items: {
+          type: "object",
+          required: ["title", "section", "body"],
+          properties: {
+            title: { type: "string" },
+            section: { type: "string", enum: ["overview", "architecture", "roadmap", "setup", "decisions", "releases"] },
+            body: { type: "string", description: "Markdown. overview, architecture, roadmap and setup replace that page. decisions and releases are one page each, matched by title." },
+          },
+        },
+      },
     },
   },
 };
@@ -96,7 +109,8 @@ ${o.spec}${round}
     : "Run the relevant ones yourself first."}` : "Run the relevant tests yourself."}
 - Do not commit, push or open a PR; leave changes in the working tree.
 - Your final message becomes the PR description: what changed (short bullets), tests run and results, anything left open.
-  No diffs, no logs, no secrets.`;
+  No diffs, no logs, no secrets. It is also copied onto this task's wiki page.
+- The project's wiki is in your instructions. Use write_wiki when you learn something that belongs on a project page. Do not write this project's name, its data, or a customer name into a General page.`;
 }
 
 export function buildReviewPrompt(o: { title: string; specs: string; branch: string; base: string; diffStat: string; verify: string[] }) {

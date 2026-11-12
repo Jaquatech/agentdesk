@@ -33,6 +33,8 @@ export type EngineRequest = {
   onLog?: (line: string) => void;
   /** Asks the user before a command outside the allowed list (pauses the run). Absent = refuse. */
   askApproval?: (q: { kind: "command"; command: string; cwd: string }) => Promise<{ allowed: boolean; by?: string }>;
+  /** A developer may update this project's wiki. Absent = the tool is not offered. General pages are not writable here. */
+  writeWiki?: (page: { title: string; section: string; body: string }) => string;
   /** Each run-log step as it happens (live Activity view). */
   onStep?: (entry: TranscriptEntry) => void;
 };

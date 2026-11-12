@@ -1,38 +1,52 @@
-import { useEffect, useRef, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { Children, cloneElement, isValidElement, useEffect, useId, useRef, type ReactElement, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Field as ShadField, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { drawCharacter } from "../office/draw.ts";
 import type { Look } from "../office/palette.ts";
+
+const STATUS_TONE: Record<string, string> = {
+  building: "border-primary/40 text-primary",
+  verifying: "border-primary/40 text-primary",
+  reviewing: "border-primary/40 text-primary",
+  approved: "border-success/40 text-success",
+  merged: "border-success/40 text-success",
+  needs_attention: "border-warning/40 text-warning",
+  interrupted: "border-warning/40 text-warning",
+  failed: "border-destructive/40 text-destructive",
+};
 
 export function Modal({ title, onClose, children, footer, wide }: {
   title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
   return (
-    <div className="modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" style={wide ? { width: "min(900px, 100%)" } : undefined} role="dialog" aria-label={title}>
-        <div className="modal-head">
-          <h3>{title}</h3>
-          <span className="spacer" />
-          <button className="btn small" onClick={onClose} aria-label="Close"><X size={14} /></button>
-        </div>
-        <div className="modal-body">{children}</div>
-        {footer && <div className="modal-foot">{footer}</div>}
-      </div>
-    </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className={cn("max-h-[92vh] overflow-auto sm:max-w-[calc(36rem+100px)]", wide && "sm:max-w-[calc(56rem+100px)]")}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">{children}</div>
+        {footer && <DialogFooter className="sm:justify-end">{footer}</DialogFooter>}
+      </DialogContent>
+    </Dialog>
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
+/** Label, control and optional hint. One control gets the label's id; several are grouped. */
+export function Field({ label, hint, children, className }: { label?: ReactNode; hint?: ReactNode; children: ReactNode; className?: string }) {
+  const id = useId();
+  const only = Children.count(children) === 1 && isValidElement(children) ? children : null;
+  const control = only
+    ? cloneElement(only as ReactElement<{ id?: string }>, { id: (only.props as { id?: string }).id ?? id })
+    : <div className="flex flex-col gap-2">{children}</div>;
   return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
-      {hint && <small className="hint">{hint}</small>}
-    </label>
+    <ShadField className={className} data-invalid={undefined}>
+      {label != null && label !== "" && <FieldLabel htmlFor={id}>{label}</FieldLabel>}
+      {control}
+      {hint ? <FieldDescription>{hint}</FieldDescription> : null}
+    </ShadField>
   );
 }
 
@@ -46,11 +60,35 @@ export function Avatar({ look, size = 40 }: { look: Look; size?: number }) {
     ctx.imageSmoothingEnabled = false;
     drawCharacter(ctx, 8, 21, look, "stand", 1);
   }, [look.shirt, look.hair, look.skin, look.hairStyle]);
-  return <canvas ref={ref} width={16} height={16} className="avatar" style={{ width: size, height: size }} />;
+  return <canvas ref={ref} width={16} height={16} className="shrink-0 rounded-lg bg-muted" style={{ width: size, height: size, imageRendering: "pixelated" }} />;
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  return <span className={`status s-${status}`}>{status.replace("_", " ")}</span>;
+  const live = status === "building" || status === "verifying" || status === "reviewing";
+  return (
+    <Badge variant="outline" className={cn("capitalize", STATUS_TONE[status])}>
+      {live && <span className="size-1.5 animate-pulse rounded-full bg-current" />}
+      {status.replaceAll("_", " ")}
+    </Badge>
+  );
+}
+
+export function ToneBadge({ tone, children, title }: { tone?: "good" | "bad" | "wait" | "accent" | ""; children: ReactNode; title?: string }) {
+  const cls = tone === "good" ? "border-success/40 text-success"
+    : tone === "bad" ? "border-destructive/40 text-destructive"
+    : tone === "wait" ? "border-warning/40 text-warning"
+    : tone === "accent" ? "border-primary/40 text-primary"
+    : "";
+  return <Badge variant="outline" title={title} className={cls}>{children}</Badge>;
+}
+
+/** Push the following footer buttons to the right. */
+export function FooterGap() {
+  return <span className="mr-auto" />;
+}
+
+export function DangerButton(props: React.ComponentProps<typeof Button>) {
+  return <Button variant="destructive" {...props} />;
 }
 
 export function money(v: number | null | undefined) {

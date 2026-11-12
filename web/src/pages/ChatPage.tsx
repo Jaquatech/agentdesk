@@ -9,6 +9,15 @@ import { TaskPanel } from "./TaskPanel.tsx";
 import { MessageFiles, PendingFiles, type Pending } from "../components/Attachments.tsx";
 import { useCapabilities } from "../components/Capabilities.tsx";
 import { go } from "../App.tsx";
+import { Choice } from "../components/inputs.tsx";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 type ChatData = { chat: Chat; planner_id: number | null; planning: boolean; messages: Message[]; tasks: Task[] };
 
@@ -28,7 +37,6 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
     if (ev.type === "message" && ev.chatId === chatId) {
       setData((d) => {
         if (!d || d.messages.some((m) => m.id === ev.message.id)) return d;
-        // The server names a new chat after its first message; mirror that here.
         const chat = d.chat.title === "New chat" && ev.message.role === "user"
           ? { ...d.chat, title: ev.message.content.split("\n")[0].slice(0, 60) } : d.chat;
         return { ...d, chat, messages: [...d.messages, ev.message] };
@@ -54,11 +62,9 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
   const team = teams.find((t) => t.id === (data.chat.team_id ?? project?.team_id));
   const setTeam = async (teamId: number | null) => {
     await put(`/api/chats/${chatId}`, { team_id: teamId });
-    // The team decides the default planner, so ask the server who plans now.
     const fresh = await get<ChatData>(`/api/chats/${chatId}`);
     setData((d) => d && { ...d, chat: { ...d.chat, team_id: teamId }, planner_id: fresh.planner_id });
   };
-  // Picks who plans this chat's next message; empty goes back to the project's or team's planner.
   const planners = agents.filter((a) => a.role === "planner" && a.enabled);
   const setPlanner = async (plannerId: number | null) => {
     await put(`/api/chats/${chatId}`, { planner_id: plannerId });
@@ -80,42 +86,47 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
   };
 
   return (
-    <>
-      <div className="page-head">
-        <span className="crumb">{project?.name}</span>
-        <span className="crumb">/</span>
-        <h1>{data.chat.title}</h1>
-        <button className="icon-btn" title="Rename" onClick={rename}><Pencil size={14} /></button>
-        <button className="icon-btn" title="Delete chat" onClick={remove}><Trash2 size={14} /></button>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
+        <SidebarTrigger />
+        <span className="truncate text-sm text-muted-foreground">{project?.name}</span>
+        <span className="text-muted-foreground">/</span>
+        <h1 className="truncate text-sm font-medium">{data.chat.title}</h1>
+        <Button variant="ghost" size="icon-sm" title="Rename" onClick={rename}><Pencil /></Button>
+        <Button variant="ghost" size="icon-sm" title="Delete chat" onClick={remove}><Trash2 /></Button>
         {teams.length > 0 && (
-          <select className="team-select" title={`Team working on this chat: ${team?.name ?? "every enabled agent"}`}
-            value={data.chat.team_id ?? ""} onChange={(e) => setTeam(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">{`Team: ${teams.find((t) => t.id === project?.team_id)?.name ?? "all agents"} (project's)`}</option>
-            {teams.filter((t) => t.id !== project?.team_id).map((t) => <option key={t.id} value={t.id}>Team: {t.name}</option>)}
-          </select>
+          <Choice size="sm" className="w-auto max-w-56" title={`Team working on this chat: ${team?.name ?? "every enabled agent"}`}
+            value={data.chat.team_id ? String(data.chat.team_id) : ""} onValueChange={(v) => setTeam(v ? Number(v) : null)}
+            options={[
+              { value: "", label: `Team: ${teams.find((t) => t.id === project?.team_id)?.name ?? "all agents"} (project's)` },
+              ...teams.filter((t) => t.id !== project?.team_id).map((t) => ({ value: String(t.id), label: `Team: ${t.name}` })),
+            ]} />
         )}
         {planners.length > 0 && (
-          <select className="team-select" title="Planner who answers the next message in this chat"
-            value={data.chat.planner_id ?? ""} onChange={(e) => setPlanner(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">{data.chat.planner_id ? "Planner: automatic (project / team)" : `Planner: ${agents.find((a) => a.id === data.planner_id)?.name ?? "none"} (automatic)`}</option>
-            {planners.map((a) => <option key={a.id} value={a.id}>Planner: {a.name}</option>)}
-          </select>
+          <Choice size="sm" className="w-auto max-w-56" title="Planner who answers the next message in this chat"
+            value={data.chat.planner_id ? String(data.chat.planner_id) : ""} onValueChange={(v) => setPlanner(v ? Number(v) : null)}
+            options={[
+              { value: "", label: data.chat.planner_id ? "Planner: automatic (project / team)" : `Planner: ${agents.find((a) => a.id === data.planner_id)?.name ?? "none"} (automatic)` },
+              ...planners.map((a) => ({ value: String(a.id), label: `Planner: ${a.name}` })),
+            ]} />
         )}
-        <div className="tabs">
-          <button className={`tab ${tab === "chat" ? "active" : ""}`} onClick={() => setTab("chat")}><MessageSquare size={14} /> Chat</button>
-          <button className={`tab ${tab === "tasks" ? "active" : ""}`} onClick={() => setTab("tasks")}><ListChecks size={14} /> Running tasks{active ? ` · ${active}` : ""}</button>
-          <button className={`tab ${tab === "office" ? "active" : ""}`} onClick={() => setTab("office")}><Building2 size={14} /> Office</button>
-        </div>
-      </div>
-      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Tabs value={tab} onValueChange={setTab} className="ml-auto w-auto">
+          <TabsList>
+            <TabsTrigger value="chat"><MessageSquare data-icon="inline-start" /> Chat</TabsTrigger>
+            <TabsTrigger value="tasks"><ListChecks data-icon="inline-start" /> Running tasks{active ? ` · ${active}` : ""}</TabsTrigger>
+            <TabsTrigger value="office"><Building2 data-icon="inline-start" /> Office</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col">
         {project?.process === "scrum" && <ScrumBar projectId={project.id} />}
-        <div style={{ flex: 1, minHeight: 0 }}>
+        <div className="min-h-0 flex-1">
           {tab === "tasks" ? <TaskPanel chatId={chatId} agents={agents} />
             : tab === "office" ? <Office chatId={chatId} />
             : <ChatView data={data} agents={agents} planning={planning} setPlanning={setPlanning} openTasks={() => setTab("tasks")} />}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -129,7 +140,6 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // Paste, drop or pick: each file uploads right away and waits in the composer until the message is sent.
   const addFiles = (list: FileList | File[]) => {
     for (const file of Array.from(list)) {
       const key = `${Date.now()}-${Math.random()}`;
@@ -147,7 +157,6 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
     return f.filter((y) => y.key !== key);
   });
   const uploading = files.some((f) => !f.id && !f.error);
-  // Can the planner see images? Asked once per chat; Ollama reports it per model.
   const caps = useCapabilities(`/api/chats/${data.chat.id}/planner-capabilities?team=${data.chat.team_id ?? ""}&planner=${data.planner_id ?? ""}`);
   const hasImages = files.some((f) => f.mime.startsWith("image/"));
   const ready = files.filter((f) => f.id);
@@ -171,26 +180,35 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
   const planner = agents.find((a) => a.id === data.planner_id) ?? agents.find((a) => a.role === "planner" && a.enabled);
 
   return (
-    <div className="chat">
-      <div className="chat-scroll" ref={scrollRef}>
-        <div className="chat-inner">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex-1 overflow-auto px-6 py-4" ref={scrollRef}>
+        <div className="mx-auto flex max-w-3xl flex-col gap-4">
           {data.messages.length === 0 && (
-            <div className="empty">
-              Describe what you want built or changed. {planner ? <><b>{planner.name}</b> reads the code and proposes tasks.</> : <>Create a planner under <a href="#/agents">Agents</a> first.</>}
-            </div>
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Start the conversation</EmptyTitle>
+                <EmptyDescription>
+                  Describe what you want built or changed. {planner ? <><b>{planner.name}</b> reads the code and proposes tasks.</> : <>Create a planner under <a href="#/agents">Agents</a> first.</>}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
           {data.messages.map((m) => {
             const a = agent(m.agent_id);
             const tasks = data.tasks.filter((t) => t.message_id === m.id);
             return (
-              <div key={m.id} className={`msg ${m.role}`}>
+              <div key={m.id} className={cn("flex flex-col gap-1", m.role === "user" && "items-end", m.role === "event" && "border-l-2 pl-3 text-sm text-muted-foreground")}>
                 {m.role !== "event" && (
-                  <div className="msg-who">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     {a && <Avatar look={lookFor(a.name, parseJson(a.appearance, {}))} size={18} />}
                     {m.role === "user" ? "You" : a?.name ?? "Agent"}
                   </div>
                 )}
-                {!(m.attachments?.length && m.content === "(see the attached files)") && <div className="msg-body"><Markdown>{m.content}</Markdown></div>}
+                {!(m.attachments?.length && m.content === "(see the attached files)") && (
+                  <div className={cn("markdown", m.role === "user" && "max-w-[85%] rounded-lg bg-muted px-3 py-2", m.role === "event" && "text-foreground")}>
+                    <Markdown>{m.content}</Markdown>
+                  </div>
+                )}
                 {m.attachments?.length ? <MessageFiles files={m.attachments} /> : null}
                 {tasks.length > 0 && <PlanCard tasks={tasks} agents={agents} messageId={m.id} onEdit={setEditing} openTasks={openTasks} />}
                 {(() => {
@@ -198,44 +216,48 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
                   return <>
                     {plan.merge_ids?.length ? <ActionCard kind="merge" items={plan.merge_ids.map((id) => ({ id }))} agents={agents} /> : null}
                     {plan.retry?.length ? <ActionCard kind="retry" items={plan.retry} agents={agents} /> : null}
-                    {plan.journal?.length ? <div className="journal-note"><NotebookPen size={13} /> Noted for later chats: {plan.journal.join(" · ")}</div> : null}
+                    {plan.journal?.length ? <div className="flex items-baseline gap-1.5 text-xs text-muted-foreground"><NotebookPen /> Noted for later chats: {plan.journal.join(" · ")}</div> : null}
                   </>;
                 })()}
               </div>
             );
           })}
           {planning && (
-            <div className="msg"><div className="msg-who">{planner?.name ?? "Planner"}</div><span className="typing"><i /><i /><i /></span></div>
+            <div className="flex flex-col gap-1">
+              <div className="text-xs text-muted-foreground">{planner?.name ?? "Planner"}</div>
+              <span className="inline-flex gap-1"><i className="typing-dot" /><i className="typing-dot" /><i className="typing-dot" /></span>
+            </div>
           )}
         </div>
       </div>
-      <div className="composer">
+      <div className="border-t bg-background px-6 py-3">
         {hasImages && caps?.vision === false && (
-          <div className="composer-warn">⚠ {caps.agent} runs on <code>{caps.model}</code>, which cannot read images: they are sent as file names only. Use a vision model or Claude for the planner to discuss screenshots.</div>
+          <p className="mx-auto mb-1.5 max-w-3xl text-xs text-warning">⚠ {caps.agent} runs on <code>{caps.model}</code>, which cannot read images: they are sent as file names only. Use a vision model or Claude for the planner to discuss screenshots.</p>
         )}
         {hasImages && caps && caps.vision === null && caps.agent && (
-          <div className="composer-warn">{caps.agent}'s model (<code>{caps.model}</code>) does not say whether it reads images ({caps.source}). If it can't, the reply will ignore them.</div>
+          <p className="mx-auto mb-1.5 max-w-3xl text-xs text-warning">{caps.agent}'s model (<code>{caps.model}</code>) does not say whether it reads images ({caps.source}). If it can't, the reply will ignore them.</p>
         )}
-        <div className={`composer-box ${dragging ? "dragging" : ""}`}
+        <div className={cn("mx-auto flex max-w-3xl flex-wrap items-end gap-2 rounded-xl border bg-card p-2", dragging && "border-primary ring-3 ring-primary/30")}
           onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
           onDragLeave={() => setDragging(false)}
           onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); } }}>
           <PendingFiles files={files} onRemove={removeFile} />
-          <button type="button" className="icon-btn attach-btn" title="Attach files (or paste / drop them here)" onClick={() => fileInput.current?.click()}>
-            <Paperclip size={16} />
-          </button>
+          <Button type="button" variant="ghost" size="icon-sm" title="Attach files (or paste / drop them here)" onClick={() => fileInput.current?.click()}>
+            <Paperclip />
+          </Button>
           <input ref={fileInput} type="file" multiple hidden onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
-          <textarea
+          <Textarea
+            className="min-h-11 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
             placeholder={planning ? "The planner is working on it…" : "What should the team do? Paste or drop screenshots and files. (Enter to send, Shift+Enter for a new line)"}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
           />
-          <button className="btn primary" onClick={send} disabled={planning || uploading || (!text.trim() && !ready.length)} aria-label="Send"
-            title={uploading ? "Waiting for uploads" : undefined}><Send size={15} /></button>
+          <Button size="icon" onClick={send} disabled={planning || uploading || (!text.trim() && !ready.length)} aria-label="Send"
+            title={uploading ? "Waiting for uploads" : undefined}><Send /></Button>
         </div>
-        {error && <div className="error" style={{ maxWidth: 820, margin: "6px auto 0" }}>{error}</div>}
+        {error && <p className="mx-auto mt-1.5 max-w-3xl text-sm text-destructive">{error}</p>}
       </div>
       {editing && <EditTask task={editing} agents={agents} onClose={() => setEditing(null)} />}
     </div>
@@ -250,38 +272,33 @@ function PlanCard({ tasks, agents, messageId, onEdit, openTasks }: {
   const run = async () => { setBusy(true); try { await post(`/api/messages/${messageId}/run`); } finally { setBusy(false); } };
   const total = tasks.reduce((s, t) => s + t.cost_usd, 0);
   return (
-    <div className="plan">
+    <Card className="w-full gap-0 py-0">
       {tasks.map((t) => {
         const w = agents.find((a) => a.id === t.worker_id);
         return (
-          <div key={t.id} className="plan-row">
-            {w ? <Avatar look={lookFor(w.name, parseJson(w.appearance, {}))} size={22} /> : <span style={{ width: 22 }} />}
-            <div style={{ flex: 1, minWidth: 0 }}>
+          <div key={t.id} className="flex items-start gap-2.5 border-b px-3 py-2">
+            {w ? <Avatar look={lookFor(w.name, parseJson(w.appearance, {}))} size={22} /> : <span className="w-5" />}
+            <div className="min-w-0 flex-1">
               <b>{t.title}</b>
-              <div className="hint">{w?.name ?? "any developer"} · <span className="mono">{parseJson<string[]>(t.paths, []).join(" ") || "any path"}</span></div>
+              <div className="text-xs text-muted-foreground">{w?.name ?? "any developer"} · <span className="font-mono">{parseJson<string[]>(t.paths, []).join(" ") || "any path"}</span></div>
             </div>
             <StatusBadge status={t.status} />
-            {t.status === "proposed" && <button className="btn small" onClick={() => onEdit(t)}>Edit</button>}
+            {t.status === "proposed" && <Button variant="outline" size="sm" onClick={() => onEdit(t)}>Edit</Button>}
           </div>
         );
       })}
-      <div className="plan-foot">
+      <div className="flex items-center gap-2 rounded-b-xl bg-muted px-3 py-2">
         {proposed.length > 0
-          ? <button className="btn primary small" onClick={run} disabled={busy}><Play size={13} /> Run {proposed.length === tasks.length ? "plan" : `${proposed.length} tasks`}</button>
-          : <button className="btn small" onClick={openTasks}>Open running tasks</button>}
-        <span className="spacer" />
-        <span className="hint">{tasks.length} task{tasks.length === 1 ? "" : "s"}{total ? ` · ${money(total)}` : ""}</span>
+          ? <Button size="sm" onClick={run} disabled={busy}><Play data-icon="inline-start" /> Run {proposed.length === tasks.length ? "plan" : `${proposed.length} tasks`}</Button>
+          : <Button variant="outline" size="sm" onClick={openTasks}>Open running tasks</Button>}
+        <span className="ml-auto text-xs text-muted-foreground">{tasks.length} task{tasks.length === 1 ? "" : "s"}{total ? ` · ${money(total)}` : ""}</span>
       </div>
-    </div>
+    </Card>
   );
 }
 
 type PlanExtras = { merge_ids?: number[]; retry?: { id: number; worker_id?: number }[]; journal?: string[] };
 
-/**
- * The planner's "merge these" / "run these again" answer. Tasks may come from other chats of the project,
- * so they are loaded by id and kept live.
- */
 function ActionCard({ kind, items, agents }: { kind: "merge" | "retry"; items: { id: number; worker_id?: number }[]; agents: Agent[] }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [busy, setBusy] = useState(false);
@@ -305,28 +322,28 @@ function ActionCard({ kind, items, agents }: { kind: "merge" | "retry"; items: {
     setBusy(false);
   };
   return (
-    <div className="merge-card">
+    <Card className="w-full gap-2 p-3">
       {tasks.map((t) => {
         const to = items.find((i) => i.id === t.id)?.worker_id;
         return (
-          <div key={t.id} className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+          <div key={t.id} className="flex flex-wrap items-center gap-2 text-sm">
             <StatusBadge status={t.status} /><b>{t.title}</b>
-            <span className="hint">{to && to !== t.worker_id ? `${name(t.worker_id) ?? "–"} → ${name(to)}` : name(t.worker_id)}</span>
-            {t.chat_id !== undefined && <a className="hint" href={`#/chat/${t.chat_id}`}>open chat</a>}
-            {results[t.id] && <span className={results[t.id].startsWith("✓") ? "hint" : "error"}>{results[t.id]}</span>}
+            <span className="text-xs text-muted-foreground">{to && to !== t.worker_id ? `${name(t.worker_id) ?? "–"} → ${name(to)}` : name(t.worker_id)}</span>
+            {t.chat_id !== undefined && <a className="text-xs" href={`#/chat/${t.chat_id}`}>open chat</a>}
+            {results[t.id] && <span className={results[t.id].startsWith("✓") ? "text-xs text-muted-foreground" : "text-xs text-destructive"}>{results[t.id]}</span>}
           </div>
         );
       })}
-      <div className="row">
-        <button className="btn primary small" disabled={busy || !ready.length} onClick={runAll}>
-          {kind === "merge" ? <GitMerge size={13} /> : <RotateCcw size={13} />}{" "}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" disabled={busy || !ready.length} onClick={runAll}>
+          {kind === "merge" ? <GitMerge data-icon="inline-start" /> : <RotateCcw data-icon="inline-start" />}
           {busy ? (kind === "merge" ? "Merging…" : "Queuing…") : ready.length
             ? `${kind === "merge" ? "Merge" : "Run again"}: ${ready.length} task${ready.length === 1 ? "" : "s"}`
             : kind === "merge" ? "Nothing left to merge" : "Nothing left to run"}
-        </button>
-        <span className="hint">{kind === "merge" ? "Squash-merges into the base branch (GitHub: the pull request)." : "Runs on the same branch; progress under Running tasks."}</span>
+        </Button>
+        <span className="text-xs text-muted-foreground">{kind === "merge" ? "Squash-merges into the base branch (GitHub: the pull request)." : "Runs on the same branch; progress under Running tasks."}</span>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -341,32 +358,28 @@ function EditTask({ task, agents, onClose }: { task: Task; agents: Agent[]; onCl
     catch (e) { setError((e as Error).message); }
   };
   return (
-    <Modal title="Edit task before it runs" onClose={onClose} wide footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Save</button></>}>
-      <Field label="Title"><input value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
-      <div className="grid2">
+    <Modal title="Edit task before it runs" onClose={onClose} wide footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save}>Save</Button></>}>
+      <Field label="Title"><Input value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Developer">
-          <select value={worker} onChange={(e) => setWorker(e.target.value)}>
-            <option value="">Any free developer</option>
-            {agents.filter((a) => a.role === "worker").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
+          <Choice value={worker} onValueChange={setWorker} options={[{ value: "", label: "Any free developer" }, ...agents.filter((a) => a.role === "worker").map((a) => ({ value: String(a.id), label: a.name }))]} />
         </Field>
-        <Field label="Allowed paths (one per line)"><textarea className="mono" rows={2} value={paths} onChange={(e) => setPaths(e.target.value)} /></Field>
+        <Field label="Allowed paths (one per line)"><Textarea className="font-mono text-xs" rows={2} value={paths} onChange={(e) => setPaths(e.target.value)} /></Field>
       </div>
-      <Field label="Spec (Markdown)"><textarea className="mono" rows={16} value={spec} onChange={(e) => setSpec(e.target.value)} /></Field>
-      {error && <div className="error">{error}</div>}
+      <Field label="Spec (Markdown)"><Textarea className="min-h-64 font-mono text-xs" rows={16} value={spec} onChange={(e) => setSpec(e.target.value)} /></Field>
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </Modal>
   );
 }
 
-/** Scrum projects: where the cycle is now, so the chat always knows what a new request does. */
 function ScrumBar({ projectId }: { projectId: number }) {
   const { data, reload } = useLoad<{ cycle: { text: string } }>(`/api/projects/${projectId}/scrum`);
   useLiveEvents((ev) => { if (ev.type === "scrum" && ev.projectId === projectId) reload(); });
   if (!data) return null;
   return (
-    <div className="scrum-bar">
-      <b>Scrum</b><span className="ellipsis">{data.cycle.text}</span><span className="spacer" />
-      <span className="hint">Ask for anything new; the product manager adds it to the backlog.</span>
+    <div className="flex shrink-0 items-center gap-2 border-b bg-accent px-4 py-1.5 text-sm">
+      <b>Scrum</b><span className="min-w-0 flex-1 truncate">{data.cycle.text}</span>
+      <span className="hidden text-xs text-muted-foreground sm:inline">Ask for anything new; the product manager adds it to the backlog.</span>
       <a href={`#/scrum/${projectId}`}>Backlog & PIs</a>
     </div>
   );

@@ -7,6 +7,7 @@ const requireBuiltin = createRequire(import.meta.url);
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { SEED_PRICES } from "./pricing.ts";
+import { seedDocuments } from "./documents.ts";
 
 type Statement = {
   run(...params: any[]): { changes: number | bigint; lastInsertRowid: number | bigint };
@@ -355,6 +356,35 @@ const MIGRATIONS: string[] = [
   ALTER TABLE projects ADD COLUMN planner_id INTEGER REFERENCES agents(id) ON DELETE SET NULL;
   ALTER TABLE chats ADD COLUMN planner_id INTEGER REFERENCES agents(id) ON DELETE SET NULL;
   `,
+  // Wiki pages: a project document, or a generic page shared by every project. Not files on disk.
+  `
+  CREATE TABLE documents (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL CHECK (kind IN ('generic', 'project')),
+    builtin TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK ((kind = 'generic' AND project_id IS NULL) OR (kind = 'project' AND project_id IS NOT NULL))
+  );
+  CREATE UNIQUE INDEX idx_documents_builtin ON documents(builtin) WHERE builtin IS NOT NULL;
+  `,
+  // Wiki structure: a section inside a project, a single standard page (slot), or the page of one task.
+  `
+  ALTER TABLE documents ADD COLUMN section TEXT NOT NULL DEFAULT '';
+  ALTER TABLE documents ADD COLUMN slot TEXT NOT NULL DEFAULT '';
+  ALTER TABLE documents ADD COLUMN task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE;
+  CREATE UNIQUE INDEX idx_documents_slot ON documents(project_id, slot) WHERE slot != '';
+  CREATE UNIQUE INDEX idx_documents_task ON documents(task_id) WHERE task_id IS NOT NULL;
+  CREATE TABLE document_links (
+    from_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    to_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    PRIMARY KEY (from_id, to_id),
+    CHECK (from_id != to_id)
+  );
+  `,
 ];
 
 export function openDb(file: string): DB {
@@ -382,6 +412,7 @@ export function openDb(file: string): DB {
       db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('prices_seeded', '1')").run();
     })();
   }
+  seedDocuments(db);
   return db;
 }
 

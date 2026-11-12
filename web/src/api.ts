@@ -75,6 +75,7 @@ export type Task = {
   commit_sha: string; pr_url: string; verdict: string; summary: string; review: string; error: string; cost_usd: number; tokens: number;
   created_at: string; updated_at: string; chat_title?: string; project_name?: string;
   sprint_id?: number | null; sprint_number?: number | null; sprint_status?: string | null;
+  document_id?: number | null;
 };
 export type Run = {
   id: number; kind: string; round: number; model: string; status: string; turns: number | null; cost_usd: number | null;

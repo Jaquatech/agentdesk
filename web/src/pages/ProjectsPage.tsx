@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react";
 import { FolderGit2, FolderOpen, Plus, ArrowUp, GitBranch, Sparkles } from "lucide-react";
 import { get, post, put, del, parseJson, type Agent, type Project, type Team } from "../api.ts";
-import { Field, Modal } from "../components/ui.tsx";
-import { NoFillInput } from "../components/inputs.tsx";
+import { Field, FooterGap, Modal, ToneBadge } from "../components/ui.tsx";
+import { Choice, NoFillInput } from "../components/inputs.tsx";
 import { go } from "../App.tsx";
+import { Page } from "../components/page.tsx";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const SOURCES = {
   local: "Local folder",
@@ -23,32 +29,28 @@ export function ProjectsPage({ openNew, onChanged }: { openNew: boolean; onChang
   useEffect(() => { load(); if (openNew) setEditing(blank()); }, [openNew]);
 
   return (
-    <>
-      <div className="page-head"><h1>Projects</h1><span className="spacer" /><button className="btn" onClick={() => setEditing(blank())}><Plus size={14} /> New project</button></div>
-      <div className="page"><div className="narrow">
-        <p className="hint" style={{ marginTop: 0 }}>
-          A project is one git repository. Each task gets its own branch and worktree next to the data folder, so your own checkout is never touched while agents work.
-        </p>
-        <div className="list">
-          {projects.length === 0 && <div className="list-row hint">No projects yet.</div>}
-          {projects.map((p) => (
-            <div key={p.id} className="list-row clickable" onClick={() => setEditing(p)}>
-              <FolderGit2 size={16} />
-              <div style={{ minWidth: 0 }}>
-                <b>{p.name}</b> <span className="badge">{SOURCES[p.source]}</span>
-                {" "}<span className="badge accent">{teams.find((t) => t.id === p.team_id)?.name ?? "all agents"}</span>
-                {p.process === "scrum" && <>{" "}<span className="badge good">Scrum</span></>}
-                <div className="hint mono">{p.repo_url || p.path} · <GitBranch size={11} /> {p.base_branch}</div>
-              </div>
-              <span className="spacer" />
-              <span className="hint">{p.chat_count ?? 0} chats</span>
+    <Page title="Projects" actions={<Button variant="outline" onClick={() => setEditing(blank())}><Plus data-icon="inline-start" /> New project</Button>}>
+      <p className="text-sm text-muted-foreground">
+        A project is one git repository. Each task gets its own branch and worktree next to the data folder, so your own checkout is never touched while agents work.
+      </p>
+      <Card className="gap-0 py-0">
+        {projects.length === 0 && <div className="px-4 py-3 text-sm text-muted-foreground">No projects yet.</div>}
+        {projects.map((p) => (
+          <button key={p.id} type="button" className="flex w-full items-center gap-3 border-b px-4 py-3 text-left last:border-b-0 hover:bg-muted" onClick={() => setEditing(p)}>
+            <FolderGit2 className="text-muted-foreground" />
+            <div className="min-w-0">
+              <b>{p.name}</b> <Badge variant="secondary">{SOURCES[p.source]}</Badge>{" "}
+              <ToneBadge tone="accent">{teams.find((t) => t.id === p.team_id)?.name ?? "all agents"}</ToneBadge>
+              {p.process === "scrum" && <> <ToneBadge tone="good">Scrum</ToneBadge></>}
+              <div className="truncate font-mono text-xs text-muted-foreground">{p.repo_url || p.path} · <GitBranch className="inline" /> {p.base_branch}</div>
             </div>
-          ))}
-        </div>
-      </div></div>
+            <span className="ml-auto text-xs text-muted-foreground">{p.chat_count ?? 0} chats</span>
+          </button>
+        ))}
+      </Card>
       {editing && <ProjectForm p={editing} teams={teams} agents={agents} onClose={() => { setEditing(null); if (openNew) go("projects"); }}
         onSaved={() => { setEditing(null); load(); onChanged(); if (openNew) go("projects"); }} />}
-    </>
+    </Page>
   );
 }
 
@@ -73,7 +75,6 @@ function ProjectForm({ p, teams, agents, onClose, onSaved }: { p: Partial<Projec
     return () => clearTimeout(t);
   }, [f.path]);
 
-  // Verify commands that fit the folder (one click to add) and warnings for ones that cannot work there.
   const [help, setHelp] = useState<{ suggestions: { command: string; label: string }[]; setupSuggestions: { command: string; label: string }[]; envFiles: string[]; warnings: string[] }>({ suggestions: [], setupSuggestions: [], envFiles: [], warnings: [] });
   useEffect(() => {
     if (!f.path) { setHelp({ suggestions: [], setupSuggestions: [], envFiles: [], warnings: [] }); return; }
@@ -101,34 +102,25 @@ function ProjectForm({ p, teams, agents, onClose, onSaved }: { p: Partial<Projec
 
   return (
     <Modal title={p.id ? `Edit ${p.name}` : "New project"} onClose={onClose} wide
-      footer={<>{p.id && <button className="btn danger" onClick={remove}>Remove</button>}<span className="spacer" /><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Save</button></>}>
-      <div className="grid3">
+      footer={<>{p.id && <Button variant="destructive" onClick={remove}>Remove</Button>}<FooterGap /><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save}>Save</Button></>}>
+      <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Name"><NoFillInput value={f.name ?? ""} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field label="Source">
-          <select value={f.source} onChange={(e) => set("source", e.target.value)}>
-            {Object.entries(SOURCES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          <Choice value={f.source ?? "local"} onValueChange={(v) => set("source", v)} options={Object.entries(SOURCES).map(([k, v]) => ({ value: k, label: v }))} />
         </Field>
-        <Field label="Base branch"><NoFillInput className="mono" value={f.base_branch ?? "main"} onChange={(e) => set("base_branch", e.target.value)} /></Field>
+        <Field label="Base branch"><NoFillInput className="font-mono" value={f.base_branch ?? "main"} onChange={(e) => set("base_branch", e.target.value)} /></Field>
       </div>
       <Field label="Team" hint={teams.length ? "Its planner answers this project's chats and hands tasks to its developers. A chat can switch team." : <>No teams yet: every enabled agent works here. <a href="#/teams">Make a team</a>.</>}>
-        <select value={f.team_id ?? ""} onChange={(e) => set("team_id", e.target.value ? Number(e.target.value) : null)}>
-          <option value="">No team: every enabled agent</option>
-          {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
+        <Choice value={f.team_id ? String(f.team_id) : ""} onValueChange={(v) => set("team_id", v ? Number(v) : null)}
+          options={[{ value: "", label: "No team: every enabled agent" }, ...teams.map((t) => ({ value: String(t.id), label: t.name }))]} />
       </Field>
       <Field label="Planner" hint="Answers this project's chats unless a chat picks another. Automatic = the team's planner.">
-        <select value={f.planner_id ?? ""} onChange={(e) => set("planner_id", e.target.value ? Number(e.target.value) : null)}>
-          <option value="">Automatic (team's planner)</option>
-          {agents.filter((a) => a.role === "planner" && a.enabled).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
+        <Choice value={f.planner_id ? String(f.planner_id) : ""} onValueChange={(v) => set("planner_id", v ? Number(v) : null)}
+          options={[{ value: "", label: "Automatic (team's planner)" }, ...agents.filter((a) => a.role === "planner" && a.enabled).map((a) => ({ value: String(a.id), label: a.name }))]} />
       </Field>
-      <div className="grid2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="How work is run" hint={f.process === "scrum" ? "A backlog the team refines, sprints by priority and capacity, QA on every task, then a release." : "Chat with the planner; tasks run as soon as you approve them."}>
-          <select value={f.process ?? "free"} onChange={(e) => set("process", e.target.value)}>
-            <option value="free">Free chat</option>
-            <option value="scrum">Scrum: backlog, sprints, release</option>
-          </select>
+          <Choice value={f.process ?? "free"} onValueChange={(v) => set("process", v)} options={[{ value: "free", label: "Free chat" }, { value: "scrum", label: "Scrum: backlog, sprints, release" }]} />
         </Field>
         {f.process === "scrum" && (
           <Field label="Points per developer per sprint" hint="Sprint capacity = developers in the team × this.">
@@ -138,82 +130,82 @@ function ProjectForm({ p, teams, agents, onClose, onSaved }: { p: Partial<Projec
       </div>
       {f.source !== "local" && (
         <Field label="Repository URL" hint={f.source === "github" ? "Pull requests are opened with the GitHub CLI (gh) when it is installed and signed in." : "Pull requests are opened with the Azure CLI (az repos) when it is installed and signed in."}>
-          <NoFillInput className="mono" value={f.repo_url ?? ""} onChange={(e) => set("repo_url", e.target.value)}
+          <NoFillInput className="font-mono" value={f.repo_url ?? ""} onChange={(e) => set("repo_url", e.target.value)}
             placeholder={f.source === "github" ? "https://github.com/org/repo" : "https://dev.azure.com/org/project/_git/repo"} />
         </Field>
       )}
       <Field label={f.source === "local" ? "Folder (a git repository)" : "Local clone folder (optional; cloned on first use)"}
         hint={check ? (check.git ? "✓ git repository" : check.exists ? (f.source === "local" ? "Not a git repository: run git init there first" : "Not a clone: the repository is cloned into a new subfolder here (named after the repo)") : f.source === "local" ? "Folder not found" : "Will be cloned here") : undefined}>
-        <div className="row" style={{ gap: 6 }}>
-          <NoFillInput className="mono" value={f.path ?? ""} onChange={(e) => set("path", e.target.value)} placeholder={f.source === "local" ? "C:\\code\\my-repo" : "e.g. C:\\Tools\\my-repo (empty = inside the data folder)"} />
-          <button className="btn" type="button" onClick={() => setPicker(true)}><FolderOpen size={14} /> Browse</button>
+        <div className="flex items-center gap-2">
+          <NoFillInput className="font-mono" value={f.path ?? ""} onChange={(e) => set("path", e.target.value)} placeholder={f.source === "local" ? "C:\\code\\my-repo" : "e.g. C:\\Tools\\my-repo (empty = inside the data folder)"} />
+          <Button type="button" variant="outline" onClick={() => setPicker(true)}><FolderOpen data-icon="inline-start" /> Browse</Button>
         </div>
       </Field>
-      <div className="grid2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Verify commands (one per line; all must pass)" hint="Run in the task's worktree after each build round.">
-          <textarea className="mono" rows={4} value={f.verify} onChange={(e) => set("verify", e.target.value)} placeholder={"npm ci\nnpm test"} />
-          {help.warnings.map((w) => <div key={w} className="error" style={{ marginTop: 4 }}>⚠ {w}</div>)}
+          <Textarea className="font-mono text-xs" rows={4} value={f.verify} onChange={(e) => set("verify", e.target.value)} placeholder={"npm ci\nnpm test"} />
+          {help.warnings.map((w) => <p key={w} className="text-sm text-destructive">⚠ {w}</p>)}
           {help.suggestions.some((x) => !verifyLines.includes(x.command)) && (
-            <div className="row" style={{ flexWrap: "wrap", gap: 6, marginTop: 6 }} title="Commands that fit this folder. Click to add one; nothing is added by itself.">
-              <span className="hint">Add:</span>
+            <div className="flex flex-wrap items-center gap-1.5" title="Commands that fit this folder. Click to add one; nothing is added by itself.">
+              <span className="text-xs text-muted-foreground">Add:</span>
               {help.suggestions.filter((x) => !verifyLines.includes(x.command)).map((x) => (
-                <button key={x.command} type="button" className="btn" title={x.label} onClick={() => addVerify(x.command)}>+ <span className="mono">{x.command}</span></button>
+                <Button key={x.command} type="button" variant="outline" size="sm" title={x.label} onClick={() => addVerify(x.command)}>+ <span className="font-mono">{x.command}</span></Button>
               ))}
             </div>
           )}
         </Field>
         <Field label="Setup commands (once per new worktree)" hint="E.g. installs. Developers cannot install packages themselves.">
-          <textarea className="mono" rows={4} value={f.setup} onChange={(e) => set("setup", e.target.value)} placeholder="npm ci --no-audit --no-fund" />
+          <Textarea className="font-mono text-xs" rows={4} value={f.setup} onChange={(e) => set("setup", e.target.value)} placeholder="npm ci --no-audit --no-fund" />
           {help.setupSuggestions.some((x) => !setupLines.includes(x.command)) && (
-            <div className="row" style={{ flexWrap: "wrap", gap: 6, marginTop: 6 }} title="Install commands that fit this folder. Click to add one; nothing is added by itself.">
-              <span className="hint">Add:</span>
+            <div className="flex flex-wrap items-center gap-1.5" title="Install commands that fit this folder. Click to add one; nothing is added by itself.">
+              <span className="text-xs text-muted-foreground">Add:</span>
               {help.setupSuggestions.filter((x) => !setupLines.includes(x.command)).map((x) => (
-                <button key={x.command} type="button" className="btn" title={x.label} onClick={() => addSetup(x.command)}>+ <span className="mono">{x.command}</span></button>
+                <Button key={x.command} type="button" variant="outline" size="sm" title={x.label} onClick={() => addSetup(x.command)}>+ <span className="font-mono">{x.command}</span></Button>
               ))}
             </div>
           )}
         </Field>
       </div>
       <Field label="Env file for checks (optional)" hint="A file in the project folder with the settings the verify commands need, such as .env.demo. It is copied into the task's worktree under the name in the copy-as box (default .env) only while they run, then removed (a file already there is restored), and agents never see it. Prefer test values over real secrets: when a check fails, its output goes back to the developer.">
-        <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          <NoFillInput className="mono" style={{ maxWidth: 220 }} value={f.checks_env_file ?? ""} onChange={(e) => set("checks_env_file", e.target.value)} placeholder=".env.test" />
-          <span className="muted">copy as</span>
-          <NoFillInput className="mono" style={{ maxWidth: 160 }} value={f.checks_env_target ?? ""} onChange={(e) => set("checks_env_target", e.target.value)} placeholder=".env" />
+        <div className="flex flex-wrap items-center gap-2">
+          <NoFillInput className="max-w-56 font-mono" value={f.checks_env_file ?? ""} onChange={(e) => set("checks_env_file", e.target.value)} placeholder=".env.test" />
+          <span className="text-sm text-muted-foreground">copy as</span>
+          <NoFillInput className="max-w-40 font-mono" value={f.checks_env_target ?? ""} onChange={(e) => set("checks_env_target", e.target.value)} placeholder=".env" />
         </div>
         {help.envFiles.some((n) => n !== f.checks_env_file) && (
-          <div className="row" style={{ flexWrap: "wrap", gap: 6, marginTop: 6 }} title="Env files found in the project folder. Click to use one; it replaces the file name above.">
-            <span className="hint">Use:</span>
+          <div className="flex flex-wrap items-center gap-1.5" title="Env files found in the project folder. Click to use one; it replaces the file name above.">
+            <span className="text-xs text-muted-foreground">Use:</span>
             {help.envFiles.filter((n) => n !== f.checks_env_file).map((n) => (
-              <button key={n} type="button" className="btn" onClick={() => set("checks_env_file", n)}><span className="mono">{n}</span></button>
+              <Button key={n} type="button" variant="outline" size="sm" onClick={() => set("checks_env_file", n)}><span className="font-mono">{n}</span></Button>
             ))}
           </div>
         )}
       </Field>
-      <div className="grid2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Always-allowed paths (one per line)" hint="Added to every task's own paths, e.g. a docs file agents keep up to date.">
-          <textarea className="mono" rows={3} value={f.allowed_paths} onChange={(e) => set("allowed_paths", e.target.value)} placeholder="AGENTS.md" />
+          <Textarea className="font-mono text-xs" rows={3} value={f.allowed_paths} onChange={(e) => set("allowed_paths", e.target.value)} placeholder="AGENTS.md" />
         </Field>
         <Field label="Shell for commands">
-          <select value={f.shell ?? "auto"} onChange={(e) => set("shell", e.target.value)}>
-            <option value="auto">Automatic (PowerShell on Windows, bash elsewhere)</option>
-            <option value="powershell">PowerShell</option>
-            <option value="cmd">cmd.exe</option>
-            <option value="bash">bash</option>
-            <option value="sh">sh</option>
-          </select>
+          <Choice value={f.shell ?? "auto"} onValueChange={(v) => set("shell", v)} options={[
+            { value: "auto", label: "Automatic (PowerShell on Windows, bash elsewhere)" },
+            { value: "powershell", label: "PowerShell" },
+            { value: "cmd", label: "cmd.exe" },
+            { value: "bash", label: "bash" },
+            { value: "sh", label: "sh" },
+          ]} />
         </Field>
       </div>
       <Field label="Project notes for every agent" hint={<>Code map, conventions, test commands. <b>Draft with AI</b> lets the planner read the folder and write them (read-only, costs a few cents); edit before saving. An AGENTS.md in the repo works too.</>}>
-        <textarea className="mono" rows={8} value={f.context ?? ""} onChange={(e) => set("context", e.target.value)} placeholder={drafting ? "The planner is reading the repository…" : ""} />
+        <Textarea className="min-h-40 font-mono text-xs" rows={8} value={f.context ?? ""} onChange={(e) => set("context", e.target.value)} placeholder={drafting ? "The planner is reading the repository…" : ""} />
       </Field>
-      <div className="row" style={{ marginTop: -6, marginBottom: 12 }}>
-        <button type="button" className="btn small" onClick={draftNotes} disabled={drafting || !check?.exists}>
-          <Sparkles size={13} /> {drafting ? "Reading the code…" : "Draft with AI"}
-        </button>
-        {!check?.exists && <span className="hint">Needs an existing folder (a GitHub/Azure project is cloned on first chat).</span>}
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={draftNotes} disabled={drafting || !check?.exists}>
+          <Sparkles data-icon="inline-start" /> {drafting ? "Reading the code…" : "Draft with AI"}
+        </Button>
+        {!check?.exists && <span className="text-xs text-muted-foreground">Needs an existing folder (a GitHub/Azure project is cloned on first chat).</span>}
       </div>
       {p.id && <Journal projectId={p.id} />}
-      {error && <div className="error">{error}</div>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {picker && <FolderPicker start={f.path ?? ""} onPick={(path) => { set("path", path); setPicker(false); }} onClose={() => setPicker(false)} />}
     </Modal>
   );
@@ -227,19 +219,19 @@ function FolderPicker({ start, onPick, onClose }: { start: string; onPick: (p: s
   useEffect(() => { open(start); }, []);
   return (
     <Modal title="Choose a folder" onClose={onClose}
-      footer={<><span className="hint mono" style={{ marginRight: "auto" }}>{list?.path || "Computer"}</span><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!list?.path} onClick={() => onPick(list!.path)}>Use this folder</button></>}>
-      <div className="list" style={{ maxHeight: 380, overflow: "auto" }}>
+      footer={<><span className="mr-auto truncate font-mono text-xs text-muted-foreground">{list?.path || "Computer"}</span><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!list?.path} onClick={() => onPick(list!.path)}>Use this folder</Button></>}>
+      <Card className="max-h-96 gap-0 overflow-auto py-0">
         {list?.parent !== null && list?.path && (
-          <div className="list-row clickable" onClick={() => open(list.parent ?? "")}><ArrowUp size={14} /> Up</div>
+          <button type="button" className="flex w-full items-center gap-2 border-b px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => open(list.parent ?? "")}><ArrowUp /> Up</button>
         )}
         {list?.dirs.map((d) => (
-          <div key={d.path} className="list-row clickable" onClick={() => open(d.path)}>
-            {d.git ? <FolderGit2 size={14} color="var(--accent)" /> : <FolderOpen size={14} />} {d.name}
-            {d.git && <span className="badge accent">git</span>}
-          </div>
+          <button key={d.path} type="button" className="flex w-full items-center gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted" onClick={() => open(d.path)}>
+            {d.git ? <FolderGit2 className="text-primary" /> : <FolderOpen className="text-muted-foreground" />} {d.name}
+            {d.git && <ToneBadge tone="accent">git</ToneBadge>}
+          </button>
         ))}
-        {list && list.dirs.length === 0 && <div className="list-row hint">No subfolders.</div>}
-      </div>
+        {list && list.dirs.length === 0 && <div className="px-3 py-2 text-sm text-muted-foreground">No subfolders.</div>}
+      </Card>
     </Modal>
   );
 }
@@ -254,22 +246,22 @@ function Journal({ projectId }: { projectId: number }) {
   useEffect(() => { load(); }, [projectId]);
   const add = async () => { if (!text.trim()) return; await post(`/api/projects/${projectId}/journal`, { text }); setText(""); load(); };
   return (
-    <div style={{ marginTop: 8 }}>
-      <div className="row"><b>Project journal</b><span className="hint">Notes the planner keeps for every later chat ({rows.length}). The newest 40 are read each time.</span></div>
-      <div className="list" style={{ marginTop: 6, maxHeight: 220, overflow: "auto" }}>
-        {rows.length === 0 && <div className="list-row hint">Empty. The planner adds a note when something should carry over to the next chat.</div>}
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline gap-2"><b>Project journal</b><span className="text-xs text-muted-foreground">Notes the planner keeps for every later chat ({rows.length}). The newest 40 are read each time.</span></div>
+      <Card className="max-h-56 gap-0 overflow-auto py-0">
+        {rows.length === 0 && <div className="px-3 py-2 text-sm text-muted-foreground">Empty. The planner adds a note when something should carry over to the next chat.</div>}
         {rows.map((r) => (
-          <div key={r.id} className="list-row" style={{ alignItems: "flex-start", fontSize: 13 }}>
-            <span className="hint mono" style={{ whiteSpace: "nowrap" }}>{r.created_at.slice(0, 10)}</span>
-            <span style={{ flex: 1 }}>{r.text}{r.chat && <span className="hint"> · {r.chat}</span>}</span>
-            <button type="button" className="btn small" onClick={async () => { await del(`/api/journal/${r.id}`); load(); }}>Delete</button>
+          <div key={r.id} className="flex items-start gap-2 border-b px-3 py-2 text-sm last:border-b-0">
+            <span className="font-mono text-xs whitespace-nowrap text-muted-foreground">{r.created_at.slice(0, 10)}</span>
+            <span className="flex-1">{r.text}{r.chat && <span className="text-muted-foreground"> · {r.chat}</span>}</span>
+            <Button type="button" variant="outline" size="sm" onClick={async () => { await del(`/api/journal/${r.id}`); load(); }}>Delete</Button>
           </div>
         ))}
-      </div>
-      <div className="row" style={{ marginTop: 6, gap: 6 }}>
+      </Card>
+      <div className="flex items-center gap-2">
         <NoFillInput value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a note yourself, e.g. 'Static site: no npm, preview by opening index.html'"
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
-        <button type="button" className="btn small" onClick={add}>Add</button>
+        <Button type="button" size="sm" variant="outline" onClick={add}>Add</Button>
       </div>
     </div>
   );

@@ -1,5 +1,8 @@
-import { FileText, Loader2, X } from "lucide-react";
+import { FileText, X } from "lucide-react";
 import type { AttachmentInfo } from "../api.ts";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 export type Pending = { key: string; name: string; mime: string; size: number; preview?: string; id?: number; error?: string };
 
@@ -9,13 +12,13 @@ const kb = (n: number) => n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB
 export function PendingFiles({ files, onRemove }: { files: Pending[]; onRemove: (key: string) => void }) {
   if (!files.length) return null;
   return (
-    <div className="att-row">
+    <div className="flex w-full flex-wrap items-start gap-2 px-1 pb-2">
       {files.map((f) => (
-        <div key={f.key} className={`att ${f.error ? "att-error" : ""}`} title={f.error ?? `${f.name} · ${kb(f.size)}`}>
-          {f.preview ? <img src={f.preview} alt={f.name} /> : <FileText size={18} />}
-          <span className="att-name">{f.error ?? f.name}</span>
-          {!f.id && !f.error && <Loader2 size={13} className="spin" />}
-          <button type="button" className="att-x" onClick={() => onRemove(f.key)} aria-label={`Remove ${f.name}`}><X size={12} /></button>
+        <div key={f.key} title={f.error ?? `${f.name} · ${kb(f.size)}`} className={cn("relative flex max-w-60 items-center gap-1.5 rounded-lg border bg-muted py-1 pr-1.5 pl-1 text-xs", f.error && "border-destructive text-destructive")}>
+          {f.preview ? <img src={f.preview} alt={f.name} className="size-10 rounded-md object-cover" /> : <FileText />}
+          <span className="truncate">{f.error ?? f.name}</span>
+          {!f.id && !f.error && <Spinner className="size-3" />}
+          <Button type="button" variant="ghost" size="icon-xs" onClick={() => onRemove(f.key)} aria-label={`Remove ${f.name}`}><X /></Button>
         </div>
       ))}
     </div>
@@ -26,13 +29,13 @@ export function PendingFiles({ files, onRemove }: { files: Pending[]; onRemove: 
 export function MessageFiles({ files }: { files: AttachmentInfo[] }) {
   if (!files.length) return null;
   return (
-    <div className="att-row sent">
+    <div className="flex flex-wrap items-start justify-end gap-2 pt-1.5">
       {files.map((f) => f.mime.startsWith("image/")
-        ? <a key={f.id} href={`/api/attachments/${f.id}`} target="_blank" rel="noreferrer" className="att-img" title={f.name}>
-            <img src={`/api/attachments/${f.id}`} alt={f.name} onError={(e) => { (e.currentTarget.parentElement as HTMLElement).classList.add("att-missing"); }} />
+        ? <a key={f.id} href={`/api/attachments/${f.id}`} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border bg-muted no-underline" title={f.name}>
+            <img src={`/api/attachments/${f.id}`} alt={f.name} className="block max-h-50 max-w-70 object-contain" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).classList.add("att-missing"); }} />
           </a>
-        : <a key={f.id} href={`/api/attachments/${f.id}`} className="att" title={`${f.name} · ${kb(f.size)}`}>
-            <FileText size={16} /><span className="att-name">{f.name}</span><span className="hint">{kb(f.size)}</span>
+        : <a key={f.id} href={`/api/attachments/${f.id}`} className="inline-flex max-w-60 items-center gap-1.5 rounded-lg border bg-muted px-2 py-1 text-xs text-foreground no-underline" title={`${f.name} · ${kb(f.size)}`}>
+            <FileText /><span className="truncate">{f.name}</span><span className="text-muted-foreground">{kb(f.size)}</span>
           </a>)}
     </div>
   );

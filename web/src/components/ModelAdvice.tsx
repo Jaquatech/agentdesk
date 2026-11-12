@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { post } from "../api.ts";
+import { ToneBadge } from "./ui.tsx";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export type Work = "planning" | "backend" | "ui" | "small" | "docs" | "review";
 export type Price = { price_in: number; price_out: number } | null;
@@ -18,8 +21,10 @@ const RATING_WORD = ["avoid", "limited", "good", "best"];
 /** Three pips for how well a model suits a job. Solid = seen in real runs here; faded = expected, not measured. */
 export function Dots({ rating, seen }: { rating: number; seen: boolean }) {
   return (
-    <span className={`dots ${seen ? "" : "exp"}`} title={`${RATING_WORD[rating]} · ${seen ? "seen in real runs" : "expected, not measured here"}`}>
-      {[1, 2, 3].map((i) => <i key={i} className={i <= rating ? "on" : ""} />)}
+    <span className="inline-flex gap-0.5" title={`${RATING_WORD[rating]} · ${seen ? "seen in real runs" : "expected, not measured here"}`}>
+      {[1, 2, 3].map((i) => (
+        <i key={i} className={cn("inline-block size-2 rounded-full border border-muted-foreground", i <= rating && (seen ? "border-primary bg-primary" : "border-primary bg-primary/40"))} />
+      ))}
     </span>
   );
 }
@@ -51,30 +56,30 @@ export function ModelAdvice({ kind, models, role, context, value, onPick }: {
 
   if (!models.length || !answer) return null;
   return (
-    <div className="advice" style={{ gridColumn: "1 / -1" }}>
-      <div className="advice-head">
+    <div className="col-span-full flex flex-col gap-2 rounded-lg border bg-muted p-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <b>Recommended for a {ROLE_NAME[role]}</b>
         {role === "worker" && (
-          <span className="chips">
+          <span className="flex flex-wrap gap-1">
             {DEV_WORK.map((w) => (
-              <button type="button" key={w} className={`chip ${answer.work === w ? "on" : ""}`} onClick={() => setWork(w)}>{WORK_LABEL[w]}</button>
+              <Button type="button" key={w} size="sm" variant={answer.work === w ? "default" : "outline"} onClick={() => setWork(w)}>{WORK_LABEL[w]}</Button>
             ))}
           </span>
         )}
-        <span className="spacer" />
-        <a href="#/guides?tab=models" className="hint">Model guide</a>
+        <a href="#/documents?tab=models" className="ml-auto text-xs text-muted-foreground">Model guide</a>
       </div>
-      {answer.limited && answer.rows.length > 0 && <div className="hint">Nothing from this provider is rated good for this job. The least bad are shown.</div>}
-      {!answer.rows.length && <div className="hint">No model from this provider suits this job (for planning and review, small local models are too weak). Pick another provider, or a larger model.</div>}
+      {answer.limited && answer.rows.length > 0 && <p className="text-xs text-muted-foreground">Nothing from this provider is rated good for this job. The least bad are shown.</p>}
+      {!answer.rows.length && <p className="text-xs text-muted-foreground">No model from this provider suits this job (for planning and review, small local models are too weak). Pick another provider, or a larger model.</p>}
       {answer.rows.map((a) => (
-        <button type="button" key={a.model} className={`advice-row ${a.model === value ? "on" : ""}`} onClick={() => onPick(a.model)} title={a.note}>
-          <span className="advice-main">
-            <span className="mono">{a.model}</span>
-            {a.start && <span className="badge good">start here</span>}
-            {a.model === value && <span className="badge">selected</span>}
+        <button type="button" key={a.model} title={a.note} onClick={() => onPick(a.model)}
+          className={cn("grid w-full grid-cols-1 items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-left text-sm hover:border-primary sm:grid-cols-[minmax(0,1.4fr)_auto_minmax(0,1.2fr)]", a.model === value && "border-primary bg-accent")}>
+          <span className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="font-mono">{a.model}</span>
+            {a.start && <ToneBadge tone="good">start here</ToneBadge>}
+            {a.model === value && <ToneBadge>selected</ToneBadge>}
           </span>
           <Dots rating={a.rating} seen={a.seen} />
-          <span className="hint advice-price">{priceText(a)}</span>
+          <span className="text-xs text-muted-foreground sm:text-right">{priceText(a)}</span>
         </button>
       ))}
     </div>
