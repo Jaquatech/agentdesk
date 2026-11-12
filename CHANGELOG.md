@@ -1,6 +1,6 @@
 # Release notes
 
-## Unreleased
+## 1.4.0 (2026-11-12)
 
 ### Changes
 - The web UI now uses shadcn/ui and Tailwind. The theme is preset `b1a09SuFE`: stone surfaces, amber primary, blue charts, Roboto. Dark mode is the default. A theme control in the sidebar (and on the sign-in screen) switches to the light stone theme. The isometric office is unchanged.
