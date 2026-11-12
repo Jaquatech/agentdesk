@@ -5,6 +5,7 @@
 ### Changes
 - The web UI now uses shadcn/ui and Tailwind. The theme is preset `b1a09SuFE`: stone surfaces, amber primary, blue charts, Roboto. Dark mode is the default. A theme control in the sidebar (and on the sign-in screen) switches to the light stone theme. The isometric office is unchanged.
 - Long forms (agent, project, team, and the other app dialogs) are about 100px wider. Confirmations stay compact.
+- The Checks box on a task no longer clips the command and its result. The card was shrinking inside the task pane and hiding that line.
 - **Documents** replaces Guides. Pages are stored in the local database: a page can belong to one project, or be a shared guide with no project. The development-cycle guide and the model guide are shared pages. You can add a page for a project from Documents. Upload, task links, and agent editing of pages are not in this version.
 - Vite is 8.3.8 and `@vitejs/plugin-react` is 6.3.0. React stays on 19.3.1, the latest stable.
 

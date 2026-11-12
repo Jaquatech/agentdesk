@@ -112,7 +112,7 @@ function checksView(checks: TaskChecks, waiting: boolean) {
 function ChecksPanel({ checks: raw, waiting }: { checks: TaskChecks; waiting: boolean }) {
   const { checks, summary, tone } = checksView(raw, waiting);
   return (
-    <Card id="task-checks">
+    <Card id="task-checks" className="shrink-0">
       <CardContent className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <b>Checks</b>
@@ -191,7 +191,7 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
   const stoppedWait = waitingFor && ["needs_attention", "failed", "interrupted"].includes(waitingFor.status);
 
   return (
-    <div className="flex flex-col content-start gap-4 overflow-auto p-5">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-5 [&>*]:shrink-0">
       <div>
         <div className="flex items-center gap-2"><StatusBadge status={task.status} /><span className="font-mono text-xs text-muted-foreground">{task.branch || task.slug}</span></div>
         <h2 className="my-1.5 text-lg font-medium">{task.title}</h2>
