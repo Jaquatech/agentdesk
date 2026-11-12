@@ -1,11 +1,20 @@
 import { useEffect, useState } from "react";
 import { Plus, Store } from "lucide-react";
 import { get, post, put, del, parseJson, type Agent, type Appearance, type Provider, type Role, type Team } from "../api.ts";
-import { Avatar, Field, Modal } from "../components/ui.tsx";
+import { Avatar, Field, FooterGap, Modal } from "../components/ui.tsx";
 import { HAIRS, SHIRTS, SKINS, lookFor } from "../office/palette.ts";
-import { ModelPicker, NoFillInput } from "../components/inputs.tsx";
+import { Choice, ModelPicker, NoFillInput } from "../components/inputs.tsx";
 import { CapabilityBadges, useCapabilities } from "../components/Capabilities.tsx";
 import { ModelAdvice } from "../components/ModelAdvice.tsx";
+import { Page, Section } from "../components/page.tsx";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 const ROLE_INFO: Record<Role, { label: string; text: string }> = {
   planner: { label: "Planner / architect", text: "Reads the code and your message, answers, and splits work into tasks." },
@@ -54,46 +63,33 @@ export function AgentsPage() {
   };
 
   return (
-    <>
-      <div className="page-head">
-        <h1>Agents</h1><span className="spacer" />
-        <button className="btn primary" onClick={() => setGallery(true)} disabled={!templates}><Store size={14} /> Add from gallery</button>
-      </div>
-      <div className="page"><div className="narrow">
-        {providers.length === 0 && (
-          <div className="card card-pad" style={{ marginBottom: 16 }}>
-            Add a provider first under <a href="#/providers">Providers &amp; keys</a>: agents call models through it.
-          </div>
-        )}
-        {(["planner", "worker", "reviewer"] as Role[]).map((role) => (
-          <div key={role}>
-            <div className="section-title">
-              <div><h2>{ROLE_INFO[role].label}</h2><div className="hint">{ROLE_INFO[role].text}</div></div>
-              <span className="spacer" />
-              <button className="btn" onClick={() => startNew(role)} disabled={!templates}><Plus size={14} /> New</button>
-            </div>
-            <div className="list">
-              {agents.filter((a) => a.role === role).length === 0 && <div className="list-row hint">None yet.</div>}
-              {agents.filter((a) => a.role === role).map((a) => (
-                <div key={a.id} className="list-row clickable" onClick={() => setEditing(a)} style={{ opacity: a.enabled ? 1 : 0.5 }}>
-                  <Avatar look={lookFor(a.name, parseJson(a.appearance, {}))} size={36} />
-                  <div style={{ minWidth: 0 }}>
-                    <b>{a.name}</b>{!a.enabled && <span className="badge" style={{ marginLeft: 8 }}>off</span>}
-                    {" "}<span className="team-badges">{teams.filter((t) => a.team_ids?.includes(t.id)).map((t) => <span key={t.id} className="badge accent">{t.name}</span>)}</span>
-                    <div className="hint">{a.provider_name ?? "no provider"} · <span className="mono">{a.model || "provider default"}</span></div>
-                  </div>
-                  <span className="spacer" />
-                  <span className="hint">{a.max_turns} turns · {a.timeout_min} min</span>
+    <Page title="Agents" actions={<Button onClick={() => setGallery(true)} disabled={!templates}><Store data-icon="inline-start" /> Add from gallery</Button>}>
+      {providers.length === 0 && (
+        <Card><div className="px-4 text-sm">Add a provider first under <a href="#/providers">Providers &amp; keys</a>: agents call models through it.</div></Card>
+      )}
+      {(["planner", "worker", "reviewer"] as Role[]).map((role) => (
+        <Section key={role} title={ROLE_INFO[role].label} hint={ROLE_INFO[role].text}
+          action={<Button variant="outline" onClick={() => startNew(role)} disabled={!templates}><Plus data-icon="inline-start" /> New</Button>}>
+          <Card className="gap-0 py-0">
+            {agents.filter((a) => a.role === role).length === 0 && <div className="px-4 py-3 text-sm text-muted-foreground">None yet.</div>}
+            {agents.filter((a) => a.role === role).map((a) => (
+              <button key={a.id} type="button" className="flex w-full items-center gap-3 border-b px-4 py-3 text-left last:border-b-0 hover:bg-muted" style={{ opacity: a.enabled ? 1 : 0.5 }} onClick={() => setEditing(a)}>
+                <Avatar look={lookFor(a.name, parseJson(a.appearance, {}))} size={36} />
+                <div className="min-w-0">
+                  <b>{a.name}</b>{!a.enabled && <Badge variant="secondary" className="ml-2">off</Badge>}
+                  {" "}{teams.filter((t) => a.team_ids?.includes(t.id)).map((t) => <Badge key={t.id} variant="outline" className="mr-1 border-primary/40 text-primary">{t.name}</Badge>)}
+                  <div className="text-xs text-muted-foreground">{a.provider_name ?? "no provider"} · <span className="font-mono">{a.model || "provider default"}</span></div>
                 </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div></div>
+                <span className="ml-auto text-xs text-muted-foreground">{a.max_turns} turns · {a.timeout_min} min</span>
+              </button>
+            ))}
+          </Card>
+        </Section>
+      ))}
       {gallery && <GalleryModal onClose={() => setGallery(false)} onPick={fromGallery} />}
       {editing && <AgentForm agent={editing} providers={providers} teams={teams} templates={templates!} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }}
         onDuplicate={(copy) => { setEditing(null); setTimeout(() => setEditing(copy), 0); }} />}
-    </>
+    </Page>
   );
 }
 
@@ -140,39 +136,32 @@ function AgentForm({ agent, providers, teams, templates, onClose, onSaved, onDup
   return (
     <Modal title={agent.id ? `Edit ${agent.name}` : `New ${ROLE_INFO[f.role as Role].label.toLowerCase()}`} onClose={onClose} wide
       footer={<>
-        {agent.id && <button className="btn danger" onClick={remove}>Delete</button>}
-        {agent.id && <button className="btn" title="New agent with the same settings and a new name" onClick={() => {
+        {agent.id && <Button variant="destructive" onClick={remove}>Delete</Button>}
+        {agent.id && <Button variant="outline" title="New agent with the same settings and a new name" onClick={() => {
           const { id: _id, ...rest } = { ...agent, ...f, appearance: JSON.stringify({}), allowed_tools: JSON.stringify(tools.split("\n").map((x) => x.trim()).filter(Boolean)) };
           onDuplicate({ ...rest, name: nextName(agent.name ?? "Agent") });
-        }}>Duplicate</button>}
-        <span className="spacer" />
-        <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={save}>Save</button>
+        }}>Duplicate</Button>}
+        <FooterGap />
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button onClick={save}>Save</Button>
       </>}>
-      <div className="row" style={{ alignItems: "flex-start", gap: 20 }}>
-        <div style={{ display: "grid", gap: 10, justifyItems: "center", width: 150 }}>
+      <div className="flex flex-col items-start gap-5 sm:flex-row">
+        <div className="flex w-40 flex-col items-center gap-2">
           <Avatar look={preview} size={96} />
-          <div className="hint">Shirt</div>
-          <div className="color-pick">{SHIRTS.map((c) => <button key={c} className={preview.shirt === c ? "on" : ""} style={{ background: c }} onClick={() => setLook({ ...look, shirt: c })} aria-label={`shirt ${c}`} />)}</div>
-          <div className="hint">Hair</div>
-          <div className="color-pick">{HAIRS.map((c) => <button key={c} className={preview.hair === c ? "on" : ""} style={{ background: c }} onClick={() => setLook({ ...look, hair: c })} aria-label={`hair ${c}`} />)}</div>
-          <div className="hint">Skin</div>
-          <div className="color-pick">{SKINS.map((c) => <button key={c} className={preview.skin === c ? "on" : ""} style={{ background: c }} onClick={() => setLook({ ...look, skin: c })} aria-label={`skin ${c}`} />)}</div>
-          <button className="btn small" onClick={() => setLook({ ...look, hairStyle: ((preview.hairStyle ?? 0) + 1) % 4 })}>Change hairstyle</button>
+          <Swatches label="Shirt" colors={SHIRTS} current={preview.shirt} onPick={(c) => setLook({ ...look, shirt: c })} />
+          <Swatches label="Hair" colors={HAIRS} current={preview.hair} onPick={(c) => setLook({ ...look, hair: c })} />
+          <Swatches label="Skin" colors={SKINS} current={preview.skin} onPick={(c) => setLook({ ...look, skin: c })} />
+          <Button variant="outline" size="sm" onClick={() => setLook({ ...look, hairStyle: ((preview.hairStyle ?? 0) + 1) % 4 })}>Change hairstyle</Button>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="grid2">
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Name"><NoFillInput value={f.name ?? ""} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Aino" /></Field>
             <Field label="Type">
-              <select value={f.role} onChange={(e) => set("role", e.target.value)}>
-                {(Object.keys(ROLE_INFO) as Role[]).map((r) => <option key={r} value={r}>{ROLE_INFO[r].label}</option>)}
-              </select>
+              <Choice value={String(f.role ?? "planner")} onValueChange={(v) => set("role", v)} options={(Object.keys(ROLE_INFO) as Role[]).map((r) => ({ value: r, label: ROLE_INFO[r].label }))} />
             </Field>
             <Field label="Provider (which API and key)">
-              <select value={f.provider_id ?? ""} onChange={(e) => set("provider_id", e.target.value ? Number(e.target.value) : null)}>
-                <option value="">Choose…</option>
-                {providers.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.kind})</option>)}
-              </select>
+              <Choice value={f.provider_id ? String(f.provider_id) : ""} onValueChange={(v) => set("provider_id", v ? Number(v) : null)}
+                options={[{ value: "", label: "Choose…" }, ...providers.map((p) => ({ value: String(p.id), label: `${p.name} (${p.kind})` }))]} />
             </Field>
             <Field label="Model" hint={provider && !models.length ? "Loading the provider's models…" : undefined}>
               <ModelPicker models={models} value={f.model ?? ""} onChange={(v) => set("model", v)} allowDefault
@@ -180,49 +169,57 @@ function AgentForm({ agent, providers, teams, templates, onClose, onSaved, onDup
               <CapabilityBadges caps={caps} role={f.role} />
             </Field>
             <Field label="Thinking" hint={f.thinking === "off" ? "Answers right away: much faster on local models." : "Reasoning models (Qwen3, gpt-oss, DeepSeek-R1) think before each answer; small ones can use the whole answer limit on it."}>
-              <select value={f.thinking ?? ""} onChange={(e) => set("thinking", e.target.value)}>
-                <option value="">Model default</option>
-                <option value="off">Off (or as little as the model allows)</option>
-              </select>
+              <Choice value={f.thinking ?? ""} onValueChange={(v) => set("thinking", v)} options={[{ value: "", label: "Model default" }, { value: "off", label: "Off (or as little as the model allows)" }]} />
             </Field>
-            <span />
             {provider && f.role && (
               <ModelAdvice kind={provider.kind} models={models} role={f.role} context={f.context ?? ""} value={f.model ?? ""} onPick={(m) => set("model", m)} />
             )}
-            <Field label="Max turns"><input type="number" value={f.max_turns ?? 80} onChange={(e) => set("max_turns", Number(e.target.value))} /></Field>
-            <Field label="Timeout (minutes)"><input type="number" value={f.timeout_min ?? 60} onChange={(e) => set("timeout_min", Number(e.target.value))} /></Field>
+            <Field label="Max turns"><Input type="number" value={f.max_turns ?? 80} onChange={(e) => set("max_turns", Number(e.target.value))} /></Field>
+            <Field label="Timeout (minutes)"><Input type="number" value={f.timeout_min ?? 60} onChange={(e) => set("timeout_min", Number(e.target.value))} /></Field>
           </div>
           <Field label="Starting context" hint="The agent's standing instructions. Project notes are added after it.">
-            <textarea className="mono" rows={10} value={f.context ?? ""} onChange={(e) => set("context", e.target.value)} />
+            <Textarea className="min-h-40 font-mono text-xs" rows={10} value={f.context ?? ""} onChange={(e) => set("context", e.target.value)} />
           </Field>
           {f.role === "worker" && (
             <Field label="Allowed tools and commands (one per line)" hint={<>Same syntax as Claude Code: <code>Read</code>, <code>Edit</code>, <code>Bash(npm test:*)</code>. Planners and reviewers are always read-only.</>}>
-              <textarea className="mono" rows={6} value={tools} onChange={(e) => setTools(e.target.value)} />
+              <Textarea className="min-h-28 font-mono text-xs" rows={6} value={tools} onChange={(e) => setTools(e.target.value)} />
             </Field>
           )}
           <Field label="Teams" hint={teams.length ? "The agent works for every team it is in." : undefined}>
-            {teams.length === 0 ? <span className="hint">No teams yet: every enabled agent works on every project. <a href="#/teams">Make a team</a>.</span> : (
-              <div className="row" style={{ gap: 14, flexWrap: "wrap" }}>
+            {teams.length === 0 ? <span className="text-sm text-muted-foreground">No teams yet: every enabled agent works on every project. <a href="#/teams">Make a team</a>.</span> : (
+              <div className="flex flex-wrap gap-3">
                 {teams.map((t) => (
-                  <label key={t.id} className="row" style={{ gap: 6 }}>
-                    <input type="checkbox" checked={teamIds.includes(t.id)}
-                      onChange={(e) => setTeamIds((ids) => e.target.checked ? [...ids, t.id] : ids.filter((x) => x !== t.id))} /> {t.name}
+                  <label key={t.id} className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={teamIds.includes(t.id)} onCheckedChange={(v) => setTeamIds((ids) => v === true ? [...ids, t.id] : ids.filter((x) => x !== t.id))} /> {t.name}
                   </label>
                 ))}
               </div>
             )}
           </Field>
-          <label className="row" style={{ gap: 8, marginBottom: 6 }}>
-            <input type="checkbox" checked={f.ask_approval !== 0} onChange={(e) => set("ask_approval", e.target.checked ? 1 : 0)} />
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={f.ask_approval !== 0} onCheckedChange={(v) => set("ask_approval", v === true ? 1 : 0)} />
             Ask me before a command outside the list (the run waits for your answer; off = refuse it automatically)
           </label>
-          <label className="row" style={{ gap: 8 }}>
-            <input type="checkbox" checked={f.enabled !== 0} onChange={(e) => set("enabled", e.target.checked ? 1 : 0)} /> Enabled (has a desk in the office and can take work)
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={f.enabled !== 0} onCheckedChange={(v) => set("enabled", v === true ? 1 : 0)} /> Enabled (has a desk in the office and can take work)
           </label>
-          {error && <div className="error" style={{ marginTop: 8 }}>{error}</div>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
       </div>
     </Modal>
+  );
+}
+
+function Swatches({ label, colors, current, onPick }: { label: string; colors: string[]; current: string; onPick: (c: string) => void }) {
+  return (
+    <>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="flex flex-wrap justify-center gap-1.5">
+        {colors.map((c) => (
+          <button key={c} type="button" aria-label={`${label} ${c}`} onClick={() => onPick(c)} className={cn("size-5 rounded-full", current === c && "ring-2 ring-foreground")} style={{ background: c }} />
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -237,32 +234,31 @@ function GalleryModal({ onClose, onPick }: { onClose: () => void; onPick: (g: Ga
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const items = g?.items.filter((i) => (cat === "all" || i.category === cat)
     && words.every((w) => `${i.title} ${i.name} ${i.summary} ${i.category}`.toLowerCase().includes(w))) ?? [];
+  const cats = [{ id: "all", label: "All" }, ...(g?.categories ?? [])];
   return (
     <Modal title="Add an agent from the gallery" onClose={onClose} wide>
-      <div className="tabs gallery-tabs" style={{ marginLeft: 0 }}>
-        {[{ id: "all", label: "All" }, ...(g?.categories ?? [])].map((c) => (
-          <button key={c.id} className={`tab ${cat === c.id ? "active" : ""}`} onClick={() => setCat(c.id)}>{c.label}</button>
-        ))}
-      </div>
-      <NoFillInput type="search" placeholder="Search by name or what it does" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 12 }} />
-      {!g && <div className="hint">Loading…</div>}
-      {g && !items.length && <div className="hint">No agent matches.</div>}
-      <div className="gallery-grid">
+      <Tabs value={cat} onValueChange={setCat}>
+        <TabsList className="flex h-auto flex-wrap">
+          {cats.map((c) => <TabsTrigger key={c.id} value={c.id}>{c.label}</TabsTrigger>)}
+        </TabsList>
+      </Tabs>
+      <NoFillInput type="search" placeholder="Search by name or what it does" value={q} onChange={(e) => setQ(e.target.value)} />
+      {!g && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {g && !items.length && <p className="text-sm text-muted-foreground">No agent matches.</p>}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((i) => (
-          <div key={i.id} className="gallery-item">
-            <div className="row">
+          <Card key={i.id} className="gap-2">
+            <div className="flex items-center gap-2 px-4">
               <Avatar look={lookFor(i.name, {})} size={32} />
-              <div style={{ minWidth: 0 }}><b>{i.title}</b><div className="hint">{i.name}</div></div>
+              <div className="min-w-0"><b>{i.title}</b><div className="text-xs text-muted-foreground">{i.name}</div></div>
             </div>
-            <p>{i.summary}</p>
-            {i.note && <div className="hint">{i.note}</div>}
-            <span className="spacer" />
-            <div className="row">
-              <span className="badge">{ROLE_BADGE[i.role]}</span>
-              <span className="spacer" />
-              <button className="btn small primary" onClick={() => onPick(i)}><Plus size={13} /> Add</button>
+            <p className="px-4 text-sm">{i.summary}</p>
+            {i.note && <p className="px-4 text-xs text-muted-foreground">{i.note}</p>}
+            <div className="mt-auto flex items-center gap-2 px-4">
+              <Badge variant="secondary">{ROLE_BADGE[i.role]}</Badge>
+              <Button className="ml-auto" size="sm" onClick={() => onPick(i)}><Plus data-icon="inline-start" /> Add</Button>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </Modal>

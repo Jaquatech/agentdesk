@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, BookOpen, Bot, Kanban, Users, Building2, FolderGit2, KeyRound, ListChecks, LogOut, MessageSquarePlus, Plus, Settings, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { BarChart3, BookOpen, Bot, Kanban, Users, Building2, FolderGit2, KeyRound, ListChecks, LogOut, MessageSquarePlus, Plus, Settings, ChevronDown, Info } from "lucide-react";
 import { get, post, closeLiveEvents, useLiveEvents, type Chat, type Project } from "./api.ts";
 import { LoginPage } from "./pages/LoginPage.tsx";
 import { ChatPage } from "./pages/ChatPage.tsx";
@@ -16,17 +16,27 @@ import { ScrumPage } from "./pages/ScrumPage.tsx";
 import { VersionPage } from "./pages/VersionPage.tsx";
 import { ApprovalsBar } from "./components/Approvals.tsx";
 import { BudgetBar } from "./components/BudgetBar.tsx";
+import { ThemeToggle } from "./components/theme.tsx";
 import { Office } from "./office/Office.tsx";
 import { LogoMark } from "./office/LogoMark.tsx";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel,
+  SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem,
+  SidebarProvider, SidebarRail, SidebarTrigger,
+} from "@/components/ui/sidebar";
 
 export type Route = { page: string; id?: number; tab?: string; sprint?: number; task?: number; group?: string };
 
 function parseHash(): Route {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
-  const [page, id] = path.split("/");
+  const [page, rawId] = path.split("/");
   const q = new URLSearchParams(query ?? "");
   const num = (k: string) => (q.get(k) ? Number(q.get(k)) : undefined);
-  return { page: page || "home", id: id ? Number(id) : undefined, tab: q.get("tab") ?? undefined, sprint: num("sprint"), task: num("task"), group: q.get("group") ?? undefined };
+  const idNum = rawId ? Number(rawId) : NaN;
+  // "projects/new" is not an id; only numeric path segments are.
+  return { page: page || "home", id: Number.isFinite(idNum) ? idNum : undefined, tab: q.get("tab") ?? undefined, sprint: num("sprint"), task: num("task"), group: q.get("group") ?? undefined };
 }
 
 export function go(route: string) {
@@ -75,95 +85,162 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
   };
 
   const nav = (page: string, label: string, Icon: typeof Bot) => (
-    <a className={`side-item ${route.page === page ? "active" : ""}`} href={`#/${page}`}>
-      <Icon size={15} /> <span className="ellipsis">{label}</span>
-    </a>
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={route.page === page} tooltip={label}>
+        <a href={`#/${page}`}><Icon /> <span>{label}</span></a>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 
   const activeChat = route.page === "chat" ? chats.find((c) => c.id === route.id) : undefined;
 
   return (
-    <div className="shell">
-      <aside className="side">
-        <div className="side-head">
-          <LogoMark settings={settings} size={30} />
-          <div className="brand">AgentDesk<small>{settings.company_name}</small></div>
-        </div>
-        <div className="side-scroll">
-          {nav("tasks", "Running tasks", ListChecks)}
-          {nav("office", "Office", Building2)}
-          <div className="side-section">
-            Projects
-            <button className="icon-btn" title="New project" onClick={() => go("projects/new")}><Plus size={14} /></button>
+    <SidebarProvider>
+      <Sidebar variant="inset" collapsible="icon">
+        <SidebarHeader>
+          <div className="flex items-center gap-2 px-1 py-1">
+            <LogoMark settings={settings} size={28} />
+            <div className="min-w-0 leading-tight group-data-[collapsible=icon]:hidden">
+              <div className="truncate text-sm font-semibold">AgentDesk</div>
+              {settings.company_name && <div className="truncate text-xs text-muted-foreground">{settings.company_name}</div>}
+            </div>
           </div>
-          {projects.length === 0 && <div className="hint" style={{ padding: "4px 8px", color: "#8b938c" }}>Add a project to start chatting.</div>}
-          {projects.map((p) => {
-            const open = !collapsed.has(p.id);
-            const pchats = chats.filter((c) => c.project_id === p.id);
-            return (
-              <div key={p.id}>
-                <div className="row" style={{ gap: 0 }}>
-                  <button className="side-item" onClick={() => setCollapsed((s) => { const n = new Set(s); n.has(p.id) ? n.delete(p.id) : n.add(p.id); return n; })}>
-                    {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    <span className="ellipsis">{p.name}</span>
-                  </button>
-                  <button className="icon-btn" title="New chat" onClick={() => newChat(p.id)}><MessageSquarePlus size={14} /></button>
-                </div>
-                {open && p.process === "scrum" && (
-                  <a className={`side-item side-chat ${route.page === "scrum" && route.id === p.id ? "active" : ""}`} href={`#/scrum/${p.id}`}>
-                    <Kanban size={13} /> <span className="ellipsis">Backlog & PIs</span>
-                  </a>
-                )}
-                {open && pchats.map((c) => (
-                  <a key={c.id} className={`side-item side-chat ${activeChat?.id === c.id ? "active" : ""}`} href={`#/chat/${c.id}`} title={c.title}>
-                    <span className="ellipsis">{c.title}</span>
-                    {!!c.active_tasks && <span className="count"><span className="dot" /></span>}
-                  </a>
-                ))}
-              </div>
-            );
-          })}
-          <div className="side-section">Team</div>
-          {nav("teams", "Teams", Users)}
-          {nav("agents", "Agents", Bot)}
-          {nav("providers", "Providers & keys", KeyRound)}
-          {nav("guides", "Guides", BookOpen)}
-          {nav("usage", "Usage & billing", BarChart3)}
-          {nav("projects", "Projects", FolderGit2)}
-          {nav("settings", "Settings", Settings)}
-          {nav("version", "Version", Info)}
-        </div>
-        <div className="side-foot row">
-          <div style={{ paddingLeft: 8, minWidth: 0 }}>
-            <div className="hint" style={{ color: "#8b938c" }}>{username}</div>
-            {ver?.version && <a className="hint" href="#/version" style={{ color: "#6f786f", fontSize: 11, textDecoration: "none" }} title={ver.commit ? `Version ${ver.version}, commit ${ver.commit}` : `Version ${ver.version}`}>v{ver.version}{ver.commit ? ` · ${ver.commit}` : ""}</a>}
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {nav("tasks", "Running tasks", ListChecks)}
+                {nav("office", "Office", Building2)}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+          <SidebarGroup>
+            <SidebarGroupLabel>Projects</SidebarGroupLabel>
+            <SidebarGroupAction title="New project" onClick={() => go("projects/new")}>
+              <Plus /> <span className="sr-only">New project</span>
+            </SidebarGroupAction>
+            <SidebarGroupContent>
+              {projects.length === 0 && <p className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">Add a project to start chatting.</p>}
+              <SidebarMenu>
+                {projects.map((p) => {
+                  const open = !collapsed.has(p.id);
+                  const pchats = chats.filter((c) => c.project_id === p.id);
+                  return (
+                    <Collapsible key={p.id} open={open} onOpenChange={(next) => setCollapsed((s) => { const n = new Set(s); if (next) n.delete(p.id); else n.add(p.id); return n; })}>
+                      <SidebarMenuItem>
+                        <div className="flex items-center">
+                          <CollapsibleTrigger asChild>
+                            <SidebarMenuButton className="min-w-0 flex-1" tooltip={p.name}>
+                              <ChevronDown className={`transition-transform ${open ? "" : "-rotate-90"}`} />
+                              <span className="truncate">{p.name}</span>
+                            </SidebarMenuButton>
+                          </CollapsibleTrigger>
+                          <Button variant="ghost" size="icon-sm" className="shrink-0 group-data-[collapsible=icon]:hidden" title="New chat" onClick={() => newChat(p.id)}>
+                            <MessageSquarePlus />
+                            <span className="sr-only">New chat</span>
+                          </Button>
+                        </div>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {p.process === "scrum" && (
+                              <SidebarMenuSubItem>
+                                <SidebarMenuSubButton asChild isActive={route.page === "scrum" && route.id === p.id}>
+                                  <a href={`#/scrum/${p.id}`}><Kanban /> <span>Backlog & PIs</span></a>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            )}
+                            {pchats.map((c) => (
+                              <SidebarMenuSubItem key={c.id}>
+                                <SidebarMenuSubButton asChild isActive={activeChat?.id === c.id} title={c.title}>
+                                  <a href={`#/chat/${c.id}`}>
+                                    <span className="truncate">{c.title}</span>
+                                    {!!c.active_tasks && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-warm" />}
+                                  </a>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+          <SidebarGroup>
+            <SidebarGroupLabel>Team</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {nav("teams", "Teams", Users)}
+                {nav("agents", "Agents", Bot)}
+                {nav("providers", "Providers & keys", KeyRound)}
+                {nav("guides", "Guides", BookOpen)}
+                {nav("usage", "Usage & billing", BarChart3)}
+                {nav("projects", "Projects", FolderGit2)}
+                {nav("settings", "Settings", Settings)}
+                {nav("version", "Version", Info)}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <div className="flex items-center gap-1 px-1">
+            <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+              <div className="truncate text-xs text-muted-foreground">{username}</div>
+              {ver?.version && (
+                <a className="block truncate text-[11px] text-muted-foreground no-underline hover:text-foreground" href="#/version" title={ver.commit ? `Version ${ver.version}, commit ${ver.commit}` : `Version ${ver.version}`}>
+                  v{ver.version}{ver.commit ? ` · ${ver.commit}` : ""}
+                </a>
+              )}
+            </div>
+            <ThemeToggle />
+            <Button variant="ghost" size="icon-sm" title="Sign out" onClick={onSignOut}>
+              <LogOut />
+              <span className="sr-only">Sign out</span>
+            </Button>
           </div>
-          <span className="spacer" />
-          <button className="icon-btn" title="Sign out" onClick={onSignOut}><LogOut size={15} /></button>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+      <SidebarInset className="h-svh overflow-hidden md:h-[calc(100svh-1rem)]">
+        <div className="flex h-full min-h-0 flex-col">
+          <ApprovalsBar />
+          <BudgetBar />
+          {demo && (
+            <div className="flex shrink-0 items-center gap-2 border-b bg-warning/15 px-4 py-1.5 text-xs text-foreground">
+              <b>Demo mode</b>
+              <span>Scripted agents: no model calls, no real code changes, nothing is pushed. Start with <code className="font-mono">npm start</code> for real work.</span>
+            </div>
+          )}
+          {route.page === "chat" && route.id ? <ChatPage key={route.id} chatId={route.id} tab={route.tab} projects={projects} onChanged={reload} />
+            : route.page === "scrum" && route.id ? <ScrumPage key={`${route.id}-${route.tab}-${route.sprint}-${route.task}`} projectId={route.id} initial={{ tab: route.tab, sprint: route.sprint, task: route.task }} />
+            : route.page === "tasks" ? <TasksBoard key={`${route.group}-${route.task}`} group={route.group} task={route.task} />
+            : route.page === "office" ? <OfficePage />
+            : route.page === "teams" ? <TeamsPage />
+            : route.page === "guides" || route.page === "models" ? <GuidesPage tab={route.page === "models" ? "models" : route.tab} />
+            : route.page === "agents" ? <AgentsPage />
+            : route.page === "providers" ? <ProvidersPage />
+            : route.page === "projects" ? <ProjectsPage openNew={route.id === undefined && location.hash.includes("new")} onChanged={reload} />
+            : route.page === "usage" ? <UsagePage />
+            : route.page === "settings" ? <SettingsPage onChanged={reload} />
+            : route.page === "version" ? <VersionPage />
+            : <HomePage projects={projects} onNewChat={newChat} />}
         </div>
-      </aside>
-      <main className="main">
-        <ApprovalsBar />
-        <BudgetBar />
-        {demo && (
-          <div className="demo-banner">
-            <b>Demo mode</b> Scripted agents: no model calls, no real code changes, nothing is pushed. Start with <code>npm start</code> for real work.
-          </div>
-        )}
-        {route.page === "chat" && route.id ? <ChatPage key={route.id} chatId={route.id} tab={route.tab} projects={projects} onChanged={reload} />
-          : route.page === "scrum" && route.id ? <ScrumPage key={`${route.id}-${route.tab}-${route.sprint}-${route.task}`} projectId={route.id} initial={{ tab: route.tab, sprint: route.sprint, task: route.task }} />
-          : route.page === "tasks" ? <TasksBoard key={`${route.group}-${route.task}`} group={route.group} task={route.task} />
-          : route.page === "office" ? <><div className="page-head"><h1>Office</h1></div><div style={{ flex: 1, minHeight: 0 }}><Office /></div></>
-          : route.page === "teams" ? <TeamsPage />
-          : route.page === "guides" || route.page === "models" ? <GuidesPage tab={route.page === "models" ? "models" : route.tab} />
-          : route.page === "agents" ? <AgentsPage />
-          : route.page === "providers" ? <ProvidersPage />
-          : route.page === "projects" ? <ProjectsPage openNew={route.id === undefined && location.hash.includes("new")} onChanged={reload} />
-          : route.page === "usage" ? <UsagePage />
-          : route.page === "settings" ? <SettingsPage onChanged={reload} />
-          : route.page === "version" ? <VersionPage />
-          : <HomePage projects={projects} onNewChat={newChat} />}
-      </main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
+
+function OfficePage() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-3">
+        <SidebarTrigger />
+        <h1 className="text-sm font-medium">Office</h1>
+      </header>
+      <div className="min-h-0 flex-1"><Office /></div>
     </div>
   );
 }

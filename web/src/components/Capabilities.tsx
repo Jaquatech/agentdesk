@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { get } from "../api.ts";
+import { ToneBadge } from "./ui.tsx";
 
 export type Caps = { model: string; vision: boolean | null; tools: boolean | null; thinking?: boolean | null; source: string; agent?: string | null };
 
@@ -21,15 +22,15 @@ const mark = (v: boolean | null) => (v === true ? "✓" : v === false ? "✗" : 
 export function CapabilityBadges({ caps, role }: { caps: Caps | null; role?: string }) {
   if (!caps || !caps.model) return null;
   return (
-    <div className="caps">
-      <span className={`badge ${caps.tools === false ? "bad" : caps.tools ? "good" : ""}`}>Tools {mark(caps.tools)}</span>
-      <span className={`badge ${caps.vision ? "good" : ""}`}>Images {mark(caps.vision)}</span>
-      {caps.thinking != null && <span className="badge">Thinks {mark(caps.thinking)}</span>}
-      <span className="hint">{caps.source}</span>
+    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+      <ToneBadge tone={caps.tools === false ? "bad" : caps.tools ? "good" : ""}>Tools {mark(caps.tools)}</ToneBadge>
+      <ToneBadge tone={caps.vision ? "good" : ""}>Images {mark(caps.vision)}</ToneBadge>
+      {caps.thinking != null && <ToneBadge>Thinks {mark(caps.thinking)}</ToneBadge>}
+      <span className="text-muted-foreground">{caps.source}</span>
       {caps.tools === false && role && (
-        <div className="error" style={{ width: "100%" }}>
+        <p className="w-full text-sm text-destructive">
           This model cannot call tools, so as a {role === "worker" ? "developer" : role} it cannot read files{role === "worker" ? " or edit code" : ""} here. Pick a model with tool support.
-        </div>
+        </p>
       )}
     </div>
   );

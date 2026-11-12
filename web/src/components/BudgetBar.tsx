@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { get, useLiveEvents } from "../api.ts";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 
 type Bar = { spent: number; limit: number; over: boolean; warn: boolean };
 type Budget = { day: Bar; sprint: Bar | null; sprint_info: { number: number; name: string } | null };
@@ -9,7 +11,6 @@ export function BudgetBar() {
   const [b, setB] = useState<Budget | null>(null);
   const load = () => { get<Budget>("/api/budget").then(setB).catch(() => {}); };
   useEffect(() => { load(); const t = setInterval(load, 60_000); return () => clearInterval(t); }, []);
-  // A finished call changes the totals: refresh when a task or message arrives.
   useLiveEvents((ev) => { if (ev.type === "task") load(); });
   if (!b) return null;
   const lines: { text: string; over: boolean }[] = [];
@@ -18,8 +19,12 @@ export function BudgetBar() {
   if (!lines.length) return null;
   const over = lines.some((l) => l.over);
   return (
-    <div className="demo-banner" style={over ? { background: "var(--bad)", color: "#fff" } : undefined}>
-      <b>{over ? "Budget reached" : "Budget"}</b> {lines.map((l) => l.text).join(" ")} <a href="#/settings" style={{ color: "inherit", textDecoration: "underline" }}>Settings</a>
-    </div>
+    <Alert variant={over ? "destructive" : "default"} className={cn("shrink-0 rounded-none border-x-0", !over && "border-warning/40 bg-warning/10")}>
+      <AlertTitle>{over ? "Budget reached" : "Budget"}</AlertTitle>
+      <AlertDescription>
+        {lines.map((l) => l.text).join(" ")}{" "}
+        <a href="#/settings">Settings</a>
+      </AlertDescription>
+    </Alert>
   );
 }

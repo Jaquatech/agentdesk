@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import { KeyRound, Plus, PlugZap } from "lucide-react";
 import { get, post, put, del, type Provider, type ProviderKind, type Secret } from "../api.ts";
-import { Field, Modal, ago } from "../components/ui.tsx";
-import { ModelPicker, NoFillInput, SecretInput } from "../components/inputs.tsx";
+import { Field, FooterGap, Modal, ago } from "../components/ui.tsx";
+import { Choice, ModelPicker, NoFillInput, SecretInput } from "../components/inputs.tsx";
+import { Page, Section } from "../components/page.tsx";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 const KINDS: Record<ProviderKind, { label: string; note: string; needsKey: boolean; model: string }> = {
   anthropic: { label: "Anthropic API", note: "Claude models through the Messages API.", needsKey: true, model: "claude-sonnet-5-5" },
@@ -32,57 +36,49 @@ export function ProvidersPage() {
   };
 
   return (
-    <>
-      <div className="page-head"><h1>Providers &amp; keys</h1></div>
-      <div className="page"><div className="narrow">
-        <p className="hint" style={{ marginTop: 0 }}>
-          Only this local server talks to model APIs. Keys are encrypted on this machine with a key file kept outside the database,
-          and are never sent back to the browser.
-        </p>
-        <div className="section-title">
-          <h2>Providers</h2><span className="spacer" />
-          <button className="btn" onClick={() => setEditing({ kind: "anthropic", name: "", base_url: "", default_model: KINDS.anthropic.model, price_in: 0, price_out: 0 })}><Plus size={14} /> New provider</button>
-        </div>
-        <div className="list">
-          {providers.length === 0 && <div className="list-row hint">No providers yet.</div>}
+    <Page title="Providers & keys">
+      <p className="text-sm text-muted-foreground">
+        Only this local server talks to model APIs. Keys are encrypted on this machine with a key file kept outside the database,
+        and are never sent back to the browser.
+      </p>
+      <Section title="Providers" action={<Button variant="outline" onClick={() => setEditing({ kind: "anthropic", name: "", base_url: "", default_model: KINDS.anthropic.model, price_in: 0, price_out: 0 })}><Plus data-icon="inline-start" /> New provider</Button>}>
+        <Card className="gap-0 py-0">
+          {providers.length === 0 && <div className="px-4 py-3 text-sm text-muted-foreground">No providers yet.</div>}
           {providers.map((p) => {
             const t = tests[p.id];
             return (
-              <div key={p.id} className="list-row">
-                <PlugZap size={16} />
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <b>{p.name}</b> <span className="badge">{KINDS[p.kind].label}</span>
-                  <div className="hint mono">{p.base_url || defaults[p.kind] || "local program"} · {p.default_model || "no default model"}{p.secret_name ? ` · key: ${p.secret_name}` : ""}</div>
-                  {t && t !== "…" && <div className={t.ok ? "hint" : "error"} style={t.ok ? { color: "var(--good)" } : undefined}>{t.message}</div>}
+              <div key={p.id} className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0">
+                <PlugZap className="text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <b>{p.name}</b> <Badge variant="secondary">{KINDS[p.kind].label}</Badge>
+                  <div className="truncate font-mono text-xs text-muted-foreground">{p.base_url || defaults[p.kind] || "local program"} · {p.default_model || "no default model"}{p.secret_name ? ` · key: ${p.secret_name}` : ""}</div>
+                  {t && t !== "…" && <div className={t.ok ? "text-xs text-success" : "text-xs text-destructive"}>{t.message}</div>}
                 </div>
-                <button className="btn small" onClick={() => test(p)} disabled={t === "…"}>{t === "…" ? "Testing…" : "Test"}</button>
-                <button className="btn small" onClick={() => setEditing(p)}>Edit</button>
+                <Button size="sm" variant="outline" onClick={() => test(p)} disabled={t === "…"}>{t === "…" ? "Testing…" : "Test"}</Button>
+                <Button size="sm" variant="outline" onClick={() => setEditing(p)}>Edit</Button>
               </div>
             );
           })}
-        </div>
+        </Card>
+      </Section>
 
-        <div className="section-title">
-          <h2>Secrets</h2><span className="spacer" />
-          <button className="btn" onClick={() => setSecretEdit({ name: "" })}><Plus size={14} /> New secret</button>
-        </div>
-        <div className="list">
-          {secrets.length === 0 && <div className="list-row hint">No secrets yet.</div>}
+      <Section title="Secrets" action={<Button variant="outline" onClick={() => setSecretEdit({ name: "" })}><Plus data-icon="inline-start" /> New secret</Button>}>
+        <Card className="gap-0 py-0">
+          {secrets.length === 0 && <div className="px-4 py-3 text-sm text-muted-foreground">No secrets yet.</div>}
           {secrets.map((s) => (
-            <div key={s.id} className="list-row">
-              <KeyRound size={15} />
+            <div key={s.id} className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0">
+              <KeyRound className="text-muted-foreground" />
               <b>{s.name}</b>
-              <span className="mono hint">{s.hint}</span>
-              <span className="spacer" />
-              <span className="hint">updated {ago(s.updated_at)}</span>
-              <button className="btn small" onClick={() => setSecretEdit(s)}>Replace</button>
+              <span className="font-mono text-xs text-muted-foreground">{s.hint}</span>
+              <span className="ml-auto text-xs text-muted-foreground">updated {ago(s.updated_at)}</span>
+              <Button size="sm" variant="outline" onClick={() => setSecretEdit(s)}>Replace</Button>
             </div>
           ))}
-        </div>
-      </div></div>
+        </Card>
+      </Section>
       {editing && <ProviderForm p={editing} secrets={secrets} defaults={defaults} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
       {secretEdit && <SecretForm s={secretEdit} onClose={() => setSecretEdit(null)} onSaved={() => { setSecretEdit(null); load(); }} />}
-    </>
+    </Page>
   );
 }
 
@@ -97,7 +93,6 @@ function ProviderForm({ p, secrets, defaults, onClose, onSaved }: {
   const kind = (f.kind ?? "anthropic") as ProviderKind;
   const set = (k: keyof Provider, v: unknown) => setF((x) => ({ ...x, [k]: v }));
 
-  // Test with what is in the form now (nothing saved yet); a working connection loads the model list.
   const runTest = async () => {
     setTest("…");
     try {
@@ -133,43 +128,40 @@ function ProviderForm({ p, secrets, defaults, onClose, onSaved }: {
   return (
     <Modal title={p.id ? `Edit ${p.name}` : "New provider"} onClose={onClose}
       footer={<>
-        {p.id && <button className="btn danger" onClick={remove}>Delete</button>}
-        <span className="spacer" />
-        <button className="btn" onClick={runTest} disabled={test === "…"}><PlugZap size={14} /> {test === "…" ? "Testing…" : "Test connection"}</button>
-        <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={save}>Save</button>
+        {p.id && <Button variant="destructive" onClick={remove}>Delete</Button>}
+        <FooterGap />
+        <Button variant="outline" onClick={runTest} disabled={test === "…"}><PlugZap data-icon="inline-start" /> {test === "…" ? "Testing…" : "Test connection"}</Button>
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button onClick={save}>Save</Button>
       </>}>
-      <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
-        <div className="grid2">
+      <form autoComplete="off" onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Name"><NoFillInput value={f.name ?? ""} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Anthropic EU" /></Field>
           <Field label="Type">
-            <select value={kind} onChange={(e) => { set("kind", e.target.value); set("default_model", KINDS[e.target.value as ProviderKind].model); setModels([]); setTest(null); }}>
-              {(Object.keys(KINDS) as ProviderKind[]).map((k) => <option key={k} value={k}>{KINDS[k].label}</option>)}
-            </select>
+            <Choice value={kind} onValueChange={(v) => { set("kind", v); set("default_model", KINDS[v as ProviderKind].model); setModels([]); setTest(null); }}
+              options={(Object.keys(KINDS) as ProviderKind[]).map((k) => ({ value: k, label: KINDS[k].label }))} />
           </Field>
         </div>
-        <p className="hint" style={{ marginTop: -4 }}>{KINDS[kind].note}</p>
+        <p className="text-sm text-muted-foreground">{KINDS[kind].note}</p>
         {kind !== "claude-cli" && (
           <Field label="Base URL" hint="Leave empty for the default.">
-            <NoFillInput className="mono" value={f.base_url ?? ""} onChange={(e) => set("base_url", e.target.value)} placeholder={defaults[kind]} />
+            <NoFillInput className="font-mono" value={f.base_url ?? ""} onChange={(e) => set("base_url", e.target.value)} placeholder={defaults[kind]} />
           </Field>
         )}
-        <div className="grid2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label={`API key${KINDS[kind].needsKey ? "" : " (optional)"}`}>
-            <select value={f.secret_id ?? ""} onChange={(e) => set("secret_id", e.target.value ? Number(e.target.value) : null)}>
-              <option value="">{KINDS[kind].needsKey ? "Choose or paste a new key…" : "None"}</option>
-              {secrets.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.hint})</option>)}
-            </select>
+            <Choice value={f.secret_id ? String(f.secret_id) : ""} onValueChange={(v) => set("secret_id", v ? Number(v) : null)}
+              options={[{ value: "", label: KINDS[kind].needsKey ? "Choose or paste a new key…" : "None" }, ...secrets.map((s) => ({ value: String(s.id), label: `${s.name} (${s.hint})` }))]} />
           </Field>
           <Field label="…or paste a new key"><SecretInput value={newKey} onChange={setNewKey} placeholder="stored encrypted" /></Field>
         </div>
         <Field label="Default model" hint={!models.length ? "Press Test connection to load the list."
-          : f.default_model && !models.includes(f.default_model) ? <span className="error">"{f.default_model}" is not in this provider's list. Pick one or calls will fail.</span> : undefined}>
+          : f.default_model && !models.includes(f.default_model) ? <span className="text-destructive">"{f.default_model}" is not in this provider's list. Pick one or calls will fail.</span> : undefined}>
           <ModelPicker models={models} value={f.default_model ?? ""} onChange={(v) => set("default_model", v)} />
         </Field>
-        {test && test !== "…" && <div className={`test-result ${test.ok ? "ok" : "bad"}`}>{test.ok ? "✓ " : "✗ "}{test.message}</div>}
-        <p className="hint" style={{ marginTop: 10 }}>Prices are set per model under <a href="#/usage">Usage &amp; billing</a>, so each agent is billed at its own model's rate.</p>
-        {error && <div className="error">{error}</div>}
+        {test && test !== "…" && <p className={test.ok ? "text-sm text-success" : "text-sm text-destructive"}>{test.ok ? "✓ " : "✗ "}{test.message}</p>}
+        <p className="text-sm text-muted-foreground">Prices are set per model under <a href="#/usage">Usage &amp; billing</a>, so each agent is billed at its own model's rate.</p>
+        {error && <p className="text-sm text-destructive">{error}</p>}
       </form>
     </Modal>
   );
@@ -188,12 +180,12 @@ function SecretForm({ s, onClose, onSaved }: { s: Partial<Secret>; onClose: () =
   const remove = async () => { if (confirm(`Delete secret ${s.name}?`)) { await del(`/api/secrets/${s.id}`); onSaved(); } };
   return (
     <Modal title={s.id ? `Replace ${s.name}` : "New secret"} onClose={onClose}
-      footer={<>{s.id && <button className="btn danger" onClick={remove}>Delete</button>}<span className="spacer" /><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Save</button></>}>
+      footer={<>{s.id && <Button variant="destructive" onClick={remove}>Delete</Button>}<FooterGap /><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save}>Save</Button></>}>
       <Field label="Name"><NoFillInput value={name} onChange={(e) => setName(e.target.value)} /></Field>
       <Field label={s.id ? "New value (leave empty to keep the current one)" : "Value"} hint="Encrypted on this machine; never shown again.">
         <SecretInput value={value} onChange={setValue} />
       </Field>
-      {error && <div className="error">{error}</div>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </Modal>
   );
 }

@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react";
 import { Plus, Pencil } from "lucide-react";
 import { get, post, put, del, parseJson, type Agent, type Role, type Team } from "../api.ts";
-import { Avatar, Field, Modal } from "../components/ui.tsx";
+import { Avatar, Field, FooterGap, Modal } from "../components/ui.tsx";
 import { lookFor } from "../office/palette.ts";
-import { NoFillInput } from "../components/inputs.tsx";
+import { Choice, NoFillInput } from "../components/inputs.tsx";
+import { Page } from "../components/page.tsx";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 
 const ROLES: { role: Role; label: string }[] = [
   { role: "planner", label: "Planner" },
@@ -23,54 +29,52 @@ export function TeamsPage() {
   useEffect(load, []);
 
   return (
-    <>
-      <div className="page-head">
-        <h1>Teams</h1><span className="spacer" />
-        <button className="btn primary" onClick={() => setEditing({ name: "", description: "", member_ids: [] })}><Plus size={14} /> New team</button>
-      </div>
-      <div className="page"><div className="narrow">
-        <div className="hint" style={{ marginBottom: 14 }}>
-          A team's planner answers the chats of its projects and hands tasks only to the team's developers; its reviewer checks them.
-          Pick a project's team under <a href="#/projects">Projects</a>; a chat can switch team in its header. Add agents under <a href="#/agents">Agents</a> (or from the gallery there).
-        </div>
-        {teams && teams.length === 0 && (
-          <div className="card card-pad">No teams yet: projects use every enabled agent. Make a team to split the work, e.g. "Web" and "Integration".</div>
-        )}
-        {teams?.map((t) => (
-          <div key={t.id} className="card team-card">
-            <div className="team-head">
-              <div style={{ minWidth: 0 }}>
-                <b>{t.name}</b>
-                <div className="hint">{t.description || "No description"} · {t.project_count} project{t.project_count === 1 ? "" : "s"}</div>
-              </div>
-              <span className="spacer" />
-              <button className="btn small" onClick={() => setEditing(t)}><Pencil size={13} /> Edit</button>
+    <Page title="Teams" actions={<Button onClick={() => setEditing({ name: "", description: "", member_ids: [] })}><Plus data-icon="inline-start" /> New team</Button>}>
+      <p className="text-sm text-muted-foreground">
+        A team's planner answers the chats of its projects and hands tasks only to the team's developers; its reviewer checks them.
+        Pick a project's team under <a href="#/projects">Projects</a>; a chat can switch team in its header. Add agents under <a href="#/agents">Agents</a> (or from the gallery there).
+      </p>
+      {teams && teams.length === 0 && (
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>No teams yet</EmptyTitle>
+            <EmptyDescription>Projects use every enabled agent. Make a team to split the work, e.g. "Web" and "Integration".</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )}
+      {teams?.map((t) => (
+        <Card key={t.id} className="gap-0 py-0">
+          <div className="flex items-center gap-3 border-b px-4 py-3">
+            <div className="min-w-0">
+              <b>{t.name}</b>
+              <div className="text-xs text-muted-foreground">{t.description || "No description"} · {t.project_count} project{t.project_count === 1 ? "" : "s"}</div>
             </div>
-            <div className="team-roles">
-              {ROLES.map(({ role, label }) => {
-                const members = agents.filter((a) => a.role === role && t.member_ids.includes(a.id));
-                const lead = role === "planner" ? t.planner_id : role === "reviewer" ? t.reviewer_id : null;
-                return (
-                  <div key={role}>
-                    <div className="hint">{label}</div>
-                    {members.length === 0 && <div className={role === "worker" || role === "planner" ? "error" : "hint"}>{role === "reviewer" ? "none: tasks are approved after the checks" : "none"}</div>}
-                    {members.map((a) => (
-                      <div key={a.id} className="team-member" style={{ opacity: a.enabled ? 1 : 0.5 }}>
-                        <Avatar look={lookFor(a.name, parseJson(a.appearance, {}))} size={24} />
-                        <span className="ellipsis">{a.name}</span>
-                        {lead === a.id && members.length > 1 && <span className="badge accent">lead</span>}
-                        {!a.enabled && <span className="badge">off</span>}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
+            <Button className="ml-auto" size="sm" variant="outline" onClick={() => setEditing(t)}><Pencil data-icon="inline-start" /> Edit</Button>
           </div>
-        ))}
-      </div></div>
+          <CardContent className="grid gap-4 py-3 sm:grid-cols-3">
+            {ROLES.map(({ role, label }) => {
+              const members = agents.filter((a) => a.role === role && t.member_ids.includes(a.id));
+              const lead = role === "planner" ? t.planner_id : role === "reviewer" ? t.reviewer_id : null;
+              return (
+                <div key={role}>
+                  <div className="text-xs text-muted-foreground">{label}</div>
+                  {members.length === 0 && <div className={role === "worker" || role === "planner" ? "text-sm text-destructive" : "text-xs text-muted-foreground"}>{role === "reviewer" ? "none: tasks are approved after the checks" : "none"}</div>}
+                  {members.map((a) => (
+                    <div key={a.id} className="flex min-w-0 items-center gap-2 py-0.5 text-sm" style={{ opacity: a.enabled ? 1 : 0.5 }}>
+                      <Avatar look={lookFor(a.name, parseJson(a.appearance, {}))} size={24} />
+                      <span className="truncate">{a.name}</span>
+                      {lead === a.id && members.length > 1 && <Badge variant="outline" className="border-primary/40 text-primary">lead</Badge>}
+                      {!a.enabled && <Badge variant="secondary">off</Badge>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ))}
       {editing && <TeamForm team={editing} agents={agents} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
-    </>
+    </Page>
   );
 }
 
@@ -101,52 +105,50 @@ function TeamForm({ team, agents, onClose, onSaved }: { team: Partial<Team>; age
     onSaved();
   };
   const leadPick = (role: Role, value: number | null, set: (v: number | null) => void) => (
-    <select value={value ?? ""} onChange={(e) => set(e.target.value ? Number(e.target.value) : null)}>
-      <option value="">First {role} in the team</option>
-      {inTeam(role).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-    </select>
+    <Choice value={value ? String(value) : ""} onValueChange={(v) => set(v ? Number(v) : null)}
+      options={[{ value: "", label: `First ${role} in the team` }, ...inTeam(role).map((a) => ({ value: String(a.id), label: a.name }))]} />
   );
 
   return (
     <Modal title={team.id ? `Edit ${team.name}` : "New team"} onClose={onClose} wide
       footer={<>
-        {team.id && <button className="btn danger" onClick={remove}>Delete</button>}
-        <span className="spacer" />
-        <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={save}>Save</button>
+        {team.id && <Button variant="destructive" onClick={remove}>Delete</Button>}
+        <FooterGap />
+        <Button variant="outline" onClick={onClose}>Cancel</Button>
+        <Button onClick={save}>Save</Button>
       </>}>
-      <div className="grid2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name"><NoFillInput value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Web" /></Field>
         <Field label="Description"><NoFillInput value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this team works on" /></Field>
       </div>
-      <div className="hint" style={{ margin: "4px 0 8px" }}>Members. An agent can be in several teams; it still has one desk and does one task at a time.</div>
-      <div className="team-pick">
+      <p className="text-xs text-muted-foreground">Members. An agent can be in several teams; it still has one desk and does one task at a time.</p>
+      <div className="grid gap-4 sm:grid-cols-3">
         {ROLES.map(({ role, label }) => (
-          <div key={role}>
-            <div className="hint">{label}</div>
-            {agents.filter((a) => a.role === role).length === 0 && <div className="hint">No {label.toLowerCase()} agents yet.</div>}
+          <div key={role} className="flex flex-col gap-1">
+            <div className="text-xs text-muted-foreground">{label}</div>
+            {agents.filter((a) => a.role === role).length === 0 && <div className="text-xs text-muted-foreground">No {label.toLowerCase()} agents yet.</div>}
             {agents.filter((a) => a.role === role).map((a) => (
-              <label key={a.id} className="team-member clickable">
-                <input type="checkbox" checked={members.includes(a.id)} onChange={() => toggle(a.id)} />
+              <label key={a.id} className="flex cursor-pointer items-center gap-2 py-0.5 text-sm">
+                <Checkbox checked={members.includes(a.id)} onCheckedChange={() => toggle(a.id)} />
                 <Avatar look={lookFor(a.name, parseJson(a.appearance, {}))} size={24} />
-                <span className="ellipsis">{a.name}{!a.enabled && " (off)"}</span>
+                <span className="truncate">{a.name}{!a.enabled && " (off)"}</span>
               </label>
             ))}
           </div>
         ))}
       </div>
-      <div className="grid2" style={{ marginTop: 12 }}>
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Planner that answers the chats">{leadPick("planner", planner, setPlanner)}</Field>
         <Field label="Reviewer that checks the tasks">{leadPick("reviewer", reviewer, setReviewer)}</Field>
       </div>
-      <div className="hint" style={{ margin: "4px 0 8px" }}>
+      <p className="text-xs text-muted-foreground">
         For projects that run Scrum: the planner is the product manager. Pick a planner as architect and a reviewer for the security review, or leave them as the team's own.
-      </div>
-      <div className="grid2">
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Architect (technical notes on backlog items)">{leadPick("planner", architect, setArchitect)}</Field>
         <Field label="Security reviewer (end of a sprint)">{leadPick("reviewer", security, setSecurity)}</Field>
       </div>
-      {error && <div className="error">{error}</div>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </Modal>
   );
 }

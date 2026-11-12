@@ -1,8 +1,15 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Download, Plus, RefreshCw } from "lucide-react";
 import { get, put, post, del } from "../api.ts";
-import { Field, Modal } from "../components/ui.tsx";
+import { Field, FooterGap, Modal, ToneBadge } from "../components/ui.tsx";
 import { NoFillInput } from "../components/inputs.tsx";
+import { Page, Section } from "../components/page.tsx";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 type Tokens = { tokens_in: number; cache_read: number; cache_write: number; tokens_out: number };
 type Agg = Tokens & { cost_usd: number; runs: number; unpriced: number };
@@ -36,72 +43,83 @@ export function UsagePage() {
   const t = usage?.totals;
   const prompt = t ? t.tokens_in + t.cache_read + t.cache_write : 0;
   return (
-    <>
-      <div className="page-head">
-        <h1>Usage &amp; billing</h1>
-        <div className="tabs">
-          {PERIODS.map((p) => <button key={p.days} className={`tab ${days === p.days ? "active" : ""}`} onClick={() => setDays(p.days)}>{p.label}</button>)}
+    <Page title="Usage & billing" width="wide" actions={
+      <>
+        <Tabs value={String(days)} onValueChange={(v) => setDays(Number(v))}>
+          <TabsList>
+            {PERIODS.map((p) => <TabsTrigger key={p.days} value={String(p.days)}>{p.label}</TabsTrigger>)}
+          </TabsList>
+        </Tabs>
+        <Button variant="outline" size="sm" asChild><a href={`/api/usage/export.csv?days=${days}`}><Download data-icon="inline-start" /> CSV</a></Button>
+      </>
+    }>
+      {t && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Tile label="Cost" value={fmtUsd(t.cost_usd)} sub={t.unpriced ? `${t.unpriced} call${t.unpriced === 1 ? "" : "s"} without a price` : "all calls priced"} warn={!!t.unpriced} />
+          <Tile label="Agent calls" value={String(t.runs)} sub={usage!.byKind.map((k) => `${k.runs} ${k.kind}`).join(" · ") || "–"} />
+          <Tile label="Input tokens" value={fmtTokens(prompt)} sub={prompt ? `${Math.round((t.cache_read / prompt) * 100)}% read from cache` : "–"} />
+          <Tile label="Output tokens" value={fmtTokens(t.tokens_out)} sub={`${fmtTokens(t.cache_write)} written to cache`} />
         </div>
-        <a className="btn small" href={`/api/usage/export.csv?days=${days}`}><Download size={13} /> CSV</a>
-      </div>
-      <div className="page"><div className="wide">
-        {t && (
-          <div className="tiles">
-            <Tile label="Cost" value={fmtUsd(t.cost_usd)} sub={t.unpriced ? `${t.unpriced} call${t.unpriced === 1 ? "" : "s"} without a price` : "all calls priced"} warn={!!t.unpriced} />
-            <Tile label="Agent calls" value={String(t.runs)} sub={usage!.byKind.map((k) => `${k.runs} ${k.kind}`).join(" · ") || "–"} />
-            <Tile label="Input tokens" value={fmtTokens(prompt)} sub={prompt ? `${Math.round((t.cache_read / prompt) * 100)}% read from cache` : "–"} />
-            <Tile label="Output tokens" value={fmtTokens(t.tokens_out)} sub={`${fmtTokens(t.cache_write)} written to cache`} />
-          </div>
-        )}
-        {usage && <DailyChart daily={usage.daily} days={days} onPick={setOpenDay} picked={openDay} />}
+      )}
+      {usage && <DailyChart daily={usage.daily} days={days} onPick={setOpenDay} picked={openDay} />}
 
-        {usage && (
-          <div className="grid3 breakdowns">
-            <Breakdown title="By agent" rows={usage.byAgent.map((r) => ({ key: r.name, label: r.name, sub: r.role, ...r }))} total={t!.cost_usd} />
-            <Breakdown title="By model" rows={usage.byModel.map((r) => ({ key: r.model + r.engine, label: r.model, sub: r.engine === "claude-cli" ? "Claude Code" : r.engine, ...r }))} total={t!.cost_usd} />
-            <Breakdown title="By project" rows={usage.byProject.map((r) => ({ key: r.name, label: r.name, ...r }))} total={t!.cost_usd} />
-          </div>
-        )}
-
-        <div className="section-title"><h2>Daily log</h2><span className="spacer" /><span className="hint">Click a day to see every call.</span></div>
-        <div className="list">
-          <div className="list-row table-head">
-            <span className="c-day">Day</span><span className="c-num">Calls</span><span className="c-num">Input</span>
-            <span className="c-num">Cache read</span><span className="c-num">Output</span><span className="c-num">Cost</span>
-          </div>
-          {usage && usage.daily.length === 0 && <div className="list-row hint">No agent calls in this period.</div>}
-          {usage && [...usage.daily].reverse().map((d) => (
-            <Fragment key={d.day}>
-              <div className={`list-row clickable ${openDay === d.day ? "picked" : ""}`} onClick={() => setOpenDay(openDay === d.day ? null : d.day)}>
-                <span className="c-day">{fmtDay(d.day)}</span>
-                <span className="c-num">{d.runs}</span>
-                <span className="c-num">{fmtTokens(d.tokens_in + d.cache_write)}</span>
-                <span className="c-num">{fmtTokens(d.cache_read)}</span>
-                <span className="c-num">{fmtTokens(d.tokens_out)}</span>
-                <span className="c-num"><b>{fmtUsd(d.cost_usd)}</b>{d.unpriced ? <span className="badge wait" title="Calls without a model price">+?</span> : null}</span>
-              </div>
-              {openDay === d.day && <DayRuns day={d.day} />}
-            </Fragment>
-          ))}
+      {usage && (
+        <div className="grid gap-3 lg:grid-cols-3">
+          <Breakdown title="By agent" rows={usage.byAgent.map((r) => ({ key: r.name, label: r.name, sub: r.role, ...r }))} total={t!.cost_usd} />
+          <Breakdown title="By model" rows={usage.byModel.map((r) => ({ key: r.model + r.engine, label: r.model, sub: r.engine === "claude-cli" ? "Claude Code" : r.engine, ...r }))} total={t!.cost_usd} />
+          <Breakdown title="By project" rows={usage.byProject.map((r) => ({ key: r.name, label: r.name, ...r }))} total={t!.cost_usd} />
         </div>
+      )}
 
-        <PriceTable onChanged={load} />
-      </div></div>
-    </>
+      <Section title="Daily log" hint="Click a day to see every call.">
+        <Card className="py-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Day</TableHead><TableHead className="text-right">Calls</TableHead><TableHead className="text-right">Input</TableHead>
+                <TableHead className="text-right">Cache read</TableHead><TableHead className="text-right">Output</TableHead><TableHead className="text-right">Cost</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {usage && usage.daily.length === 0 && <TableRow><TableCell colSpan={6} className="text-muted-foreground">No agent calls in this period.</TableCell></TableRow>}
+              {usage && [...usage.daily].reverse().map((d) => (
+                <Fragment key={d.day}>
+                  <TableRow className={cn("cursor-pointer", openDay === d.day && "bg-accent")} onClick={() => setOpenDay(openDay === d.day ? null : d.day)}>
+                    <TableCell>{fmtDay(d.day)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{d.runs}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtTokens(d.tokens_in + d.cache_write)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtTokens(d.cache_read)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtTokens(d.tokens_out)}</TableCell>
+                    <TableCell className="text-right tabular-nums"><b>{fmtUsd(d.cost_usd)}</b>{d.unpriced ? <ToneBadge tone="wait" title="Calls without a model price">+?</ToneBadge> : null}</TableCell>
+                  </TableRow>
+                  {openDay === d.day && (
+                    <TableRow className="hover:bg-transparent"><TableCell colSpan={6} className="bg-muted p-0"><DayRuns day={d.day} /></TableCell></TableRow>
+                  )}
+                </Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      </Section>
+      <PriceTable onChanged={load} />
+    </Page>
   );
 }
 
 function Tile({ label, value, sub, warn }: { label: string; value: string; sub: string; warn?: boolean }) {
   return (
-    <div className="tile">
-      <div className="tile-label">{label}</div>
-      <div className="tile-value num">{value}</div>
-      <div className={`tile-sub ${warn ? "warn" : ""}`}>{sub}</div>
-    </div>
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="text-xs font-normal text-muted-foreground">{label}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-semibold tabular-nums">{value}</div>
+        <div className={cn("truncate text-xs text-muted-foreground", warn && "text-warning")}>{sub}</div>
+      </CardContent>
+    </Card>
   );
 }
 
-/** One series (cost per day): accent bars, rounded tops, recessive grid, a tooltip per bar. */
 function DailyChart({ daily, days, onPick, picked }: { daily: Usage["daily"]; days: number; onPick: (d: string) => void; picked: string | null }) {
   const [hover, setHover] = useState<number | null>(null);
   const series = useMemo(() => fillDays(daily, days), [daily, days]);
@@ -114,82 +132,86 @@ function DailyChart({ daily, days, onPick, picked }: { daily: Usage["daily"]; da
   const h = hover !== null ? series[hover] : null;
 
   return (
-    <div className="card chart-card">
-      <div className="row"><b>Cost per day</b><span className="hint">USD · local dates</span></div>
-      {series.every((d) => !d.runs) ? <div className="empty" style={{ padding: 32 }}>No calls in this period yet.</div> : (
-        <div className="chart-wrap" onMouseLeave={() => setHover(null)}>
-          <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Cost per day">
-            {[0, 0.5, 1].map((f) => (
-              <g key={f}>
-                <line x1={padL} x2={W - padR} y1={y(max * f)} y2={y(max * f)} className="grid" />
-                <text x={padL - 6} y={y(max * f)} className="axis" textAnchor="end" dominantBaseline="middle">{fmtUsd(max * f)}</text>
-              </g>
-            ))}
-            {series.map((d, i) => {
-              const x = padL + i * step + (step - barW) / 2;
-              const top = y(d.cost_usd);
-              const hgt = Math.max(d.runs ? 1.5 : 0, H - padB - top);
-              const r = Math.min(4, barW / 2, hgt);
-              return (
-                <g key={d.day}>
-                  {hgt > 0 && (
-                    <path className={`bar ${picked === d.day ? "picked" : ""} ${hover === i ? "hover" : ""}`}
-                      d={`M${x},${H - padB} V${H - padB - hgt + r} Q${x},${H - padB - hgt} ${x + r},${H - padB - hgt} H${x + barW - r} Q${x + barW},${H - padB - hgt} ${x + barW},${H - padB - hgt + r} V${H - padB} Z`} />
-                  )}
-                  {/* hit target: the whole column, bigger than the bar */}
-                  <rect x={padL + i * step} y={padT} width={step} height={H - padT - padB} fill="transparent"
-                    onMouseEnter={() => setHover(i)} onClick={() => d.runs && onPick(d.day)} style={{ cursor: d.runs ? "pointer" : "default" }} />
-                  {i % labelEvery === 0 && <text x={padL + i * step + step / 2} y={H - 6} className="axis" textAnchor="middle">{shortDay(d.day)}</text>}
+    <Card>
+      <CardHeader>
+        <CardTitle>Cost per day</CardTitle>
+        <p className="text-xs text-muted-foreground">USD · local dates</p>
+      </CardHeader>
+      <CardContent>
+        {series.every((d) => !d.runs) ? <p className="py-8 text-center text-sm text-muted-foreground">No calls in this period yet.</p> : (
+          <div className="relative" onMouseLeave={() => setHover(null)}>
+            <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label="Cost per day">
+              {[0, 0.5, 1].map((f) => (
+                <g key={f}>
+                  <line x1={padL} x2={W - padR} y1={y(max * f)} y2={y(max * f)} className="stroke-border" />
+                  <text x={padL - 6} y={y(max * f)} className="fill-muted-foreground text-[11px]" textAnchor="end" dominantBaseline="middle">{fmtUsd(max * f)}</text>
                 </g>
-              );
-            })}
-            <line x1={padL} x2={W - padR} y1={H - padB} y2={H - padB} className="baseline" />
-          </svg>
-          {h && (
-            <div className="chart-tip" style={{ left: `${((padL + hover! * step + step / 2) / W) * 100}%` }}>
-              <b>{fmtDay(h.day)}</b>
-              <div className="num">{fmtUsd(h.cost_usd)} · {h.runs} call{h.runs === 1 ? "" : "s"}</div>
-              <div className="hint num">{fmtTokens(h.tokens_in + h.cache_write)} in · {fmtTokens(h.cache_read)} cached · {fmtTokens(h.tokens_out)} out</div>
-              {h.unpriced > 0 && <div className="hint">{h.unpriced} without a price</div>}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+              ))}
+              {series.map((d, i) => {
+                const x = padL + i * step + (step - barW) / 2;
+                const top = y(d.cost_usd);
+                const hgt = Math.max(d.runs ? 1.5 : 0, H - padB - top);
+                const r = Math.min(4, barW / 2, hgt);
+                return (
+                  <g key={d.day}>
+                    {hgt > 0 && (
+                      <path className={cn("fill-primary", picked === d.day && "fill-warm", hover === i && "brightness-110")}
+                        d={`M${x},${H - padB} V${H - padB - hgt + r} Q${x},${H - padB - hgt} ${x + r},${H - padB - hgt} H${x + barW - r} Q${x + barW},${H - padB - hgt} ${x + barW},${H - padB - hgt + r} V${H - padB} Z`} />
+                    )}
+                    <rect x={padL + i * step} y={padT} width={step} height={H - padT - padB} fill="transparent"
+                      onMouseEnter={() => setHover(i)} onClick={() => d.runs && onPick(d.day)} style={{ cursor: d.runs ? "pointer" : "default" }} />
+                    {i % labelEvery === 0 && <text x={padL + i * step + step / 2} y={H - 6} className="fill-muted-foreground text-[11px]" textAnchor="middle">{shortDay(d.day)}</text>}
+                  </g>
+                );
+              })}
+              <line x1={padL} x2={W - padR} y1={H - padB} y2={H - padB} className="stroke-muted-foreground/60" />
+            </svg>
+            {h && (
+              <div className="pointer-events-none absolute top-0 -translate-x-1/2 rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-md" style={{ left: `${((padL + hover! * step + step / 2) / W) * 100}%` }}>
+                <b>{fmtDay(h.day)}</b>
+                <div className="tabular-nums">{fmtUsd(h.cost_usd)} · {h.runs} call{h.runs === 1 ? "" : "s"}</div>
+                <div className="text-muted-foreground tabular-nums">{fmtTokens(h.tokens_in + h.cache_write)} in · {fmtTokens(h.cache_read)} cached · {fmtTokens(h.tokens_out)} out</div>
+                {h.unpriced > 0 && <div className="text-muted-foreground">{h.unpriced} without a price</div>}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
 function Breakdown({ title, rows, total }: { title: string; total: number; rows: (Agg & { key: string; label: string; sub?: string })[] }) {
   return (
-    <div className="card">
-      <div className="card-title">{title}</div>
-      {rows.length === 0 && <div className="hint" style={{ padding: "8px 14px 14px" }}>Nothing yet.</div>}
+    <Card className="gap-0 py-0">
+      <div className="px-4 pt-3 pb-1 text-sm font-medium">{title}</div>
+      {rows.length === 0 && <p className="px-4 pb-3 text-xs text-muted-foreground">Nothing yet.</p>}
       {rows.map((r) => (
-        <div key={r.key} className="bd-row">
-          <div className="bd-name"><span className="ellipsis">{r.label}</span>{r.sub && <span className="hint"> {r.sub}</span>}</div>
-          <div className="bd-meta num">{r.runs} · {fmtTokens(totalTokens(r))}</div>
-          <div className="bd-cost num">{fmtUsd(r.cost_usd)}{r.unpriced ? <span className="badge wait" title="Calls without a model price">+?</span> : null}</div>
-          <div className="bd-bar"><div style={{ width: `${total > 0 ? Math.max(1, (r.cost_usd / total) * 100) : 0}%` }} /></div>
+        <div key={r.key} className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-2 px-4 py-1.5 text-sm">
+          <div className="flex min-w-0 gap-1"><span className="truncate">{r.label}</span>{r.sub && <span className="text-xs text-muted-foreground">{r.sub}</span>}</div>
+          <div className="text-xs text-muted-foreground tabular-nums">{r.runs} · {fmtTokens(totalTokens(r))}</div>
+          <div className="text-right font-medium tabular-nums">{fmtUsd(r.cost_usd)}{r.unpriced ? <ToneBadge tone="wait" title="Calls without a model price">+?</ToneBadge> : null}</div>
+          <div className="col-span-full h-0.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${total > 0 ? Math.max(1, (r.cost_usd / total) * 100) : 0}%` }} /></div>
         </div>
       ))}
-    </div>
+    </Card>
   );
 }
 
 function DayRuns({ day }: { day: string }) {
   const [rows, setRows] = useState<RunRow[] | null>(null);
   useEffect(() => { get<RunRow[]>(`/api/usage/runs?day=${day}`).then(setRows); }, [day]);
-  if (!rows) return <div className="list-row hint">Loading…</div>;
+  if (!rows) return <p className="px-4 py-2 text-xs text-muted-foreground">Loading…</p>;
   return (
-    <div className="day-runs">
+    <div className="flex flex-col py-1">
       {rows.map((r) => (
-        <div key={r.id} className="run-row">
-          <span className="mono hint">{timeOf(r.started_at)}</span>
-          <span><b>{r.agent ?? "–"}</b> <span className="badge">{r.kind}{r.round ? ` ${r.round + 1}` : ""}</span></span>
-          <span className="ellipsis">{r.task ?? r.chat ?? r.project ?? ""}</span>
-          <span className="mono hint ellipsis">{r.model}</span>
-          <span className="num hint">{fmtTokens(r.tokens_in + r.cache_write)} / {fmtTokens(r.cache_read)} / {fmtTokens(r.tokens_out)}</span>
-          <span className="num">{fmtUsd(r.cost_usd)}</span>
+        <div key={r.id} className="grid grid-cols-[3.5rem_1fr_4.5rem] items-center gap-2 px-4 py-1 text-xs sm:grid-cols-[3.5rem_11rem_1fr_10rem_9rem_4.5rem]">
+          <span className="font-mono text-muted-foreground">{timeOf(r.started_at)}</span>
+          <span><b>{r.agent ?? "–"}</b> <ToneBadge>{r.kind}{r.round ? ` ${r.round + 1}` : ""}</ToneBadge></span>
+          <span className="hidden truncate sm:inline">{r.task ?? r.chat ?? r.project ?? ""}</span>
+          <span className="hidden truncate font-mono text-muted-foreground sm:inline">{r.model}</span>
+          <span className="hidden text-muted-foreground tabular-nums sm:inline">{fmtTokens(r.tokens_in + r.cache_write)} / {fmtTokens(r.cache_read)} / {fmtTokens(r.tokens_out)}</span>
+          <span className="text-right tabular-nums">{fmtUsd(r.cost_usd)}</span>
         </div>
       ))}
     </div>
@@ -210,28 +232,36 @@ function PriceTable({ onChanged }: { onChanged: () => void }) {
   };
   return (
     <>
-      <div className="section-title">
-        <div><h2>Model prices</h2><div className="hint">USD per million tokens. Each call is priced with the model the agent used, so agents on the same key are billed at their own model's rate. Claude Code CLI calls use the cost the CLI reports.</div></div>
-        <span className="spacer" />
-        <button className="btn small" onClick={reprice}><RefreshCw size={13} /> Apply to past calls</button>
-        <button className="btn small" onClick={() => setEditing({ model: "", price_in: 0, price_out: 0, cache_read: 0, cache_write: 0, long_threshold: 0, long_multiplier: 1, note: "" })}><Plus size={13} /> Add model</button>
-      </div>
-      {msg && <div className="hint" style={{ marginBottom: 8 }}>{msg}</div>}
-      <div className="list">
-        <div className="list-row table-head">
-          <span className="c-model">Model</span><span className="c-num">Input</span><span className="c-num">Output</span>
-          <span className="c-num">Cache read</span><span className="c-num">Cache write</span><span className="c-tier">Long prompts</span>
-        </div>
-        {prices.map((p) => (
-          <div key={p.model} className="list-row clickable" title={p.note} onClick={() => setEditing({ ...p, original: p.model })}>
-            <span className="c-model mono">{p.model}</span>
-            <span className="c-num num">{p.price_in}</span><span className="c-num num">{p.price_out}</span>
-            <span className="c-num num">{p.cache_read}</span><span className="c-num num">{p.cache_write}</span>
-            <span className="c-tier hint">{p.long_threshold ? `over ${fmtTokens(p.long_threshold)}: ×${p.long_multiplier}` : "–"}</span>
-          </div>
-        ))}
-        {prices.length === 0 && <div className="list-row hint">No prices. Calls show their tokens but no cost.</div>}
-      </div>
+      <Section title="Model prices" hint="USD per million tokens. Each call is priced with the model the agent used, so agents on the same key are billed at their own model's rate. Claude Code CLI calls use the cost the CLI reports."
+        action={<>
+          <Button variant="outline" size="sm" onClick={reprice}><RefreshCw data-icon="inline-start" /> Apply to past calls</Button>
+          <Button variant="outline" size="sm" onClick={() => setEditing({ model: "", price_in: 0, price_out: 0, cache_read: 0, cache_write: 0, long_threshold: 0, long_multiplier: 1, note: "" })}><Plus data-icon="inline-start" /> Add model</Button>
+        </>}>
+        {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
+        <Card className="py-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Model</TableHead><TableHead className="text-right">Input</TableHead><TableHead className="text-right">Output</TableHead>
+                <TableHead className="text-right">Cache read</TableHead><TableHead className="text-right">Cache write</TableHead><TableHead className="text-right">Long prompts</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {prices.map((p) => (
+                <TableRow key={p.model} title={p.note} className="cursor-pointer" onClick={() => setEditing({ ...p, original: p.model })}>
+                  <TableCell className="font-mono">{p.model}</TableCell>
+                  <TableCell className="text-right tabular-nums">{p.price_in}</TableCell>
+                  <TableCell className="text-right tabular-nums">{p.price_out}</TableCell>
+                  <TableCell className="text-right tabular-nums">{p.cache_read}</TableCell>
+                  <TableCell className="text-right tabular-nums">{p.cache_write}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{p.long_threshold ? `over ${fmtTokens(p.long_threshold)}: ×${p.long_multiplier}` : "–"}</TableCell>
+                </TableRow>
+              ))}
+              {prices.length === 0 && <TableRow><TableCell colSpan={6} className="text-muted-foreground">No prices. Calls show their tokens but no cost.</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </Card>
+      </Section>
       {editing && <PriceForm p={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </>
   );
@@ -242,28 +272,26 @@ function PriceForm({ p, onClose, onSaved }: { p: Price & { original?: string }; 
   const [error, setError] = useState("");
   const set = (k: keyof Price, v: string) => setF({ ...f, [k]: k === "model" || k === "note" ? v : Number(v) });
   const num = (k: keyof Price, label: string) => (
-    <Field label={label}><input type="number" min={0} step="0.001" value={String(f[k])} onChange={(e) => set(k, e.target.value)} /></Field>
+    <Field label={label}><Input type="number" min={0} step="0.001" value={String(f[k])} onChange={(e) => set(k, e.target.value)} /></Field>
   );
   const save = async () => { try { await put("/api/model-prices", f); onSaved(); } catch (e) { setError((e as Error).message); } };
   const remove = async () => { if (confirm(`Remove the price of ${p.original}?`)) { await del(`/api/model-prices/${encodeURIComponent(p.original!)}`); onSaved(); } };
   return (
     <Modal title={p.original ? `Price of ${p.original}` : "Add a model price"} onClose={onClose}
-      footer={<>{p.original && <button className="btn danger" onClick={remove}>Remove</button>}<span className="spacer" /><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Save</button></>}>
+      footer={<>{p.original && <Button variant="destructive" onClick={remove}>Remove</Button>}<FooterGap /><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save}>Save</Button></>}>
       <Field label="Model id" hint="Exactly as the provider names it. A dated snapshot (…-20251001) uses the undated price.">
-        <NoFillInput className="mono" value={f.model} onChange={(e) => set("model", e.target.value)} placeholder="claude-sonnet-5-5" />
+        <NoFillInput className="font-mono" value={f.model} onChange={(e) => set("model", e.target.value)} placeholder="claude-sonnet-5-5" />
       </Field>
-      <div className="grid2">{num("price_in", "Input $ / M")}{num("price_out", "Output $ / M")}{num("cache_read", "Cache read $ / M")}{num("cache_write", "Cache write $ / M")}</div>
-      <div className="grid2">
+      <div className="grid gap-4 sm:grid-cols-2">{num("price_in", "Input $ / M")}{num("price_out", "Output $ / M")}{num("cache_read", "Cache read $ / M")}{num("cache_write", "Cache write $ / M")}</div>
+      <div className="grid gap-4 sm:grid-cols-2">
         {num("long_threshold", "Long-prompt threshold (tokens, 0 = none)")}
         {num("long_multiplier", "Multiplier above it")}
       </div>
       <Field label="Note"><NoFillInput value={f.note} onChange={(e) => set("note", e.target.value)} placeholder="Where the price comes from" /></Field>
-      {error && <div className="error">{error}</div>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </Modal>
   );
 }
-
-// ---------- dates ----------
 
 function fillDays(daily: Usage["daily"], days: number) {
   const byDay = new Map(daily.map((d) => [d.day, d]));

@@ -1,5 +1,11 @@
 # Release notes
 
+## Unreleased
+
+### Changes
+- The web UI now uses shadcn/ui and Tailwind. Light mode is a clean white theme; dark mode keeps the green palette and is the default. A theme control in the sidebar (and on the sign-in screen) switches between them. The isometric office is unchanged.
+- Vite is 8.3.8 and `@vitejs/plugin-react` is 6.3.0. React stays on 19.3.1, the latest stable.
+
 ## 1.3.2 (2026-11-11)
 
 ### Changes

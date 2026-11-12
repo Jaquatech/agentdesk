@@ -15,7 +15,7 @@ npx tsc --noEmit -p server        # quick typecheck
 npx vitest run --root server test/scrum.test.ts   # one test file
 ```
 
-Node >= 22.13 (uses the built-in `node:sqlite`). Plain CSS tokens in `web/src/styles.css`, no UI framework; icons from lucide-react.
+Node >= 22.13 (uses the built-in `node:sqlite`). The UI is shadcn/ui on Tailwind (Vite, not Next.js): components in `web/src/components/ui/`, theme tokens in `web/src/styles.css` (white light theme, green dark theme, class `dark` on `<html>`, default dark). Icons from lucide-react. The isometric office (`web/src/office/`) is canvas drawing and is not part of that system; its chrome CSS is hardcoded at the bottom of `styles.css` so Tailwind does not restyle it.
 
 ## Code map
 
