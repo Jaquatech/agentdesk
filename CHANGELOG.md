@@ -1,10 +1,5 @@
 # Release notes
 
-## Unreleased
-
-### Fixes
-- **Release notes now appear in Documents.** Each sprint's release notes are a page under the project's Release notes section, created when the notes are written and refreshed when they are written again. Sprints released before this version get their page the next time the server starts. Editing the page edits the sprint's release notes.
-
 ## 1.4.0 (2026-11-12)
 
 ### Changes
@@ -15,6 +10,9 @@
 - Documents is a wiki. **General** holds Coding guidelines, Choosing AI models, and Development cycle. Each project has Overview, Architecture, Decisions, Road map, Release notes, Setup, and a page per task. A task page stays in step with the task's spec, summary, and review. Pages can link to each other. The planner and a developer read that project's pages and can update them. General pages stay free of project names. Upload is not in this version.
 - Opening another page in Documents no longer jumps the list back to the top. A refresh of the page you are reading keeps your place.
 - Vite is 8.3.8 and `@vitejs/plugin-react` is 6.3.0. React stays on 19.3.1, the latest stable.
+
+### Fixes
+- **Release notes now appear in Documents.** Each sprint's release notes are a page under the project's Release notes section, created when the notes are written and refreshed when they are written again. Sprints released before this version get their page the next time the server starts. Editing the page edits the sprint's release notes.
 
 ## 1.3.2 (2026-11-11)
 
