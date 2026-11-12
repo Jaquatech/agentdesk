@@ -5,7 +5,7 @@ import { LoginPage } from "./pages/LoginPage.tsx";
 import { ChatPage } from "./pages/ChatPage.tsx";
 import { AgentsPage } from "./pages/AgentsPage.tsx";
 import { TeamsPage } from "./pages/TeamsPage.tsx";
-import { GuidesPage } from "./pages/GuidesPage.tsx";
+import { DocumentsPage } from "./pages/DocumentsPage.tsx";
 import { ProvidersPage } from "./pages/ProvidersPage.tsx";
 import { ProjectsPage } from "./pages/ProjectsPage.tsx";
 import { SettingsPage } from "./pages/SettingsPage.tsx";
@@ -176,7 +176,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
                 {nav("teams", "Teams", Users)}
                 {nav("agents", "Agents", Bot)}
                 {nav("providers", "Providers & keys", KeyRound)}
-                {nav("guides", "Guides", BookOpen)}
+                {nav("documents", "Documents", BookOpen)}
                 {nav("usage", "Usage & billing", BarChart3)}
                 {nav("projects", "Projects", FolderGit2)}
                 {nav("settings", "Settings", Settings)}
@@ -219,7 +219,8 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
             : route.page === "tasks" ? <TasksBoard key={`${route.group}-${route.task}`} group={route.group} task={route.task} />
             : route.page === "office" ? <OfficePage />
             : route.page === "teams" ? <TeamsPage />
-            : route.page === "guides" || route.page === "models" ? <GuidesPage tab={route.page === "models" ? "models" : route.tab} />
+            : route.page === "documents" ? <DocumentsPage key={`${route.id ?? ""}-${route.tab ?? ""}`} id={route.id} builtin={route.tab} />
+            : route.page === "guides" || route.page === "models" ? <DocumentsPage builtin={route.page === "models" || route.tab === "models" ? "models" : "cycle"} />
             : route.page === "agents" ? <AgentsPage />
             : route.page === "providers" ? <ProvidersPage />
             : route.page === "projects" ? <ProjectsPage openNew={route.id === undefined && location.hash.includes("new")} onChanged={reload} />

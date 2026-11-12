@@ -175,7 +175,9 @@ For a quick look without any keys, use `npm run demo`: any provider works there,
 
 Development: `npm run dev` (server with reload on 4317, Vite on 5173 with `/api` proxied). Tests: `npm test`.
 
-The interface is a Vite + React app styled with [shadcn/ui](https://ui.shadcn.com) and Tailwind. Light mode is white; dark mode (the default) uses the green palette. Switch them from the sidebar. The office view is drawn on a canvas and is separate from that component system.
+The interface is a Vite + React app styled with [shadcn/ui](https://ui.shadcn.com) and Tailwind (stone surfaces, amber accents). Dark mode is the default; switch to the light theme from the sidebar. The office view is drawn on a canvas and is separate from that component system.
+
+**Documents** (sidebar) is a small wiki in the local database. Shared pages have no project; the development-cycle guide and the model guide live there. A project page belongs to one project. Add one with **New page**.
 
 ## How a task runs
 
@@ -397,7 +399,7 @@ Bugs and ideas: open an issue at https://github.com/Jaquatech/agentdesk/issues.
 | Scrum: backlog, refinement, sprints, release, usage | `server/src/scrum.ts`, `web/src/pages/ScrumPage.tsx`; sprint branches in `server/src/orchestrator/git.ts` |
 | Agent gallery (ready-made agents) | `server/src/gallery.ts` |
 | Model guide and per-job recommendations | `server/src/modelGuide.ts`, `web/src/pages/ModelGuidePage.tsx`, `web/src/components/ModelAdvice.tsx` |
-| Guides menu (development cycle, choosing models) | `web/src/pages/GuidesPage.tsx` |
+| Documents (shared guides and project pages, in the database) | `server/src/documents.ts`, `web/src/pages/DocumentsPage.tsx` |
 | UI pages | `web/src/pages/` (shadcn/ui + Tailwind; theme in `web/src/styles.css`) |
 | Office scene (drawn in code, no image assets) | `web/src/office/` |
 

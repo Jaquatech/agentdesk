@@ -66,7 +66,7 @@ export function ModelAdvice({ kind, models, role, context, value, onPick }: {
             ))}
           </span>
         )}
-        <a href="#/guides?tab=models" className="ml-auto text-xs text-muted-foreground">Model guide</a>
+        <a href="#/documents?tab=models" className="ml-auto text-xs text-muted-foreground">Model guide</a>
       </div>
       {answer.limited && answer.rows.length > 0 && <p className="text-xs text-muted-foreground">Nothing from this provider is rated good for this job. The least bad are shown.</p>}
       {!answer.rows.length && <p className="text-xs text-muted-foreground">No model from this provider suits this job (for planning and review, small local models are too weak). Pick another provider, or a larger model.</p>}

@@ -23,7 +23,7 @@ export function Modal({ title, onClose, children, footer, wide }: {
 }) {
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className={cn("max-h-[92vh] overflow-auto sm:max-w-xl", wide && "sm:max-w-4xl")}>
+      <DialogContent className={cn("max-h-[92vh] overflow-auto sm:max-w-[calc(36rem+100px)]", wide && "sm:max-w-[calc(56rem+100px)]")}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

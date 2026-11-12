@@ -15,7 +15,7 @@ npx tsc --noEmit -p server        # quick typecheck
 npx vitest run --root server test/scrum.test.ts   # one test file
 ```
 
-Node >= 22.13 (uses the built-in `node:sqlite`). The UI is shadcn/ui on Tailwind (Vite, not Next.js): components in `web/src/components/ui/`, theme tokens in `web/src/styles.css` (white light theme, green dark theme, class `dark` on `<html>`, default dark). Icons from lucide-react. The isometric office (`web/src/office/`) is canvas drawing and is not part of that system; its chrome CSS is hardcoded at the bottom of `styles.css` so Tailwind does not restyle it.
+Node >= 22.13 (uses the built-in `node:sqlite`). The UI is shadcn/ui on Tailwind (Vite, not Next.js): components in `web/src/components/ui/`, theme tokens in `web/src/styles.css` from preset `b1a09SuFE` (stone, amber, blue charts, Roboto; class `dark` on `<html>`, default dark). Icons from lucide-react. The isometric office (`web/src/office/`) is canvas drawing and is not part of that system; its chrome CSS is hardcoded at the bottom of `styles.css` so Tailwind does not restyle it.
 
 ## Code map
 
@@ -34,7 +34,8 @@ Node >= 22.13 (uses the built-in `node:sqlite`). The UI is shadcn/ui on Tailwind
 | Spending limits (per day, per sprint) | `server/src/budget.ts` |
 | Usage and prices | `server/src/usage.ts`, `pricing.ts` |
 | Live events to the UI (SSE) | `server/src/bus.ts` |
-| UI pages | `web/src/pages/` (Guides, Scrum, Teams, Agents, Chat, Settings, ...) |
+| UI pages | `web/src/pages/` (Documents, Scrum, Teams, Agents, Chat, Settings, ...) |
+| Documents (wiki pages in SQLite) | `server/src/documents.ts`, `web/src/pages/DocumentsPage.tsx` |
 
 ## How the pieces fit
 

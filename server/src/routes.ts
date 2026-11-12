@@ -287,6 +287,51 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     db.prepare("DELETE FROM project_journal WHERE id = ?").run(id((req.params as Body).id));
     return { ok: true };
   });
+
+  // ---------- documents (wiki pages in the database, not files on disk) ----------
+  const docRow = `SELECT d.id, d.title, d.body, d.kind, d.project_id, d.builtin, d.created_at, d.updated_at, p.name AS project_name
+    FROM documents d LEFT JOIN projects p ON p.id = d.project_id`;
+  app.get("/api/documents", async () =>
+    db.prepare(`${docRow} ORDER BY d.kind, COALESCE(p.name, ''), d.title`).all());
+  app.get("/api/documents/:id", async (req, reply) => {
+    const row = db.prepare(`${docRow} WHERE d.id = ?`).get(id((req.params as Body).id));
+    if (!row) return bad(reply, "No such document", 404);
+    return row;
+  });
+  app.post("/api/documents", async (req, reply) => {
+    const body = req.body as Body;
+    const title = String(body.title ?? "").trim();
+    const text = String(body.body ?? "");
+    if (!title) return bad(reply, "Title is required");
+    const projectId = body.project_id ? id(body.project_id) : null;
+    if (projectId && !db.prepare("SELECT id FROM projects WHERE id = ?").get(projectId)) return bad(reply, "No such project", 404);
+    const kind = projectId ? "project" : "generic";
+    try {
+      const info = db.prepare("INSERT INTO documents (project_id, title, body, kind) VALUES (?, ?, ?, ?)")
+        .run(projectId, title, text, kind);
+      return db.prepare(`${docRow} WHERE d.id = ?`).get(Number(info.lastInsertRowid));
+    } catch (err) { return sqlError(reply, err); }
+  });
+  app.put("/api/documents/:id", async (req, reply) => {
+    const docId = id((req.params as Body).id);
+    const existing = db.prepare("SELECT id, builtin, project_id FROM documents WHERE id = ?").get(docId) as { builtin: string | null; project_id: number | null } | undefined;
+    if (!existing) return bad(reply, "No such document", 404);
+    const body = req.body as Body;
+    const title = String(body.title ?? "").trim();
+    if (!title) return bad(reply, "Title is required");
+    // A builtin page stays generic. A project page stays on its project. Kind is not rewritten here.
+    db.prepare("UPDATE documents SET title = ?, body = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(title, String(body.body ?? ""), docId);
+    return db.prepare(`${docRow} WHERE d.id = ?`).get(docId);
+  });
+  app.delete("/api/documents/:id", async (req, reply) => {
+    const docId = id((req.params as Body).id);
+    const existing = db.prepare("SELECT builtin FROM documents WHERE id = ?").get(docId) as { builtin: string | null } | undefined;
+    if (!existing) return bad(reply, "No such document", 404);
+    if (existing.builtin) return bad(reply, "This guide stays in Documents");
+    db.prepare("DELETE FROM documents WHERE id = ?").run(docId);
+    return { ok: true };
+  });
   app.post("/api/projects/check-path", async (req) => {
     const { path } = req.body as Body;
     const p = String(path ?? "");
