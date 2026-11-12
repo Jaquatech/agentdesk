@@ -371,6 +371,20 @@ const MIGRATIONS: string[] = [
   );
   CREATE UNIQUE INDEX idx_documents_builtin ON documents(builtin) WHERE builtin IS NOT NULL;
   `,
+  // Wiki structure: a section inside a project, a single standard page (slot), or the page of one task.
+  `
+  ALTER TABLE documents ADD COLUMN section TEXT NOT NULL DEFAULT '';
+  ALTER TABLE documents ADD COLUMN slot TEXT NOT NULL DEFAULT '';
+  ALTER TABLE documents ADD COLUMN task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE;
+  CREATE UNIQUE INDEX idx_documents_slot ON documents(project_id, slot) WHERE slot != '';
+  CREATE UNIQUE INDEX idx_documents_task ON documents(task_id) WHERE task_id IS NOT NULL;
+  CREATE TABLE document_links (
+    from_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    to_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    PRIMARY KEY (from_id, to_id),
+    CHECK (from_id != to_id)
+  );
+  `,
 ];
 
 export function openDb(file: string): DB {

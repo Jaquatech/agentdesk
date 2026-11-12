@@ -18,6 +18,7 @@ import { commandProblem, envFileCandidates, folderOnDisk, suggestSetup, suggestV
 import { validEnvFileName } from "./orchestrator/envFile.ts";
 import { blockingTask } from "./orchestrator/overlap.ts";
 import { taskToMarkdown } from "./taskExport.ts";
+import { applyTaskPage, ensureProjectPages, refreshLinks, syncTaskPage } from "./documents.ts";
 import { appVersion } from "./version.ts";
 
 type Body = Record<string, any>;
@@ -228,6 +229,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       const info = db.prepare(`INSERT INTO projects (name, source, path, repo_url, base_branch, shell, setup, verify, allowed_paths, context, team_id, planner_id, checks_env_file, checks_env_target)
         VALUES (@name, @source, @path, @repo_url, @base_branch, @shell, @setup, @verify, @allowed_paths, @context, @team_id, @planner_id, @checks_env_file, @checks_env_target)`).run(f);
       processFields(Number(info.lastInsertRowid), req.body as Body);
+      ensureProjectPages(db, Number(info.lastInsertRowid));
       return { id: Number(info.lastInsertRowid) };
     } catch (err) { return sqlError(reply, err); }
   });
@@ -289,14 +291,16 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
   });
 
   // ---------- documents (wiki pages in the database, not files on disk) ----------
-  const docRow = `SELECT d.id, d.title, d.body, d.kind, d.project_id, d.builtin, d.created_at, d.updated_at, p.name AS project_name
+  const docRow = `SELECT d.id, d.title, d.body, d.kind, d.project_id, d.builtin, d.section, d.slot, d.task_id, d.created_at, d.updated_at, p.name AS project_name
     FROM documents d LEFT JOIN projects p ON p.id = d.project_id`;
   app.get("/api/documents", async () =>
     db.prepare(`${docRow} ORDER BY d.kind, COALESCE(p.name, ''), d.title`).all());
   app.get("/api/documents/:id", async (req, reply) => {
     const row = db.prepare(`${docRow} WHERE d.id = ?`).get(id((req.params as Body).id));
     if (!row) return bad(reply, "No such document", 404);
-    return row;
+    const links = db.prepare(`SELECT d.id, d.title FROM document_links l JOIN documents d ON d.id = l.to_id WHERE l.from_id = ? ORDER BY d.title`).all((row as { id: number }).id);
+    const backlinks = db.prepare(`SELECT d.id, d.title FROM document_links l JOIN documents d ON d.id = l.from_id WHERE l.to_id = ? ORDER BY d.title`).all((row as { id: number }).id);
+    return { ...row as object, links, backlinks };
   });
   app.post("/api/documents", async (req, reply) => {
     const body = req.body as Body;
@@ -305,23 +309,36 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     if (!title) return bad(reply, "Title is required");
     const projectId = body.project_id ? id(body.project_id) : null;
     if (projectId && !db.prepare("SELECT id FROM projects WHERE id = ?").get(projectId)) return bad(reply, "No such project", 404);
+    const section = String(body.section ?? "").trim();
+    if (section === "tasks") return bad(reply, "Task pages are created with the task");
+    if (["overview", "architecture", "roadmap", "setup"].includes(section)) return bad(reply, "That page already exists. Edit it.");
+    if (section && section !== "decisions" && section !== "releases") return bad(reply, "Unknown section");
+    if (section && !projectId) return bad(reply, "A section belongs to a project");
     const kind = projectId ? "project" : "generic";
     try {
-      const info = db.prepare("INSERT INTO documents (project_id, title, body, kind) VALUES (?, ?, ?, ?)")
-        .run(projectId, title, text, kind);
-      return db.prepare(`${docRow} WHERE d.id = ?`).get(Number(info.lastInsertRowid));
+      const info = db.prepare("INSERT INTO documents (project_id, title, body, kind, section) VALUES (?, ?, ?, ?, ?)")
+        .run(projectId, title, text, kind, section);
+      const docId = Number(info.lastInsertRowid);
+      refreshLinks(db, docId, text);
+      return db.prepare(`${docRow} WHERE d.id = ?`).get(docId);
     } catch (err) { return sqlError(reply, err); }
   });
   app.put("/api/documents/:id", async (req, reply) => {
     const docId = id((req.params as Body).id);
-    const existing = db.prepare("SELECT id, builtin, project_id FROM documents WHERE id = ?").get(docId) as { builtin: string | null; project_id: number | null } | undefined;
+    const existing = db.prepare("SELECT id, builtin, project_id, task_id FROM documents WHERE id = ?").get(docId) as { builtin: string | null; project_id: number | null; task_id: number | null } | undefined;
     if (!existing) return bad(reply, "No such document", 404);
     const body = req.body as Body;
     const title = String(body.title ?? "").trim();
+    const text = String(body.body ?? "");
     if (!title) return bad(reply, "Title is required");
-    // A builtin page stays generic. A project page stays on its project. Kind is not rewritten here.
-    db.prepare("UPDATE documents SET title = ?, body = ?, updated_at = datetime('now') WHERE id = ?")
-      .run(title, String(body.body ?? ""), docId);
+    if (existing.builtin && existing.project_id) return bad(reply, "A general guide has no project");
+    db.prepare("UPDATE documents SET title = ?, body = ?, updated_at = datetime('now') WHERE id = ?").run(title, text, docId);
+    refreshLinks(db, docId, text);
+    if (existing.task_id) {
+      applyTaskPage(db, existing.task_id, title, text);
+      const updated = { ...orch.task(existing.task_id), document_id: docId };
+      bus.publish({ type: "task", chatId: updated.chat_id, task: updated });
+    }
     return db.prepare(`${docRow} WHERE d.id = ?`).get(docId);
   });
   app.delete("/api/documents/:id", async (req, reply) => {
@@ -329,6 +346,8 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     const existing = db.prepare("SELECT builtin FROM documents WHERE id = ?").get(docId) as { builtin: string | null } | undefined;
     if (!existing) return bad(reply, "No such document", 404);
     if (existing.builtin) return bad(reply, "This guide stays in Documents");
+    const locked = db.prepare("SELECT slot, task_id FROM documents WHERE id = ?").get(docId) as { slot: string; task_id: number | null };
+    if (locked.slot || locked.task_id) return bad(reply, "This page stays with the project");
     db.prepare("DELETE FROM documents WHERE id = ?").run(docId);
     return { ok: true };
   });
@@ -429,13 +448,14 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       where.push(clause);
     }
     return db.prepare(`SELECT t.*, c.title AS chat_title, p.name AS project_name,
+      (SELECT d.id FROM documents d WHERE d.task_id = t.id) AS document_id,
       (SELECT s.number FROM sprints s WHERE s.id = t.sprint_id) AS sprint_number, (SELECT s.status FROM sprints s WHERE s.id = t.sprint_id) AS sprint_status FROM tasks t
       JOIN chats c ON c.id = t.chat_id JOIN projects p ON p.id = t.project_id
       ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY t.updated_at DESC LIMIT 200`).all(...args);
   });
   app.get("/api/tasks/:id", async (req, reply) => {
     const taskId = id((req.params as Body).id);
-    const task = db.prepare(`SELECT t.*, (SELECT s.number FROM sprints s WHERE s.id = t.sprint_id) AS sprint_number, (SELECT s.status FROM sprints s WHERE s.id = t.sprint_id) AS sprint_status FROM tasks t WHERE t.id = ?`).get(taskId);
+    const task = db.prepare(`SELECT t.*, (SELECT d.id FROM documents d WHERE d.task_id = t.id) AS document_id, (SELECT s.number FROM sprints s WHERE s.id = t.sprint_id) AS sprint_number, (SELECT s.status FROM sprints s WHERE s.id = t.sprint_id) AS sprint_status FROM tasks t WHERE t.id = ?`).get(taskId);
     if (!task) return bad(reply, "Not found", 404);
     // A queued sprint task that waits for another one (same files): who, so the task can say why it has not started.
     let waiting_for: { id: number; title: string; status: string; worker: string } | null = null;
@@ -485,7 +505,9 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     db.prepare("UPDATE tasks SET title = ?, spec = ?, paths = ?, worker_id = ? WHERE id = ?")
       .run(String(b.title ?? t.title), String(b.spec ?? t.spec), JSON.stringify(lines(b.paths ?? json.parse(t.paths, []))),
         b.worker_id ? id(b.worker_id) : t.worker_id, taskId);
-    const updated = orch.task(taskId);
+    syncTaskPage(db, taskId);
+    const page = db.prepare("SELECT id FROM documents WHERE task_id = ?").get(taskId) as { id: number } | undefined;
+    const updated = { ...orch.task(taskId), document_id: page?.id ?? null };
     bus.publish({ type: "task", chatId: updated.chat_id, task: updated });
     return updated;
   });

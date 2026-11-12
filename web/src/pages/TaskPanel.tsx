@@ -218,6 +218,7 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
           <span>Checks <a href="#/tasks" title="Show the checks" onClick={(e) => { e.preventDefault(); document.getElementById("task-checks")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }}><b className={v.tone === "bad" ? "text-destructive" : v.tone === "good" ? "text-success" : "text-foreground"}>{v.summary}</b></a></span>
         ); })()}
         {task.sprint_id ? <span>Sprint <a href={`#/scrum/${task.project_id}?tab=${task.sprint_status === "released" ? "releases" : "current"}&sprint=${task.sprint_id}`}><b>{task.sprint_number}</b>{task.sprint_status === "released" ? " · release" : ""} →</a></span> : null}
+        {task.document_id ? <span>Wiki <a href={`#/documents/${task.document_id}`}><b>{task.title}</b> →</a></span> : null}
         {paths.length > 0 && <span>Paths <b className="font-mono font-medium text-foreground">{paths.join(" ")}</b></span>}
       </div>
       <div className="flex flex-wrap items-center gap-2">

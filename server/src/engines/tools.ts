@@ -16,6 +16,8 @@ export type ToolContext = {
   signal?: AbortSignal;
   /** Asks the user about a command outside the allowed list; without it such commands are refused. */
   ask?: (command: string) => Promise<{ allowed: boolean; by?: string }>;
+  /** Updates one project wiki page. Absent = write_wiki is refused. */
+  writeWiki?: (page: { title: string; section: string; body: string }) => string;
 };
 
 export type ToolOutcome = { content: string; isError?: boolean; activity: AgentState; detail: string };
@@ -64,6 +66,19 @@ export const WRITE_TOOLS: ToolDef[] = [
     },
   },
 ];
+
+export const WIKI_TOOL: ToolDef = {
+  name: "write_wiki",
+  description: "Create or update a page in this project's wiki. overview, architecture, roadmap and setup replace that one page. decisions and releases are one page per title. General pages cannot be changed.",
+  input_schema: {
+    type: "object", required: ["title", "section", "body"],
+    properties: {
+      title: { type: "string" },
+      section: { type: "string", description: "overview, architecture, roadmap, setup, decisions, or releases" },
+      body: { type: "string", description: "Markdown for the whole page" },
+    },
+  },
+};
 
 export const FINISH_TOOL: ToolDef = {
   name: "finish",
@@ -163,6 +178,11 @@ export async function runTool(name: string, input: Record<string, any>, ctx: Too
         if (count !== 1) throw new Error(`old_text matches ${count} times; it must match exactly once`);
         writeFileSync(file, text.replace(String(input.old_text), () => String(input.new_text)), "utf8");
         return { content: `Edited ${input.path}`, activity: "typing", detail: `edit ${input.path}` };
+      }
+      case "write_wiki": {
+        if (!ctx.canWrite || !ctx.writeWiki) throw new Error("This agent cannot edit the wiki");
+        const content = ctx.writeWiki({ title: String(input.title ?? ""), section: String(input.section ?? ""), body: String(input.body ?? "") });
+        return { content, activity: "typing", detail: `wiki ${String(input.title ?? "").slice(0, 40)}` };
       }
       case "run_command": {
         const command = String(input.command ?? "");

@@ -20,6 +20,7 @@ import { blockingTask, isStuck, waitKey } from "./overlap.ts";
 import { setupProblem } from "../verifyHelp.ts";
 import { DEFAULT_WORKER_TOOLS } from "../engines/types.ts";
 import { PLAN_TOOL, REVIEW_TOOL, NOTES_TOOL, ROLE_TEMPLATES, buildWorkerPrompt, buildReviewPrompt } from "./prompts.ts";
+import { applyWikiWrites, projectWikiContext, syncTaskPage } from "../documents.ts";
 
 export type TaskRow = {
   id: number; chat_id: number; project_id: number; message_id: number | null; slug: string; title: string;
@@ -108,7 +109,11 @@ export class Orchestrator {
       this.db.prepare(`UPDATE tasks SET ${keys.map((k) => `${k} = @${k}`).join(", ")}, updated_at = datetime('now') WHERE id = @id`)
         .run({ ...fields, id });
     }
+    const watch = ["title", "spec", "summary", "review", "verdict"];
+    if (!this.db.prepare("SELECT id FROM documents WHERE task_id = ?").get(id) || keys.some((k) => watch.includes(k))) syncTaskPage(this.db, id);
     const t = this.task(id);
+    const page = this.db.prepare("SELECT id FROM documents WHERE task_id = ?").get(id) as { id: number } | undefined;
+    (t as TaskRow & { document_id?: number | null }).document_id = page?.id ?? null;
     bus.publish({ type: "task", chatId: t.chat_id, task: t });
     return t;
   }
@@ -177,6 +182,7 @@ export class Orchestrator {
     const system = [
       o.agent.context || ROLE_TEMPLATES[o.agent.role],
       project?.context ? `# Project notes\n${project.context}` : "",
+      project ? projectWikiContext(this.db, project.id) : "",
     ].filter(Boolean).join("\n\n");
     const runId = this.startRun({
       taskId: o.taskId, chatId: o.chatId, projectId: o.projectId ?? project?.id, sprintId: o.sprintId, itemId: o.itemId, agent: o.agent, kind: o.kind,
@@ -194,6 +200,10 @@ export class Orchestrator {
         onStep: (entry) => this.step(runId, o.taskId, entry),
         askApproval: o.agent.ask_approval === 0 ? undefined
           : (q) => this.askUser({ ...q, runId, taskId: o.taskId, chatId: o.chatId, agent: o.agent, signal: o.signal }),
+        writeWiki: project && o.mode === "write" ? (page) => {
+          const n = applyWikiWrites(this.db, project.id, [page]);
+          return n ? `Updated ${page.section || "page"} “${page.title}”.` : "No project page was changed. Use a project section, not a General page.";
+        } : undefined,
       });
       this.endRun(runId, result, lines);
       if (o.taskId) {
@@ -286,7 +296,10 @@ If the user asks to merge finished work, do not write tasks for it: put the slug
 (they then get a Merge button). Approved tasks: ${tasks.filter((t) => t.status === "approved").map((t) => t.slug).join(", ") || "none"}.
 If the user asks to run earlier tasks again, put them in \`retry\` (any chat of this project; set \`worker\` to hand one to another
 developer) instead of writing new tasks. Retryable: ${tasks.filter((t) => RETRYABLE.includes(t.status)).map((t) => t.slug).join(", ") || "none"}.
-Add to \`journal\` only what a later chat must know (a decision, a finding, why something failed); usually nothing.`;
+Add to \`journal\` only what a later chat must know (a decision, a finding, why something failed); usually nothing.
+You may update this project's wiki with \`wiki\`: each item has a title, a section (overview, architecture, roadmap, setup, decisions, releases) and a markdown body.
+overview, architecture, roadmap and setup replace that one page. decisions and releases add a page, or replace the one with the same title.
+Do not put this project's name, its data, or a customer name into General pages. You cannot edit those from here.`;
 
       const result = await this.callAgent({ agent: planner, kind: "plan", chatId, cwd: project.path, prompt, mode: "read", output: PLAN_TOOL, attachments });
       if (!result.ok || !result.output) {
@@ -310,6 +323,8 @@ Add to \`journal\` only what a later chat must know (a decision, a finding, why 
       for (const n of notes) {
         this.db.prepare("INSERT INTO project_journal (project_id, chat_id, agent_id, text) VALUES (?, ?, ?, ?)").run(chat.project_id, chatId, planner.id, n);
       }
+      const wiki = Array.isArray(result.output.wiki) ? result.output.wiki as { title?: string; section?: string; body?: string }[] : [];
+      if (wiki.length) applyWikiWrites(this.db, chat.project_id, wiki);
       const msg = this.postMessage(chatId, "assistant", plan.reply, planner.id,
         plan.tasks.length || merge.length || retry.length || notes.length ? { ...plan, merge_ids: merge, retry, journal: notes } : undefined);
       for (const t of plan.tasks) {

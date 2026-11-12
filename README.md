@@ -177,7 +177,7 @@ Development: `npm run dev` (server with reload on 4317, Vite on 5173 with `/api`
 
 The interface is a Vite + React app styled with [shadcn/ui](https://ui.shadcn.com) and Tailwind (stone surfaces, amber accents). Dark mode is the default; switch to the light theme from the sidebar. The office view is drawn on a canvas and is separate from that component system.
 
-**Documents** (sidebar) is a small wiki in the local database. Shared pages have no project; the development-cycle guide and the model guide live there. A project page belongs to one project. Add one with **New page**.
+**Documents** (sidebar) is a wiki in the local database. **General** holds the shared guides (coding guidelines, the model guide, the development cycle) and stays free of any one project's name. Each project has Overview, Architecture, Decisions, a Road map, Release notes, Setup, and a page for every task. The task page and the task stay linked: the spec, the developer's summary, and the review match on both. **New page** files a page under General or under a project section. Old `#/guides` and `#/models` addresses still open the matching guide.
 
 ## How a task runs
 
