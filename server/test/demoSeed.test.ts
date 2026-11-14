@@ -14,7 +14,10 @@ describe("demo seed", () => {
     expect(count("agents")).toBe(4);
     expect(count("team_members")).toBe(4);
     expect(ctx.db.prepare("SELECT process, team_id FROM projects").get()).toMatchObject({ process: "scrum" });
-    expect(count("backlog_items")).toBe(3);
+    expect(count("backlog_items")).toBe(5);
+    expect(count("sprints")).toBe(2);
+    expect(count("tasks")).toBe(2);
+    expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM documents WHERE section IN ('releases', 'tasks') AND project_id IS NOT NULL").get()).toMatchObject({ n: 3 });
     expect(seedDemo(ctx.db, dataDir)).toBe(false);
     expect(count("agents")).toBe(4);
     await ctx.app.close();
