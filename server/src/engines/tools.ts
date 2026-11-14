@@ -125,6 +125,7 @@ export function commandAllowed(command: string, prefixes: string[]): boolean {
   return parts.length > 0 && parts.every((part) => prefixes.some((p) => part === p || part.startsWith(p + " ")));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- model-supplied JSON, each tool validates the fields it reads
 export async function runTool(name: string, input: Record<string, any>, ctx: ToolContext): Promise<ToolOutcome> {
   try {
     switch (name) {

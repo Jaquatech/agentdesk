@@ -304,7 +304,8 @@ function ActionCard({ kind, items, agents }: { kind: "merge" | "retry"; items: {
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Record<number, string>>({});
   const ids = items.map((i) => i.id);
-  useEffect(() => { get<Task[]>(`/api/tasks?ids=${ids.join(",")}`).then(setTasks); }, [ids.join(",")]);
+  const idKey = ids.join(",");
+  useEffect(() => { get<Task[]>(`/api/tasks?ids=${idKey}`).then(setTasks); }, [idKey]);
   useLiveEvents((ev) => { if (ev.type === "task" && ids.includes(ev.task.id)) setTasks((l) => l.map((t) => (t.id === ev.task.id ? ev.task : t))); });
 
   const RETRYABLE = ["failed", "needs_attention", "interrupted", "cancelled"];

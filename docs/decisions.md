@@ -17,7 +17,7 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 
 ## Known and open
 
-- 149 lint warnings from before the rules (cap 149 in `package.json`): about 110 `any` (most in the tests' JSON fixtures, the rest at the database, JSON-body and model-output edges), 16 hook dependency lists, 1 state set inside an effect (Providers form, loads on open), 3 ref read during render. Fix them page by page when touching it, and lower the cap. The accessibility rules (jsx-a11y) have no warnings left.
+- Lint has no warnings left and the cap in `package.json` is 0, so a new warning fails CI. `any` is allowed in test files only (parsed JSON and loose fixtures). In `src` three places keep `any` on purpose, each with a comment saying why: the database rows (`db.ts`), request bodies (`Body` in routes, teams and Scrum) and the tool input from the model (`runTool`). Hook rules: effects keyed on a computed string or a caller's list carry a comment saying why.
 
 - `pages/scrum/Sprints.tsx` is about 280 lines and holds four views (PI, sprint, task, plan); split it if it grows.
 - Browser checks (`e2e/`, Playwright, run by CI) cover page loads, the seeded data, one keyboard flow, the sprint flow end to end (approval, merge, release) and an automated accessibility scan (axe, WCAG 2.0/2.1 A and AA) of every page in both themes. The scan sees only a part of the problems. Besides every page it opens nine states (project, agent, provider, team and backlog-item dialogs, the agent gallery, a task needing attention, the chat). Not scanned yet: forms showing validation errors, open dropdowns and the approval banner. Still to add: those, and more flows (approvals, Merge, release).

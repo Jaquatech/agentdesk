@@ -104,6 +104,7 @@ function ProviderForm({ p, secrets, defaults, onClose, onSaved }: {
     } catch (e) { setTest({ ok: false, message: (e as Error).message }); }
   };
   const runTest = () => { setTest("…"); testNow(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect -- tests a saved provider once, when the form opens
   useEffect(() => { if (p.id) testNow(); }, []);
 
   const save = async () => {

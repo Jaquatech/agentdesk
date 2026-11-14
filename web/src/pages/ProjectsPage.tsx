@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FolderGit2, FolderOpen, Plus, ArrowUp, GitBranch, Sparkles } from "lucide-react";
 import { get, post, put, del, parseJson, type Agent, type Project, type Team } from "../api.ts";
 import { Field, FooterGap, Modal, ToneBadge } from "../components/ui.tsx";
@@ -225,6 +225,7 @@ type DirList = { path: string; parent: string | null; git?: boolean; dirs: { nam
 function FolderPicker({ start, onPick, onClose }: { start: string; onPick: (p: string) => void; onClose: () => void }) {
   const [list, setList] = useState<DirList | null>(null);
   const open = (path: string) => get<DirList>(`/api/fs/dirs?path=${encodeURIComponent(path)}`).then(setList);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- lists the start folder once, when the picker opens
   useEffect(() => { open(start); }, []);
   return (
     <Modal title="Choose a folder" onClose={onClose}
@@ -251,8 +252,8 @@ type JournalEntry = { id: number; text: string; created_at: string; chat: string
 function Journal({ projectId }: { projectId: number }) {
   const [rows, setRows] = useState<JournalEntry[]>([]);
   const [text, setText] = useState("");
-  const load = () => get<JournalEntry[]>(`/api/projects/${projectId}/journal`).then(setRows);
-  useEffect(() => { load(); }, [projectId]);
+  const load = useCallback(() => get<JournalEntry[]>(`/api/projects/${projectId}/journal`).then(setRows), [projectId]);
+  useEffect(() => { load(); }, [load]);
   const add = async () => { if (!text.trim()) return; await post(`/api/projects/${projectId}/journal`, { text }); setText(""); load(); };
   return (
     <div className="flex flex-col gap-2">

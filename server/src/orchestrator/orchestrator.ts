@@ -311,7 +311,7 @@ Do not put this project's name, its data, or a customer name into General pages.
       const merge = (Array.isArray(result.output.merge) ? result.output.merge.map(String) : [])
         .map((s) => bySlug.get(s)).filter((t): t is ProjectTask => !!t && t.status === "approved").map((t) => t.id);
       const retry = (Array.isArray(result.output.retry) ? result.output.retry : [])
-        .map((r: any) => ({ task: bySlug.get(String(typeof r === "string" ? r : r?.slug)), worker: typeof r === "object" && r?.worker ? String(r.worker) : undefined }))
+        .map((r: string | { slug?: unknown; worker?: unknown } | null) => ({ task: bySlug.get(String(typeof r === "string" ? r : r?.slug)), worker: typeof r === "object" && r?.worker ? String(r.worker) : undefined }))
         .filter((r) => r.task && RETRYABLE.includes(r.task.status))
         .map((r) => {
           const w = r.worker ? this.pickAgent("worker", { teamId, name: r.worker }) : undefined;
@@ -772,7 +772,7 @@ type PlanTask = { slug: string; title: string; spec: string; paths?: string[]; w
 
 export function normalizePlan(raw: Record<string, unknown>, existing: string[]): { reply: string; tasks: PlanTask[] } {
   const used = new Set(existing);
-  const tasks = (Array.isArray(raw.tasks) ? raw.tasks : []).slice(0, 12).map((t: any, i: number) => {
+  const tasks = (Array.isArray(raw.tasks) ? raw.tasks : []).slice(0, 12).map((t: Record<string, unknown>, i: number) => {
     let slug = String(t.slug || t.title || `task-${i + 1}`).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || `task-${i + 1}`;
     const base = slug;
     for (let n = 2; used.has(slug); n++) slug = `${base}-${n}`;

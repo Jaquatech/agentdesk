@@ -1,4 +1,6 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
+import type { AgentRow } from "./engines/types.ts";
+import type { ToolDef } from "./providers/types.ts";
 import { join } from "node:path";
 import type { DB } from "./db.ts";
 import { getSettings, json } from "./db.ts";
@@ -147,7 +149,7 @@ Answer briefly. Use the business owner's words.`;
         this.orch.postMessage(chatId, "event", `Product manager ${pm.name} failed: ${r.error ?? "no answer returned"}`, pm.id);
         return;
       }
-      const out = r.output as { reply?: unknown; items?: any[]; pi?: any; sprint?: any };
+      const out = r.output as { reply?: unknown; items?: Record<string, unknown>[]; pi?: Record<string, unknown>; sprint?: Record<string, unknown> };
       const made: string[] = [];
       if (out.pi?.name) { const pi = this.createPi(project.id, String(out.pi.name), String(out.pi.goal ?? "")); made.push(`PI **${pi.name}**`); }
       if (out.sprint?.name) { const s = this.createSprint(project.id, String(out.sprint.name), String(out.sprint.goal ?? "")); made.push(`sprint ${s.number} **${s.name}**`); }
@@ -203,7 +205,7 @@ ${items.map((i) => `- #${i.id} [${i.status}${i.points ? `, ${i.points} pts` : ""
 
   // ---------- backlog ----------
 
-  addItems(projectId: number, raw: any[], chatId?: number | null) {
+  addItems(projectId: number, raw: Record<string, unknown>[], chatId?: number | null) {
     const existing = (this.db.prepare("SELECT title FROM backlog_items WHERE project_id = ? AND status != 'dropped'").all(projectId) as { title: string }[]).map((r) => r.title.toLowerCase());
     const out: Item[] = [];
     for (const r of raw.slice(0, 10)) {
@@ -247,11 +249,11 @@ ${items.map((i) => `- #${i.id} [${i.status}${i.points ? `, ${i.points} pts` : ""
     const teamId = this.teamOf(project.id);
     const set = (f: Partial<Item>) => {
       const keys = Object.keys(f);
-      this.db.prepare(`UPDATE backlog_items SET ${keys.map((k) => `${k} = @${k}`).join(", ")}, updated_at = datetime('now') WHERE id = @id`).run({ ...f, id: itemId } as any);
+      this.db.prepare(`UPDATE backlog_items SET ${keys.map((k) => `${k} = @${k}`).join(", ")}, updated_at = datetime('now') WHERE id = @id`).run({ ...f, id: itemId });
       this.changed(project.id);
       item = this.item(itemId);
     };
-    const call = (agent: any, kind: string, prompt: string, output: any) =>
+    const call = (agent: AgentRow, kind: string, prompt: string, output: ToolDef) =>
       this.orch.callAgent({ agent, kind, chatId: item.chat_id && this.chatInProject(item.chat_id, project.id) ? item.chat_id : undefined, projectId: project.id, itemId, cwd: project.path, prompt, mode: "read", output });
     try {
       await ensureProjectCheckout(project);
@@ -266,7 +268,7 @@ ${item.request || item.title}
 
 Title so far: ${item.title}
 Write the user story and testable acceptance criteria for this one item in \`items\` (exactly one entry). No technical solution. Leave \`reply\` short.`, SCRUM_TOOL);
-        const draft = (r.output as any)?.items?.[0];
+        const draft = (r.output as { items?: Record<string, unknown>[] } | undefined)?.items?.[0];
         if (!r.ok || !draft?.story) throw new Error(`Product manager ${pm.name}: ${r.error ?? "no story returned"}`);
         set({ story: String(draft.story).slice(0, 4000), acceptance: String(draft.acceptance ?? "").slice(0, 4000) });
       }
@@ -316,9 +318,9 @@ ${item.tech_notes}
 
 Estimate the size in story points (relative effort for you, the developer): ${SIZES.join(", ")}. 1 = a trivial edit, 3 = a normal change,
 8 = a large one, 13 = too big for one task and must be split. Look at the code if you need to. Do not change anything.`, ESTIMATE_TOOL);
-        const points = Number((r.output as any)?.points);
+        const points = Number((r.output as { points?: unknown } | undefined)?.points);
         if (!r.ok || !SIZES.includes(points)) throw new Error(`${dev.name}: ${r.error ?? "no estimate returned"}`);
-        set({ points, ...(points === 13 ? { error: `Estimated 13 points: too big for one task. Split it into smaller items. ${String((r.output as any).reason ?? "")}`.trim() } : {}) });
+        set({ points, ...(points === 13 ? { error: `Estimated 13 points: too big for one task. Split it into smaller items. ${String((r.output as { reason?: unknown }).reason ?? "")}`.trim() } : {}) });
       }
       set({ status: "ready", step: "" });
       this.say(project.id, item.chat_id, `Backlog item **${item.title}** is ready: ${item.points} point${item.points === 1 ? "" : "s"}.${item.points === 13 ? " That is too big for a sprint task; split it." : " Set its priority on the Backlog page."}`);
@@ -341,7 +343,7 @@ Estimate the size in story points (relative effort for you, the developer): ${SI
     this.refine(itemId);
   }
 
-  updateItem(itemId: number, b: Record<string, any>) {
+  updateItem(itemId: number, b: Record<string, unknown>) {
     const i = this.item(itemId);
     if (["in_sprint", "done"].includes(i.status)) throw new Failure("This item is in a sprint; its text is fixed");
     const text = (k: keyof Item, max: number) => (b[k] === undefined ? i[k] : String(b[k]).slice(0, max));
@@ -354,7 +356,7 @@ Estimate the size in story points (relative effort for you, the developer): ${SI
     // Editing an estimate or the notes by hand makes a refining or errored item ready again when nothing is missing.
     this.db.prepare(`UPDATE backlog_items SET title = ?, story = ?, acceptance = ?, tech_notes = ?, points = ?, paths = ?, status = ?, error = ?, updated_at = datetime('now') WHERE id = ?`)
       .run(String(text("title", 120)).trim() || i.title, text("story", 4000), text("acceptance", 4000), text("tech_notes", 8000), points,
-        b.paths !== undefined ? JSON.stringify((Array.isArray(b.paths) ? b.paths : String(b.paths).split(/\r?\n/)).map((x: any) => String(x).trim()).filter(Boolean)) : i.paths,
+        b.paths !== undefined ? JSON.stringify((Array.isArray(b.paths) ? b.paths : String(b.paths).split(/\r?\n/)).map((x: unknown) => String(x).trim()).filter(Boolean)) : i.paths,
         dropped ? "dropped" : i.status, points === 13 ? i.error : points !== i.points ? "" : i.error, itemId);
     this.changed(i.project_id);
     return this.item(itemId);
@@ -671,12 +673,13 @@ Only state what the items and commits support.`,
 
 export function registerScrum(app: FastifyInstance, db: DB, scrum: Scrum) {
   const id = (v: unknown) => Number(v);
-  const run = async (reply: any, fn: () => unknown) => {
+  const run = async (reply: FastifyReply, fn: () => unknown) => {
     try { return await fn(); } catch (err) {
       const e = err as Error & { status?: number };
       return reply.code(e.status ?? 500).send({ error: e.message });
     }
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request JSON; each route reads and validates the fields it needs
   type Body = Record<string, any>;
 
   app.get("/api/projects/:id/scrum", async (req, reply) => run(reply, () => scrum.overview(id((req.params as Body).id))));

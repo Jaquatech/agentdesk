@@ -21,6 +21,7 @@ import { taskToMarkdown } from "./taskExport.ts";
 import { applyReleasePage, applyTaskPage, ensureProjectPages, refreshLinks, syncTaskPage } from "./documents.ts";
 import { appVersion } from "./version.ts";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- request JSON; each route reads and validates the fields it needs
 type Body = Record<string, any>;
 const id = (v: unknown) => Number(v);
 const bad = (reply: FastifyReply, error: string, code = 400) => reply.code(code).send({ error });
@@ -481,7 +482,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     const commands = json.parse<string[]>(project?.verify ?? "[]", []);
     const run = db.prepare("SELECT id, status, transcript FROM runs WHERE task_id = ? AND kind = 'checks' ORDER BY id DESC LIMIT 1")
       .get(taskId) as { id: number; status: string; transcript: string | null } | undefined;
-    const steps = (run ? (run.transcript ? json.parse<any[]>(run.transcript, []) : orch.liveTranscript(run.id) ?? []) : []) as
+    const steps = (run ? (run.transcript ? json.parse<unknown[]>(run.transcript, []) : orch.liveTranscript(run.id) ?? []) : []) as
       { input?: string; output?: string; isError?: boolean; ms?: number }[];
     return {
       run_id: run?.id ?? null,

@@ -21,7 +21,7 @@ const RUN_LABEL: Record<string, string> = {
 };
 
 function describe(e: Entry): string {
-  const i = (e.input ?? {}) as Record<string, any>;
+  const i = (e.input ?? {}) as Record<string, unknown>;
   const file = String(i.path ?? i.file_path ?? "").split(/[\\/]/).slice(-3).join("/");
   switch (e.tool) {
     case "read_file": case "Read": return `Read ${file}`;
@@ -135,7 +135,7 @@ export function TaskActivity({ taskId, runs, agentName, onNewRun }: {
   const [open, setOpen] = useState<Record<number, boolean>>({});
   const [showThinking, setShowThinking] = useState(false);
   const known = useRef(new Set<number>());
-  known.current = new Set(runs.map((r) => r.id));
+  useEffect(() => { known.current = new Set(runs.map((r) => r.id)); });
 
   useLiveEvents((ev) => {
     if (ev.type !== "step" || ev.taskId !== taskId) return;
@@ -157,6 +157,7 @@ export function TaskActivity({ taskId, runs, agentName, onNewRun }: {
         } else setLoaded((m) => ({ ...m, [r.id]: d.transcript }));
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on run ids and statuses and the open folds, not on every new array
   }, [runs.map((r) => `${r.id}:${r.status}`).join(","), JSON.stringify(open)]);
 
   const [openRound, setOpenRound] = useState<Record<number, boolean>>({});

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import { Plus, Rocket, ShieldCheck, Play, MessageSquare } from "lucide-react";
 import { get, post, put, del, useLiveEvents, type Agent, type Task } from "../../api.ts";
@@ -89,8 +89,8 @@ export function PiView({ tab, groups, data, agents, sel, setSel, reload, onNew }
 
 export function TaskPane({ id, agents, onAction, sprint, onBack }: { id: number; agents: Agent[]; onAction: () => void; sprint?: Sprint; onBack: (sprintId: number) => void }) {
   const [task, setTask] = useState<Task | null>(null);
-  const load = () => get<{ task: Task }>(`/api/tasks/${id}`).then((d) => setTask(d.task));
-  useEffect(() => { load(); }, [id]);
+  const load = useCallback(() => get<{ task: Task }>(`/api/tasks/${id}`).then((d) => setTask(d.task)), [id]);
+  useEffect(() => { load(); }, [load]);
   useLiveEvents((ev) => { if (ev.type === "task" && ev.task.id === id) setTask((t) => (t ? { ...t, ...ev.task } : t)); });
   if (!task) return <p className="p-6 text-sm text-muted-foreground">Loading…</p>;
   const name = (aid: number | null) => agents.find((a) => a.id === aid)?.name ?? "–";
@@ -213,9 +213,11 @@ function PlanPanel({ s, data, reload }: { s: Sprint; data: Overview; reload: () 
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const blocked = data.sprints.some((x) => x.id !== s.id && ["active", "done"].includes(x.status));
+  const projectId = data.project.id;
+  const itemKey = data.items.map((i) => `${i.id}${i.status}${i.priority}${i.points}`).join();
   useEffect(() => {
-    get<Preview>(`/api/projects/${data.project.id}/scrum/preview`).then((x) => { setP(x); setPick(new Set(x.selected)); });
-  }, [data.project.id, data.items.map((i) => `${i.id}${i.status}${i.priority}${i.points}`).join()]);
+    get<Preview>(`/api/projects/${projectId}/scrum/preview`).then((x) => { setP(x); setPick(new Set(x.selected)); });
+  }, [projectId, itemKey]);
   if (!p) return null;
   const used = p.items.filter((i) => pick.has(i.id)).reduce((n, i) => n + (i.points ?? 0), 0);
   const start = async () => {

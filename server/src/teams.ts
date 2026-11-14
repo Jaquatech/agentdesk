@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import type { DB } from "./db.ts";
 import { getSettings } from "./db.ts";
 import type { AgentRow } from "./engines/types.ts";
@@ -99,6 +99,7 @@ export function setAgentTeams(db: DB, agentId: number, teamIds: number[]) {
   })();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- request JSON; each route reads and validates the fields it needs
 type Body = Record<string, any>;
 
 export function registerTeams(app: FastifyInstance, db: DB) {
@@ -131,7 +132,7 @@ export function registerTeams(app: FastifyInstance, db: DB) {
       return id!;
     })();
   };
-  const fail = (reply: any, err: unknown) => {
+  const fail = (reply: FastifyReply, err: unknown) => {
     const e = err as Error & { status?: number };
     if (/UNIQUE/.test(e.message)) return reply.code(409).send({ error: "A team with that name already exists" });
     return reply.code(e.status ?? 500).send({ error: e.message });
