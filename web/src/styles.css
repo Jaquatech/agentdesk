@@ -154,7 +154,7 @@
   }
   /* Content links. Sidebar items and button-links opt out via their data attributes. */
   a:not([data-sidebar]):not([data-slot="button"]) {
-    @apply text-primary-text underline-offset-4 hover:underline;
+    @apply text-primary-text underline underline-offset-4;
   }
   code, kbd, pre, .mono {
     font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
@@ -276,6 +276,3 @@
   border-radius: 2px;
   display: inline-block;
 }
-
-/* Links inside running text must not rely on color alone. Buttons and menu links carry a data-slot and are left alone. */
-main a:not([data-slot]) { text-decoration: underline; text-underline-offset: 2px; }
