@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- The app loads faster: pages (Office, Documents, Scrum, Chat and the rest) are fetched when you first open them, so the first download is about half the size (120 kB instead of 234 kB compressed).
 - Cleaner effects in the web app: values that depend on a choice (theme, provider models, project folder checks, usage period, mobile layout) are now derived instead of reset in an effect. No change in what you see.
 - Development tools: ESLint is now on version 10, and the audit warnings for the lint tools are cleared (6 remain, all in the build-time `shadcn` command-line tool).
 - Keyboard and screen-reader fixes: backlog items in Scrum open from their title with the keyboard, the "Sprint" back link is a real button, a task's check rows open and close with Enter or Space, the days in the Usage chart can be reached with Tab, and the message box in Chat is labelled.

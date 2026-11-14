@@ -1,31 +1,33 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { BarChart3, BookOpen, Bot, Kanban, Users, Building2, FolderGit2, KeyRound, ListChecks, LogOut, MessageSquarePlus, Plus, Settings, ChevronDown, Info } from "lucide-react";
 import { get, post, closeLiveEvents, useLiveEvents, type Chat, type Project } from "./api.ts";
 import { LoginPage } from "./pages/LoginPage.tsx";
-import { ChatPage } from "./pages/ChatPage.tsx";
-import { AgentsPage } from "./pages/AgentsPage.tsx";
-import { TeamsPage } from "./pages/TeamsPage.tsx";
-import { DocumentsPage } from "./pages/DocumentsPage.tsx";
-import { ProvidersPage } from "./pages/ProvidersPage.tsx";
-import { ProjectsPage } from "./pages/ProjectsPage.tsx";
-import { SettingsPage } from "./pages/SettingsPage.tsx";
-import { TasksBoard } from "./pages/TasksBoard.tsx";
 import { HomePage } from "./pages/HomePage.tsx";
-import { UsagePage } from "./pages/UsagePage.tsx";
-import { ScrumPage } from "./pages/ScrumPage.tsx";
-import { VersionPage } from "./pages/VersionPage.tsx";
 import { ApprovalsBar } from "./components/Approvals.tsx";
 import { BudgetBar } from "./components/BudgetBar.tsx";
 import { ThemeToggle } from "./components/theme.tsx";
-import { Office } from "./office/Office.tsx";
 import { LogoMark } from "./office/LogoMark.tsx";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem,
   SidebarProvider, SidebarRail, SidebarTrigger,
 } from "@/components/ui/sidebar";
+
+const ChatPage = lazy(() => import("./pages/ChatPage.tsx").then((m) => ({ default: m.ChatPage })));
+const AgentsPage = lazy(() => import("./pages/AgentsPage.tsx").then((m) => ({ default: m.AgentsPage })));
+const TeamsPage = lazy(() => import("./pages/TeamsPage.tsx").then((m) => ({ default: m.TeamsPage })));
+const DocumentsPage = lazy(() => import("./pages/DocumentsPage.tsx").then((m) => ({ default: m.DocumentsPage })));
+const ProvidersPage = lazy(() => import("./pages/ProvidersPage.tsx").then((m) => ({ default: m.ProvidersPage })));
+const ProjectsPage = lazy(() => import("./pages/ProjectsPage.tsx").then((m) => ({ default: m.ProjectsPage })));
+const SettingsPage = lazy(() => import("./pages/SettingsPage.tsx").then((m) => ({ default: m.SettingsPage })));
+const TasksBoard = lazy(() => import("./pages/TasksBoard.tsx").then((m) => ({ default: m.TasksBoard })));
+const UsagePage = lazy(() => import("./pages/UsagePage.tsx").then((m) => ({ default: m.UsagePage })));
+const ScrumPage = lazy(() => import("./pages/ScrumPage.tsx").then((m) => ({ default: m.ScrumPage })));
+const VersionPage = lazy(() => import("./pages/VersionPage.tsx").then((m) => ({ default: m.VersionPage })));
+const Office = lazy(() => import("./office/Office.tsx").then((m) => ({ default: m.Office })));
 
 export type Route = { page: string; id?: number; tab?: string; sprint?: number; task?: number; group?: string };
 
@@ -214,6 +216,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
               <span>Scripted agents: no model calls, no real code changes, nothing is pushed. Start with <code className="font-mono">npm start</code> for real work.</span>
             </div>
           )}
+          <Suspense fallback={<div className="flex flex-1 items-center justify-center"><Spinner /></div>}>
           {route.page === "chat" && route.id ? <ChatPage key={route.id} chatId={route.id} tab={route.tab} projects={projects} onChanged={reload} />
             : route.page === "scrum" && route.id ? <ScrumPage key={`${route.id}-${route.tab}-${route.sprint}-${route.task}`} projectId={route.id} initial={{ tab: route.tab, sprint: route.sprint, task: route.task }} />
             : route.page === "tasks" ? <TasksBoard key={`${route.group}-${route.task}`} group={route.group} task={route.task} />
@@ -228,6 +231,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
             : route.page === "settings" ? <SettingsPage onChanged={reload} />
             : route.page === "version" ? <VersionPage />
             : <HomePage projects={projects} onNewChat={newChat} />}
+          </Suspense>
         </div>
       </SidebarInset>
     </SidebarProvider>
