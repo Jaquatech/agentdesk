@@ -35,6 +35,10 @@ const states: { name: string; route: string; open: (page: Page) => Promise<void>
   { name: "new team dialog", route: "#/teams", open: async (p) => { await p.getByRole("button", { name: /New team/i }).click(); } },
   { name: "add backlog item dialog", route: "#/scrum/1", open: async (p) => { await p.getByRole("tab", { name: /Backlog/ }).click(); await p.getByRole("button", { name: /Add item/i }).click(); } },
   { name: "needs-attention task", route: "#/tasks?group=attention", open: async (p) => { await p.getByText("Cocoa Printer: marshmallow mode").first().click(); } },
+  { name: "new agent: validation error", route: "#/agents", open: async (p) => {
+    await p.getByRole("main").getByRole("button", { name: /^New/ }).first().click(); await p.getByRole("button", { name: "Save" }).click(); await expect(p.getByRole("dialog")).toBeVisible(); } },
+  { name: "open dropdown in the agent form", route: "#/agents", open: async (p) => {
+    await p.getByRole("main").getByRole("button", { name: /^New/ }).first().click(); await p.getByRole("combobox").first().click(); await expect(p.getByRole("listbox")).toBeVisible(); } },
   { name: "chat", route: "#/chat/1", open: async () => {} },
 ];
 

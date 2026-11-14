@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 // One end-to-end story on the demo seed, run in order against one server: the live sprint task finishes, a stopped task is
@@ -22,6 +23,9 @@ test("a sprint runs from a retried task to its release", async ({ page }) => {
   await page.getByRole("button", { name: "Retry" }).click();
   const banner = page.getByText(/Comet wants to run a command/);
   await expect(banner).toBeVisible({ timeout: 60_000 });
+  // The approval banner is a state a user only reaches in this flow: scan it here.
+  const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).exclude('[role="tab"]').analyze();
+  expect(scan.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target.join(" ").slice(0, 140)}`)).toEqual([]);
   await page.getByRole("button", { name: "Allow once" }).click();
   await expect(banner).toBeHidden();
   await page.goto("/#/tasks?group=done");

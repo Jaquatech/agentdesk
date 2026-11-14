@@ -44,3 +44,6 @@ Things that cost real debugging time. Read the ones that touch your change befor
 
 ## Brand color as text
 `--primary` is a dark amber made for button backgrounds. As text on the dark theme it measures about 2.5:1, below the 4.5:1 minimum, and the accessibility scan fails on it. Text, links and badge labels use `text-primary-text` (a lighter amber in dark, the same color in light). Do not use `text-primary` outside `components/ui/`.
+
+## Browser tests run the built UI
+The demo server serves `web/dist`, not the source. After a change in `web/src`, run `npm run build` before `npm run e2e`, or the test checks the old UI (a contrast fix looked like it did nothing). CI builds first, so only local runs are caught by this.

@@ -73,7 +73,7 @@ function ApprovalItem({ a }: { a: Approval }) {
         <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
           <Button size="sm" disabled={busy} onClick={() => answer(true)}>Allow once</Button>
           <Button size="sm" variant="outline" disabled={busy || onceOnly} title={onceOnly ? "Commands with pipes or redirects can only be allowed once" : undefined} onClick={() => setAlways(true)}>Always allow…</Button>
-          <Button size="sm" variant="destructive" disabled={busy} onClick={() => answer(false)}>Deny</Button>
+          <Button size="sm" variant="outline" className="border-destructive/60" disabled={busy} onClick={() => answer(false)}>Deny</Button>
         </div>
       )}
     </div>
