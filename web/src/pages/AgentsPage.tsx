@@ -87,14 +87,14 @@ export function AgentsPage() {
         </Section>
       ))}
       {gallery && <GalleryModal onClose={() => setGallery(false)} onPick={fromGallery} />}
-      {editing && <AgentForm agent={editing} providers={providers} teams={teams} templates={templates!} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }}
+      {editing && <AgentForm agent={editing} providers={providers} teams={teams} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }}
         onDuplicate={(copy) => { setEditing(null); setTimeout(() => setEditing(copy), 0); }} />}
     </Page>
   );
 }
 
-function AgentForm({ agent, providers, teams, templates, onClose, onSaved, onDuplicate }: {
-  agent: Partial<Agent>; providers: Provider[]; teams: Team[]; templates: Templates; onClose: () => void; onSaved: () => void;
+function AgentForm({ agent, providers, teams, onClose, onSaved, onDuplicate }: {
+  agent: Partial<Agent>; providers: Provider[]; teams: Team[]; onClose: () => void; onSaved: () => void;
   onDuplicate: (copy: Partial<Agent>) => void;
 }) {
   const [f, setF] = useState({ ...agent });
@@ -138,7 +138,8 @@ function AgentForm({ agent, providers, teams, templates, onClose, onSaved, onDup
       footer={<>
         {agent.id && <Button variant="destructive" onClick={remove}>Delete</Button>}
         {agent.id && <Button variant="outline" title="New agent with the same settings and a new name" onClick={() => {
-          const { id: _id, ...rest } = { ...agent, ...f, appearance: JSON.stringify({}), allowed_tools: JSON.stringify(tools.split("\n").map((x) => x.trim()).filter(Boolean)) };
+          const rest = { ...agent, ...f, appearance: JSON.stringify({}), allowed_tools: JSON.stringify(tools.split("\n").map((x) => x.trim()).filter(Boolean)) };
+          delete rest.id;
           onDuplicate({ ...rest, name: nextName(agent.name ?? "Agent") });
         }}>Duplicate</Button>}
         <FooterGap />

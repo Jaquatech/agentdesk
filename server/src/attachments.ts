@@ -74,6 +74,7 @@ function folderStats(dir: string) {
 }
 
 const safeName = (name: string) =>
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what is removed
   (name || "file").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").replace(/^\.+/, "").slice(-120) || "file";
 
 export function registerAttachments(app: FastifyInstance, db: DB, dataDir: string) {

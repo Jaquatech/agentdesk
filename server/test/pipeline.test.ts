@@ -455,7 +455,7 @@ describe("pipeline", () => {
     const bo2 = await call("POST", "/api/agents", { name: "Bea", role: "worker", provider_id: 1 });
     const project = await call("POST", "/api/projects", { name: "carry", source: "local", path: repo });
     const first = await call("POST", "/api/chats", { project_id: project.id });
-    let prompts: string[] = [];
+    const prompts: string[] = [];
     let step = 0;
     script = (req) => {
       if (req.agent.role === "planner") {
@@ -502,7 +502,7 @@ describe("pipeline", () => {
     const call = (ctx as any).call;
     const project = await call("POST", "/api/projects", { name: "ask", source: "local", path: repo });
     const chat = await call("POST", "/api/chats", { project_id: project.id });
-    let answers: any[] = [];
+    const answers: any[] = [];
     script = (req) => {
       if (req.agent.role === "planner") return ok("p", { reply: "t", tasks: [{ slug: "pkg", title: "Add pkg", spec: "x", paths: ["src/"] }] });
       if (req.agent.role === "reviewer") return ok("r", { verdict: "approve", review: "ok" });

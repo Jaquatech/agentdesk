@@ -8,7 +8,6 @@ import { Page } from "../components/page.tsx";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 const SOURCES = {
@@ -80,7 +79,7 @@ function ProjectForm({ p, teams, agents, onClose, onSaved }: { p: Partial<Projec
 
   useEffect(() => {
     if (!f.path) return;
-    const t = setTimeout(() => post("/api/projects/check-path", { path: f.path }).then(setCheckResult), 300);
+    const t = setTimeout(() => post<{ exists: boolean; git: boolean }>("/api/projects/check-path", { path: f.path }).then(setCheckResult), 300);
     return () => clearTimeout(t);
   }, [f.path]);
 

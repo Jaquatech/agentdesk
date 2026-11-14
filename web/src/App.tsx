@@ -45,11 +45,13 @@ export function go(route: string) {
   location.hash = `#/${route}`;
 }
 
+type AuthState = { needsSetup: boolean; demo?: boolean; user: { username: string } | null };
+
 export function App() {
-  const [auth, setAuth] = useState<{ needsSetup: boolean; demo?: boolean; user: { username: string } | null } | null>(null);
+  const [auth, setAuth] = useState<AuthState | null>(null);
   const [route, setRoute] = useState<Route>(parseHash());
 
-  const loadAuth = useCallback(() => { get("/api/auth/status").then(setAuth); }, []);
+  const loadAuth = useCallback(() => { get<AuthState>("/api/auth/status").then(setAuth); }, []);
   useEffect(() => {
     loadAuth();
     const onHash = () => setRoute(parseHash());

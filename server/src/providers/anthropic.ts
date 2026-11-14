@@ -2,6 +2,13 @@ import { ChatProvider, ChatRequest, ChatResponse, Block, ProviderError } from ".
 
 const VERSION = "2023-06-01";
 
+/** The parts of an Anthropic reply that are read here; every field may be missing. */
+type MessagesReply = {
+  error?: { type?: string; message?: string }; content?: Block[]; stop_reason?: string;
+  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
+  data?: { id: string }[];
+};
+
 export class AnthropicProvider implements ChatProvider {
   constructor(private baseUrl: string, private apiKey: string) {
     this.baseUrl = (baseUrl || "https://api.anthropic.com").replace(/\/+$/, "");
@@ -36,14 +43,14 @@ export class AnthropicProvider implements ChatProvider {
     const res = await fetch(`${this.baseUrl}/v1/messages`, {
       method: "POST", headers: this.headers(), body: JSON.stringify(body), signal: req.signal,
     });
-    const data = await res.json().catch(() => ({})) as any;
+    const data = await res.json().catch(() => ({})) as MessagesReply;
     if (!res.ok) {
       const e = data?.error;
       throw new ProviderError(`Anthropic ${res.status} ${e?.type ?? ""}: ${e?.message ?? res.statusText}`.trim(), res.status);
     }
     const u = data.usage ?? {};
     return {
-      content: (data.content ?? []).filter((b: Block) => b.type === "text" || b.type === "tool_use"),
+      content: (data.content ?? []).filter((b) => b.type === "text" || b.type === "tool_use"),
       stopReason: data.stop_reason === "tool_use" ? "tool_use" : data.stop_reason === "max_tokens" ? "max_tokens"
         : data.stop_reason === "end_turn" ? "end" : "other",
       usage: {
@@ -55,7 +62,7 @@ export class AnthropicProvider implements ChatProvider {
 
   async listModels(): Promise<string[]> {
     const res = await fetch(`${this.baseUrl}/v1/models?limit=100`, { headers: this.headers() });
-    const data = await res.json().catch(() => ({})) as any;
+    const data = await res.json().catch(() => ({})) as MessagesReply;
     if (!res.ok) throw new ProviderError(`Anthropic ${res.status}: ${data?.error?.message ?? res.statusText}`, res.status);
     return (data.data ?? []).map((m: { id: string }) => m.id);
   }

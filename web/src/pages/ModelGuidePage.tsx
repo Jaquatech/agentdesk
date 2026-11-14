@@ -19,7 +19,7 @@ type Guide = {
 const KIND = { plan: "plans", build: "builds", review: "reviews" } as Record<string, string>;
 
 /** Which model for which job: where to start, and how each kind of model is rated for each kind of work. */
-export function ModelGuide({ embedded: _embedded }: { embedded?: boolean } = {}) {
+export function ModelGuide() {
   const { data: g } = useLoad<Guide>("/api/model-guide");
   if (!g) return <Skeleton className="h-40 w-full" />;
   const groups = [...new Set(g.models.map((m) => m.group))];

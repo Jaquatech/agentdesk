@@ -5,7 +5,7 @@ import { getSettings, json } from "./db.ts";
 import { bus } from "./bus.ts";
 import type { Orchestrator, TaskRow } from "./orchestrator/orchestrator.ts";
 import { syncReleasePage } from "./documents.ts";
-import { architectOf, securityOf, teamAgents, teamOfChat, teamOfProject, pickAgent, pickPlanner } from "./teams.ts";
+import { architectOf, securityOf, teamAgents, teamOfProject, pickPlanner } from "./teams.ts";
 import {
   ensureProjectCheckout, createSprintBranch, ensureSprintWorktree, diffAgainstBase, projectHasRemote, branchLog, releaseSprint,
   removeWorktree, deleteBranch, type ProjectRow,
@@ -115,7 +115,6 @@ export class Scrum {
   /** A message in a Scrum project's chat: the product manager answers and turns requests into backlog items. */
   async chat(chatId: number) {
     const chat = this.db.prepare("SELECT * FROM chats WHERE id = ?").get(chatId) as { id: number; project_id: number };
-    const teamId = teamOfChat(this.db, chatId);
     const pm = pickPlanner(this.db, { chatId });
     if (!pm) {
       this.orch.postMessage(chatId, "event", "The team has no planner to act as product manager. Add one under Teams.");
