@@ -17,6 +17,7 @@ import { Scrum, registerScrum } from "./scrum.ts";
 import { registerBudget } from "./budget.ts";
 import { SECURITY_HEADERS } from "./securityHeaders.ts";
 import { Orchestrator } from "./orchestrator/orchestrator.ts";
+import { seedDemo } from "./demoSeed.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -71,7 +72,8 @@ async function main() {
   if (demo) process.env.AGENTDESK_DEMO = "1";
   const dataDir = resolve(process.env.AGENTDESK_DATA ?? join(here, "..", "..", demo ? "data-demo" : "data"));
   const port = Number(process.env.PORT ?? 4317);
-  const { app, orch } = await buildApp({ dataDir, webDist: join(here, "..", "..", "web", "dist"), logger: process.env.LOG === "1" });
+  const { app, orch, db } = await buildApp({ dataDir, webDist: join(here, "..", "..", "web", "dist"), logger: process.env.LOG === "1" });
+  if (demo) seedDemo(db, dataDir);
   orch.start();
   // Bound to the loopback interface only: the tool never listens on the network.
   await app.listen({ host: "127.0.0.1", port });

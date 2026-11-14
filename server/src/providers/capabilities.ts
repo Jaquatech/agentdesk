@@ -18,6 +18,7 @@ export function ollamaRoot(baseUrl: string) {
 }
 
 export async function getCapabilities(kind: ProviderKind, baseUrl: string, model: string, apiKey?: string): Promise<Capabilities> {
+  if (process.env.AGENTDESK_DEMO === "1") return { vision: true, tools: true, thinking: false, source: "Demo mode" };
   if (kind === "anthropic" || kind === "claude-cli") {
     return { vision: true, tools: true, source: kind === "claude-cli" ? "Claude Code reads images with its Read tool" : "Claude models" };
   }

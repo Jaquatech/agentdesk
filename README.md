@@ -106,6 +106,7 @@ npm run demo       # try it with scripted agents: no key, no cost
 Open **http://localhost:4317** and create your local account. When you are ready for real work, stop the demo
 (Ctrl+C) and run `npm start` instead. Demo mode keeps its data in `data-demo/`, real mode in `data/`; to keep
 the agents and providers you set up in the demo, copy `data-demo` to `data` once before the first `npm start`.
+To start the demo over from the seed, run `npm run demo:reset` (it also stops a demo server left running).
 
 ### Optional tools: sign in once
 
@@ -172,7 +173,7 @@ Then restart the server (Ctrl+C, `npm start`). The database updates itself on st
 6. Start a chat in the project. The planner answers and proposes tasks; press **Run plan** (or turn on "Run plans
    right away" in Settings).
 
-For a quick look without any keys, use `npm run demo`: any provider works there, no calls are made.
+For a quick look without any keys, use `npm run demo`: no calls are made. The first demo start adds a fictional startup, Red Dust Gadgets (gadgets for a Mars mission): a team called Mission Control (Nova plans, Orbit and Comet build, Sentinel reviews), a small git project in `data-demo/` with a Scrum backlog and one released sprint (so Releases, Documents and Usage have content), and a demo provider whose Test button always answers OK.
 
 Development: `npm run dev` (server with reload on 4317, Vite on 5173 with `/api` proxied). Tests: `npm test`.
 

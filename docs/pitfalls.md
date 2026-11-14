@@ -38,3 +38,6 @@ Things that cost real debugging time. Read the ones that touch your change befor
 ## Versions
 
 - **The version in the root, `server/` and `web/` `package.json` must match,** and the top `CHANGELOG.md` section must match it. A test fails otherwise.
+
+## The office route test is slow
+`walking routes` in `web/src/office/scene.test.ts` walks every desk to every spot and takes about 5 s on a busy machine, so the default 5 s test timeout failed it now and then (looked like a flaky test, was a timeout). It has an explicit 30 s limit; keep it when you add furniture, which makes it slower.

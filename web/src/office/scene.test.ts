@@ -123,7 +123,7 @@ describe("walking routes", () => {
           }
         }
       }
-    });
+    }, 30_000);
   }
 });
 
