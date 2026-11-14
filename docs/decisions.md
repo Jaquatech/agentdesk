@@ -12,8 +12,8 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 
 - **Lint is a ratchet.** ESLint (typescript-eslint, react-hooks, jsx-a11y) runs with `--max-warnings` set to today's count, so existing issues are warnings and any new one fails CI. When you fix warnings, lower the number in the root `package.json` `lint` script. Generated shadcn files in `web/src/components/ui/` are not linted.
 
-- **Dependency overrides in the root `package.json`.** ESLint is on 10; `eslint-plugin-jsx-a11y` only declares support for 9, so it is allowed through an override (it works; remove the override when the plugin adds 10). `minimatch` is forced to 11 only under `@typescript-eslint/typescript-estree` and `@ts-morph/common` to clear an advisory; a global override breaks the accessibility plugin, which needs the old one. Run `npm audit` before a release.
-- **Accepted audit finding: `deepmerge` (3 low, through the `shadcn` command-line tool).** No fixed version exists (4.3.1 is the latest). It is a build-time tool that is not part of the running app.
+- **Dependency overrides in the root `package.json`.** ESLint is on 10; `eslint-plugin-jsx-a11y` only declares support for 9, so it is allowed through an override (it works; remove the override when the plugin adds 10). `minimatch` is forced to 11 only under `@typescript-eslint/typescript-estree` and `@ts-morph/common` to clear an advisory; a global override breaks the accessibility plugin, which needs the old one.
+- **Accepted audit findings: 6 (2 low, 4 moderate), all inside the `shadcn` command-line tool** (`deepmerge`, `ts-morph` with an old `minimatch`). No fixed `deepmerge` exists (4.3.1 is the latest). They are build-time only and not part of the running app. A stale nested `minimatch` under `@ts-morph/common` can probably be cleared by regenerating the lockfile, but a full regeneration dropped the TypeScript 7 platform package and broke the build, so the lockfile is changed incrementally only. Run `npm audit` before a release.
 
 ## Known and open
 
