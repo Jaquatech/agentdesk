@@ -20,7 +20,7 @@ describe("documents", () => {
     const list = await call("GET", "/api/documents");
     expect(list.status).toBe(200);
     const rows = list.body as { id: number; title: string; builtin: string | null; kind: string; body?: string }[];
-    expect(rows.map((d) => d.builtin).filter(Boolean).sort()).toEqual(["cycle", "guidelines", "models"]);
+    expect(rows.map((d) => d.builtin).filter(Boolean).sort()).toEqual(["cycle", "guidelines", "models", "standards", "ui"]);
     expect(rows.filter((d) => d.builtin).every((d) => d.kind === "generic")).toBe(true);
     expect(rows.find((d) => d.builtin === "guidelines")!.title).toBe("Coding guidelines");
 

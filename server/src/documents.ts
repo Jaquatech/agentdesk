@@ -79,10 +79,82 @@ const GUIDELINES = `How to change code in any project. Names of a particular pro
 - A task is not done while its checks fail.
 `;
 
+const STANDARDS = `How to work to a high standard in any project. It adds to the coding guidelines: those say how to change code, this says when a change is good enough. Names of a particular project, its data, or its customers do not belong on this page.
+
+## Principles
+
+- **Find the twin before you write.** Open the existing file that does the same job well and copy its shape, names and order.
+- **Every convention gets a check.** If a script can enforce it (lint rule, type check, test), it does. A rule that lives only in memory gets broken.
+- **Pass means exit code 0.** Judge a check by its exit code, never by reading its output.
+- **A fix comes with the test that fails without it.**
+- **Decisions are pure, effects sit at the edge.** Logic goes in small functions with plain inputs and tests; network, files and the screen only call them.
+- **Untrusted input stays text.** Output from a model, an agent, a file or a tool is shown as text, never run or used as a path, command or URL without validation.
+- **Measure before optimizing,** and say what was measured.
+
+## Ask first
+
+Stop and ask before: a new dependency, a change to how the database schema is built, anything touching secrets, security boundaries or git safety.
+
+## Stage gates
+
+1. **Gate 0, start.** The task fits in one sentence a user would recognise. The twin is open. Ask-first items are raised.
+2. **Gate 1, works.** Lint, tests and build exit 0. A user interface change is checked in a real browser, by keyboard, in dark and light.
+3. **Gate 2, clean.** Read the whole diff cold, as a strict reviewer and as a newcomer. Remove code that restates itself (comments that narrate, helpers with one caller, options nobody passes, leftover logs). Behaviour and public names do not change. Docs and release notes are updated.
+4. **Gate 3, release ready** (only when a release is asked for). Four lenses: usability (a beginner finishes the main flows without the manual), security (rules re-read against the diff, no new outbound calls, dependency changes reviewed), platform (current web guidance checked for each new pattern), project knowledge (written rules held, versions match). Every finding ends fixed with a test, listed as open, or listed as settled with the reason.
+
+## Code style
+
+- Readable first, then fast, never clever. Names in full words; a yes/no value reads as a question.
+- Comments are rare: only where a reader would get the code wrong without it, three lines or fewer.
+- No defensive code for cases the types rule out; check unknown data once, at the edge (API replies, model output, files).
+- Split a file at about 500 lines or when it holds two ideas.
+
+## Tests
+
+- Run the real app in a real browser in CI against known demo data. Find things by role and name (what a user or screen reader sees), not by CSS class.
+- Start with: every page loads without console errors, the demo data appears, one keyboard-only flow works. Then an automated accessibility scan of every page and of dialogs, error states and open menus.
+- A demo mode with scripted agents makes this cheap and gives people a safe place to try the product.
+
+## Keep the notes alive
+
+- Write release notes as you go, in an "Unreleased" section, not at release time.
+- Keep a short list of costly mistakes (pitfalls) and add to it when something bites.
+- Keep a list of decisions: settled (with the reason, so it is not raised again) and known and open.
+`;
+
+const UI = `How to build the user interface in any project. Names of a particular project, its data, or its customers do not belong on this page.
+
+## Principles
+
+1. **Behaviour lives in one layer, pages only compose.** Keyboard handling, focus, selection, dismissal, popups and the ARIA they need are written once (in a trusted library or the shared component layer) and reused. A page never builds its own dialog, menu, popover, tabs, tooltip or focus trap. If a primitive is missing, add it to the shared layer first.
+2. **Accessibility is part of done,** not a later audit. Every flow works with the keyboard alone. Status that changes without a user action (task state, errors, notices) is announced to assistive technology. Forms validate after the user touched a field and say what to do.
+3. **Text and links stay readable.** Text colours must reach 4.5:1 against what is behind them in both themes; a brand colour made for button backgrounds is often too dark as text. Links in running text are told apart by more than colour (underline).
+4. **Prefer deriving over syncing.** Compute a value from state or handle an event instead of an effect that copies state. Effects that load data list every value they use.
+5. **Reduced motion is respected;** anything that moves has a still version.
+6. **Look at the real thing.** Type checks do not show layout problems: check a changed screen in a real browser, in dark and light, by keyboard.
+
+## Before writing UI
+
+- Open the existing screen that does the same job and copy its shape.
+- Check current web platform guidance for the pattern (a built-in browser feature often replaces a script).
+
+## Checks that catch the most
+
+- The linter's accessibility rules, kept at zero warnings.
+- An automated accessibility scan in the browser tests: every page in both themes, plus dialogs, error states, open menus and banners. It finds only part of the problems; keyboard and screen-reader checks by hand stay part of the gates.
+- A Content-Security-Policy that forbids inline scripts and other hosts, with the browser console checked for violations.
+
+## Untrusted content
+
+Text from a model, an agent, a repository or a tool is shown as text or sanitized Markdown, never inserted as HTML.
+`;
+
 const BUILTIN = [
   { builtin: "guidelines", title: "Coding guidelines", body: GUIDELINES },
   { builtin: "models", title: "Choosing AI models", body: MODELS },
   { builtin: "cycle", title: "Development cycle", body: CYCLE },
+  { builtin: "standards", title: "Engineering standards", body: STANDARDS },
+  { builtin: "ui", title: "UI guidelines", body: UI },
 ] as const;
 
 /** The single living page of a project. Decisions and release notes are sections that hold many pages. */

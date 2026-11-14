@@ -6,6 +6,9 @@
 - Found by a new scan of the approval banner: the Deny button was hard to read on the dark theme. It is now an outlined button with a red border. The scans also cover a form with a validation error and an open dropdown.
 - An automated scan now checks every page in both themes. It found and fixed: the sidebar project list was not a valid list, links in text were told apart only by color (they are underlined now), the amber text and the green badge were too dim on the dark theme, the logo upload had no name, the model picker in the agent form had no name, links in dialogs were not underlined, the usage chart announced itself wrongly, and scrolling pages could not be reached by keyboard (they can now, with a focus ring).
 
+### Documents
+- Two new guides under General: **Engineering standards** (principles, ask-first list, stage gates, tests) and **UI guidelines**. They are written for any project, so agents can follow them everywhere. Your own edits to the other guides are left alone.
+
 ### Maintenance
 - `shadcn` moved to development dependencies; a production dependency audit reports no issues.
 - All lint warnings are fixed and the limit is now zero. Unused code is removed, provider, task export and Scrum code use real types instead of `any`, and effects that load data are written so their dependencies are checked.
