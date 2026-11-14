@@ -34,11 +34,12 @@ export function seedDemo(db: DB, dataDir: string): boolean {
     try { initRepo(projectDir); } catch { return false; }
   }
   const providerId = Number(db.prepare("INSERT INTO providers (name, kind, base_url, default_model) VALUES (?, 'ollama', 'http://localhost:11434', ?)").run(DEMO_PROVIDER, DEMO_MODEL).lastInsertRowid);
-  const insertAgent = db.prepare(`INSERT INTO agents (name, role, provider_id, model, context, allowed_tools)
-    VALUES (@name, @role, @provider_id, @model, @context, @allowed_tools)`);
+  // Orbit never asks before a command, so the sprint's queued task runs without waiting for you. Comet asks: retry the Cocoa task to see the approval flow.
+  const insertAgent = db.prepare(`INSERT INTO agents (name, role, provider_id, model, context, allowed_tools, ask_approval)
+    VALUES (@name, @role, @provider_id, @model, @context, @allowed_tools, @ask_approval)`);
   const ids = AGENTS.map((a) => Number(insertAgent.run({
     name: a.name, role: a.role, provider_id: providerId, model: DEMO_MODEL,
-    context: ROLE_TEMPLATES[a.role], allowed_tools: JSON.stringify(a.role === "worker" ? DEFAULT_WORKER_TOOLS : []),
+    context: ROLE_TEMPLATES[a.role], allowed_tools: JSON.stringify(a.role === "worker" ? DEFAULT_WORKER_TOOLS : []), ask_approval: a.name === "Orbit" ? 0 : 1,
   }).lastInsertRowid));
   const teamId = Number(db.prepare("INSERT INTO teams (name, description, planner_id, reviewer_id) VALUES ('Mission Control', 'The Red Dust Gadgets crew (scripted, no model)', ?, ?)").run(ids[0], ids[3]).lastInsertRowid);
   for (const id of ids) db.prepare("INSERT INTO team_members (team_id, agent_id) VALUES (?, ?)").run(teamId, id);

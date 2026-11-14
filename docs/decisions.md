@@ -20,7 +20,6 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 - 182 lint warnings from before the rules: 142 `any`, 16 hook dependency lists, 1 state set inside an effect (Providers form, loads on open), 3 ref read during render, 20 unused or style items. Fix them page by page when touching it, and lower the cap. The accessibility rules (jsx-a11y) have no warnings left.
 
 - `pages/scrum/Sprints.tsx` is about 280 lines and holds four views (PI, sprint, task, plan); split it if it grows.
-- The web side has one test file. Add role-based browser checks in demo mode for the main flows, with an automated accessibility check per page.
+- Browser checks (`e2e/`, Playwright, run by CI) cover page loads, the seeded data and one keyboard flow. Still to add: an automated accessibility check per page, and more flows (approvals, Merge, release).
 - The CSP allows inline styles (`style-src 'unsafe-inline'`) because Radix injects style elements. Tighten with a nonce if that changes.
 - With reduced motion the office is a still picture: agents do not walk to a new place when their state changes until the page is reloaded (labels and bubbles still update).
-- Continuous integration runs lint, tests and build, but nothing yet runs the app in a browser.
