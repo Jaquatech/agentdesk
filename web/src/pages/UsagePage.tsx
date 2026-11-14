@@ -38,14 +38,14 @@ export function UsagePage() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [openDay, setOpenDay] = useState<string | null>(null);
   const load = () => get<Usage>(`/api/usage?days=${days}`).then(setUsage);
-  useEffect(() => { load(); setOpenDay(null); }, [days]);
+  useEffect(() => { load(); }, [days]);
 
   const t = usage?.totals;
   const prompt = t ? t.tokens_in + t.cache_read + t.cache_write : 0;
   return (
     <Page title="Usage & billing" width="wide" actions={
       <>
-        <Tabs value={String(days)} onValueChange={(v) => setDays(Number(v))}>
+        <Tabs value={String(days)} onValueChange={(v) => { setDays(Number(v)); setOpenDay(null); }}>
           <TabsList>
             {PERIODS.map((p) => <TabsTrigger key={p.days} value={String(p.days)}>{p.label}</TabsTrigger>)}
           </TabsList>

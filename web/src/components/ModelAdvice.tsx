@@ -42,15 +42,16 @@ export function priceText(a: { free: boolean; cloud: boolean; price: Price }) {
 export function ModelAdvice({ kind, models, role, context, value, onPick }: {
   kind: string; models: string[]; role: "planner" | "worker" | "reviewer"; context: string; value: string; onPick: (model: string) => void;
 }) {
-  const [work, setWork] = useState<Work | null>(null);
-  const [answer, setAnswer] = useState<Answer | null>(null);
+  const [picked, setPicked] = useState<{ role: string; work: Work } | null>(null);
+  const [answered, setAnswered] = useState<{ key: string; answer: Answer } | null>(null);
   const specialty = /^\s*Specialty:.*$/im.exec(context)?.[0] ?? "";
-  useEffect(() => { setWork(null); }, [role]);
+  const work = picked && picked.role === role ? picked.work : null;
+  const key = JSON.stringify([kind, models, role, work, specialty]);
+  const answer = answered && answered.key === key ? answered.answer : null;
   useEffect(() => {
-    setAnswer(null);
     if (!models.length) return;
     let live = true;
-    post<Answer>("/api/model-advice", { kind, models, role, work: work ?? undefined, context: specialty }).then((a) => live && setAnswer(a)).catch(() => {});
+    post<Answer>("/api/model-advice", { kind, models, role, work: work ?? undefined, context: specialty }).then((a) => live && setAnswered({ key: JSON.stringify([kind, models, role, work, specialty]), answer: a })).catch(() => {});
     return () => { live = false; };
   }, [kind, models, role, work, specialty]);
 
@@ -62,7 +63,7 @@ export function ModelAdvice({ kind, models, role, context, value, onPick }: {
         {role === "worker" && (
           <span className="flex flex-wrap gap-1">
             {DEV_WORK.map((w) => (
-              <Button type="button" key={w} size="sm" variant={answer.work === w ? "default" : "outline"} onClick={() => setWork(w)}>{WORK_LABEL[w]}</Button>
+              <Button type="button" key={w} size="sm" variant={answer.work === w ? "default" : "outline"} onClick={() => setPicked({ role, work: w })}>{WORK_LABEL[w]}</Button>
             ))}
           </span>
         )}

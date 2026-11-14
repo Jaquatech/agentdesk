@@ -19,6 +19,9 @@ const SOURCES = {
 
 const join = (v: string) => parseJson<string[]>(v, []).join("\n");
 
+type VerifyHelp = { suggestions: { command: string; label: string }[]; setupSuggestions: { command: string; label: string }[]; envFiles: string[]; warnings: string[] };
+const NO_HELP: VerifyHelp = { suggestions: [], setupSuggestions: [], envFiles: [], warnings: [] };
+
 export function ProjectsPage({ openNew, onChanged }: { openNew: boolean; onChanged: () => void }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [editing, setEditing] = useState<Partial<Project> | null>(null);
@@ -26,7 +29,12 @@ export function ProjectsPage({ openNew, onChanged }: { openNew: boolean; onChang
   const [agents, setAgents] = useState<Agent[]>([]);
   const load = () => { get<Agent[]>("/api/agents").then(setAgents); get<Project[]>("/api/projects").then(setProjects); get<Team[]>("/api/teams").then(setTeams); };
   const blank = (): Partial<Project> => ({ name: "", source: "local", path: "", repo_url: "", base_branch: "main", shell: "auto", setup: "[]", verify: "[]", allowed_paths: "[]", context: "", team_id: null, planner_id: null });
-  useEffect(() => { load(); if (openNew) setEditing(blank()); }, [openNew]);
+  const [openedFor, setOpenedFor] = useState(false);
+  if (openNew !== openedFor) {
+    setOpenedFor(openNew);
+    if (openNew) setEditing(blank());
+  }
+  useEffect(() => { load(); }, [openNew]);
 
   return (
     <Page title="Projects" actions={<Button variant="outline" onClick={() => setEditing(blank())}><Plus data-icon="inline-start" /> New project</Button>}>
@@ -57,7 +65,8 @@ export function ProjectsPage({ openNew, onChanged }: { openNew: boolean; onChang
 function ProjectForm({ p, teams, agents, onClose, onSaved }: { p: Partial<Project>; teams: Team[]; agents: Agent[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({ ...p, setup: join(p.setup ?? "[]"), verify: join(p.verify ?? "[]"), allowed_paths: join(p.allowed_paths ?? "[]") });
   const [picker, setPicker] = useState(false);
-  const [check, setCheck] = useState<{ exists: boolean; git: boolean } | null>(null);
+  const [checkResult, setCheckResult] = useState<{ exists: boolean; git: boolean } | null>(null);
+  const check = f.path ? checkResult : null;
   const [error, setError] = useState("");
   const set = (k: string, v: unknown) => setF((x) => ({ ...x, [k]: v }));
   const [drafting, setDrafting] = useState(false);
@@ -70,15 +79,16 @@ function ProjectForm({ p, teams, agents, onClose, onSaved }: { p: Partial<Projec
   };
 
   useEffect(() => {
-    if (!f.path) { setCheck(null); return; }
-    const t = setTimeout(() => post("/api/projects/check-path", { path: f.path }).then(setCheck), 300);
+    if (!f.path) return;
+    const t = setTimeout(() => post("/api/projects/check-path", { path: f.path }).then(setCheckResult), 300);
     return () => clearTimeout(t);
   }, [f.path]);
 
-  const [help, setHelp] = useState<{ suggestions: { command: string; label: string }[]; setupSuggestions: { command: string; label: string }[]; envFiles: string[]; warnings: string[] }>({ suggestions: [], setupSuggestions: [], envFiles: [], warnings: [] });
+  const [helpResult, setHelp] = useState<VerifyHelp>(NO_HELP);
+  const help = f.path ? helpResult : NO_HELP;
   useEffect(() => {
-    if (!f.path) { setHelp({ suggestions: [], setupSuggestions: [], envFiles: [], warnings: [] }); return; }
-    const t = setTimeout(() => post<typeof help>("/api/projects/verify-help", { path: f.path, verify: f.verify, setup: f.setup }).then(setHelp).catch(() => {}), 400);
+    if (!f.path) return;
+    const t = setTimeout(() => post<VerifyHelp>("/api/projects/verify-help", { path: f.path, verify: f.verify, setup: f.setup }).then(setHelp).catch(() => {}), 400);
     return () => clearTimeout(t);
   }, [f.path, f.verify, f.setup]);
   const verifyLines = String(f.verify ?? "").split("\n").map((l) => l.trim());

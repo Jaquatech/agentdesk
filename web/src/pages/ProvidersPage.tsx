@@ -88,13 +88,12 @@ function ProviderForm({ p, secrets, defaults, onClose, onSaved }: {
   const [f, setF] = useState({ ...p });
   const [newKey, setNewKey] = useState("");
   const [error, setError] = useState("");
-  const [test, setTest] = useState<{ ok: boolean; message: string } | "…" | null>(null);
+  const [test, setTest] = useState<{ ok: boolean; message: string } | "…" | null>(p.id ? "…" : null);
   const [models, setModels] = useState<string[]>([]);
   const kind = (f.kind ?? "anthropic") as ProviderKind;
   const set = (k: keyof Provider, v: unknown) => setF((x) => ({ ...x, [k]: v }));
 
-  const runTest = async () => {
-    setTest("…");
+  const testNow = async () => {
     try {
       const r = await post<{ ok: boolean; message: string; models?: string[] }>("/api/providers/test-config", { ...f, kind, key: newKey });
       setTest(r);
@@ -104,7 +103,8 @@ function ProviderForm({ p, secrets, defaults, onClose, onSaved }: {
       }
     } catch (e) { setTest({ ok: false, message: (e as Error).message }); }
   };
-  useEffect(() => { if (p.id) runTest(); }, []);
+  const runTest = () => { setTest("…"); testNow(); };
+  useEffect(() => { if (p.id) testNow(); }, []);
 
   const save = async () => {
     setError("");

@@ -17,7 +17,7 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 
 ## Known and open
 
-- 192 lint warnings from before the rules: 142 `any`, 16 hook dependency lists, 11 state set inside an effect, 3 ref read during render, 20 unused or style items. Fix them page by page when touching it, and lower the cap. The accessibility rules (jsx-a11y) have no warnings left.
+- 182 lint warnings from before the rules: 142 `any`, 16 hook dependency lists, 1 state set inside an effect (Providers form, loads on open), 3 ref read during render, 20 unused or style items. Fix them page by page when touching it, and lower the cap. The accessibility rules (jsx-a11y) have no warnings left.
 
 - `ScrumPage.tsx` is about 590 lines. Split it into list, detail and tab logic when it is next changed.
 - The web side has one test file. Add role-based browser checks in demo mode for the main flows, with an automated accessibility check per page.

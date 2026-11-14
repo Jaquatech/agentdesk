@@ -5,15 +5,14 @@ import { ToneBadge } from "./ui.tsx";
 export type Caps = { model: string; vision: boolean | null; tools: boolean | null; thinking?: boolean | null; source: string; agent?: string | null };
 
 export function useCapabilities(url: string | null) {
-  const [caps, setCaps] = useState<Caps | null>(null);
+  const [result, setResult] = useState<{ url: string; caps: Caps } | null>(null);
   useEffect(() => {
-    setCaps(null);
     if (!url) return;
     let alive = true;
-    get<Caps>(url).then((c) => alive && setCaps(c)).catch(() => {});
+    get<Caps>(url).then((caps) => alive && setResult({ url, caps })).catch(() => {});
     return () => { alive = false; };
   }, [url]);
-  return caps;
+  return result && result.url === url ? result.caps : null;
 }
 
 const mark = (v: boolean | null) => (v === true ? "✓" : v === false ? "✗" : "?");

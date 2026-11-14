@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- Cleaner effects in the web app: values that depend on a choice (theme, provider models, project folder checks, usage period, mobile layout) are now derived instead of reset in an effect. No change in what you see.
 - Development tools: ESLint is now on version 10, and the audit warnings for the lint tools are cleared (6 remain, all in the build-time `shadcn` command-line tool).
 - Keyboard and screen-reader fixes: backlog items in Scrum open from their title with the keyboard, the "Sprint" back link is a real button, a task's check rows open and close with Enter or Space, the days in the Usage chart can be reached with Tab, and the message box in Chat is labelled.
 - Added the project's engineering standards, stage gates, decisions and pitfalls under `docs/`. No change to how the app behaves.

@@ -12,12 +12,13 @@ function readTheme(): Theme {
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(readTheme);
   const setTheme = useCallback((next: Theme) => {
-    document.documentElement.classList.toggle("dark", next === "dark");
-    document.documentElement.style.colorScheme = next;
     localStorage.setItem(KEY, next);
     setThemeState(next);
   }, []);
-  useEffect(() => { setTheme(readTheme()); }, [setTheme]);
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.style.colorScheme = theme;
+  }, [theme]);
   return { theme, setTheme, toggle: () => setTheme(theme === "dark" ? "light" : "dark") };
 }
 

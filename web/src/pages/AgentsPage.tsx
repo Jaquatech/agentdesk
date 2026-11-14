@@ -100,17 +100,17 @@ function AgentForm({ agent, providers, teams, templates, onClose, onSaved, onDup
   const [f, setF] = useState({ ...agent });
   const [look, setLook] = useState<Appearance>(parseJson(agent.appearance, {}));
   const [tools, setTools] = useState(parseJson<string[]>(agent.allowed_tools, []).join("\n"));
-  const [models, setModels] = useState<string[]>([]);
+  const [modelsFor, setModelsFor] = useState<{ providerId: number; models: string[] } | null>(null);
   const [error, setError] = useState("");
   const [teamIds, setTeamIds] = useState<number[]>(agent.team_ids ?? []);
   const provider = providers.find((p) => p.id === Number(f.provider_id));
+  const models = provider && modelsFor?.providerId === provider.id ? modelsFor.models : [];
   const caps = useCapabilities(provider ? `/api/providers/${provider.id}/capabilities?model=${encodeURIComponent(f.model || provider.default_model || "")}` : null);
   const set = (k: keyof Agent, v: unknown) => setF((x) => ({ ...x, [k]: v }));
 
   useEffect(() => {
-    setModels([]);
     if (!provider) return;
-    post<{ ok: boolean; models?: string[] }>(`/api/providers/${provider.id}/test`).then((r) => setModels(r.models ?? [])).catch(() => {});
+    post<{ ok: boolean; models?: string[] }>(`/api/providers/${provider.id}/test`).then((r) => setModelsFor({ providerId: provider.id, models: r.models ?? [] })).catch(() => {});
   }, [provider?.id]);
 
   const save = async () => {
