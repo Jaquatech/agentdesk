@@ -49,8 +49,8 @@ export function seedDemo(db: DB, dataDir: string): boolean {
   const insertItem = db.prepare(`INSERT INTO backlog_items (project_id, title, request, story, acceptance, tech_notes, points, priority, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ready')`);
   [
-    ["Dust Buddy: airlock dust alarm", "Beep when the airlock has too much dust.", "As a Mars colonist I want an alarm when dust builds up so that my suit seals stay clean.", "- [ ] An alarm threshold is configurable\n- [ ] A note explains how to test it", "## Approach (demo)\nOne small module under dust-buddy/.", 3],
-    ["Cocoa Printer: marshmallow mode", "Add a marshmallow topping option to the cocoa printer.", "As a homesick astronaut I want marshmallows on my cocoa so that Mars feels a bit more like home.", "- [ ] Marshmallow count 0 to 5\n- [ ] Low gravity setting keeps them on top", "## Approach (demo)\nExtend cocoa-printer/ with a topping option.", 5],
+    ["Dust Buddy: airlock dust alarm", "Beep when the airlock has too much dust.", "As a Mars colonist I want an alarm when dust builds up so that my suit seals stay clean.", "- [ ] An alarm threshold is configurable\n- [ ] A note explains how to test it", "## Approach (demo)\nOne small file under demo/ (the scripted agent only writes there).", 3],
+    ["Cocoa Printer: marshmallow mode", "Add a marshmallow topping option to the cocoa printer.", "As a homesick astronaut I want marshmallows on my cocoa so that Mars feels a bit more like home.", "- [ ] Marshmallow count 0 to 5\n- [ ] Low gravity setting keeps them on top", "## Approach (demo)\nOne small file under demo/ (the scripted agent only writes there).", 5],
     ["Rover Radio: crater playlists", "Suggest a playlist for each crater the rover passes.", "As a rover driver I want music that fits the crater so that long drives are fun.", "- [ ] Three craters have a playlist\n- [ ] Unknown craters get a default", "## Approach (demo)\nA lookup table under rover-radio/.", 2],
   ].forEach(([title, request, story, acceptance, notes, points], n) => insertItem.run(projectId, title, request, story, acceptance, notes, points, n + 1));
   seedHistory(db, projectId, ids);
@@ -97,12 +97,10 @@ function seedHistory(db: DB, projectId: number, agentIds: number[]) {
       `${item.request}\n\n${item.story}`, paths, worker, sentinel, taskStatus, round, extra.summary ?? "", extra.review ?? "", extra.error ?? "", extra.feedback ?? "", item.id, sprint2);
     syncTaskPage(db, task);
   };
-  inSprint("Dust Buddy: airlock dust alarm", "in_sprint", '["dust-buddy/"]', orbit, {}, "queued", 0);
-  inSprint("Cocoa Printer: marshmallow mode", "in_sprint", '["cocoa-printer/"]', comet, {
-    summary: "Added a topping option with a marshmallow count.",
-    review: "Not approved: the low gravity setting does not keep the marshmallows on top. Fix and run again.",
-    error: "Review round 1 asked for changes and no rounds are left. Press Retry to continue.", feedback: "Make the low gravity setting keep the marshmallows on top.",
-  }, "needs_attention", 1);
+  inSprint("Dust Buddy: airlock dust alarm", "in_sprint", '["demo/"]', orbit, {}, "queued", 0);
+  inSprint("Cocoa Printer: marshmallow mode", "in_sprint", '["demo/"]', comet, {
+    error: "Paused: the server restarted while Comet was working. Press Retry to start again.",
+  }, "interrupted", 0);
   db.prepare("INSERT INTO backlog_items (project_id, title, request, story, acceptance, points, priority, status) VALUES (?, 'Greenhouse watering timer', 'A timer that waters the greenhouse.', 'As a colonist I want the greenhouse watered on time so that the tomatoes survive.', '- [x] Waters twice a day', 2, 4, 'ready')").run(projectId);
   inSprint("Greenhouse watering timer", "done", '["greenhouse/"]', orbit, { summary: "Added a watering timer with a twice-a-day schedule.", review: "Approved in round 1." }, "merged", 0);
 }
