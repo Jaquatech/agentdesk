@@ -23,6 +23,7 @@ function initRepo(dir: string) {
   git("init", "-q", "-b", "main");
   git("add", "-A");
   git("commit", "-q", "-m", "Start the demo project");
+  git("branch", "sprint/2-settling-in");
 }
 
 /** Fills an empty demo database with a team and a Scrum project so every page has something to show. Returns false when data already exists. */
@@ -55,7 +56,7 @@ export function seedDemo(db: DB, dataDir: string): boolean {
   return true;
 }
 
-/** A released first sprint (two merged tasks, their runs and release notes) and a second sprint in planning. */
+/** A released first sprint (two merged tasks, runs, release notes) and an active second sprint: one task waiting to run, one needing the user, one merged. */
 function seedHistory(db: DB, projectId: number, agentIds: number[]) {
   const [, orbit, comet, sentinel] = agentIds;
   const run = (sql: string, ...args: (string | number | null)[]) => Number(db.prepare(sql).run(...args).lastInsertRowid);
@@ -85,5 +86,22 @@ function seedHistory(db: DB, projectId: number, agentIds: number[]) {
   });
   db.prepare("UPDATE sprints SET release_notes = ? WHERE id = ?").run(`## Sprint 1: Touchdown\n\nThe first two gadgets are on Mars.\n\n${lines.join("\n")}\n`, sprint);
   syncReleasePage(db, sprint);
-  run("INSERT INTO sprints (project_id, pi_id, chat_id, number, name, goal, capacity) VALUES (?, ?, ?, 2, 'Settling in', 'Make the base a little more comfortable', 16)", projectId, pi, chat);
+  const sprint2 = run(`INSERT INTO sprints (project_id, pi_id, chat_id, number, name, goal, status, branch, capacity, started_at)
+    VALUES (?, ?, ?, 2, 'Settling in', 'Make the base a little more comfortable', 'active', 'sprint/2-settling-in', 16, datetime('now', '-1 hours'))`, projectId, pi, chat);
+  const inSprint = (title: string, status: string, paths: string, worker: number, extra: { summary?: string; review?: string; error?: string; feedback?: string }, taskStatus: string, round: number) => {
+    const item = db.prepare("SELECT id, request, story FROM backlog_items WHERE project_id = ? AND title = ?").get(projectId, title) as { id: number; request: string; story: string };
+    db.prepare("UPDATE backlog_items SET status = ?, sprint_id = ? WHERE id = ?").run(status, sprint2, item.id);
+    const task = run(`INSERT INTO tasks (chat_id, project_id, slug, title, spec, paths, worker_id, reviewer_id, status, round, summary, review, error, feedback, item_id, sprint_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, chat, projectId, title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), title,
+      `${item.request}\n\n${item.story}`, paths, worker, sentinel, taskStatus, round, extra.summary ?? "", extra.review ?? "", extra.error ?? "", extra.feedback ?? "", item.id, sprint2);
+    syncTaskPage(db, task);
+  };
+  inSprint("Dust Buddy: airlock dust alarm", "in_sprint", '["dust-buddy/"]', orbit, {}, "queued", 0);
+  inSprint("Cocoa Printer: marshmallow mode", "in_sprint", '["cocoa-printer/"]', comet, {
+    summary: "Added a topping option with a marshmallow count.",
+    review: "Not approved: the low gravity setting does not keep the marshmallows on top. Fix and run again.",
+    error: "Review round 1 asked for changes and no rounds are left. Press Retry to continue.", feedback: "Make the low gravity setting keep the marshmallows on top.",
+  }, "needs_attention", 1);
+  db.prepare("INSERT INTO backlog_items (project_id, title, request, story, acceptance, points, priority, status) VALUES (?, 'Greenhouse watering timer', 'A timer that waters the greenhouse.', 'As a colonist I want the greenhouse watered on time so that the tomatoes survive.', '- [x] Waters twice a day', 2, 4, 'ready')").run(projectId);
+  inSprint("Greenhouse watering timer", "done", '["greenhouse/"]', orbit, { summary: "Added a watering timer with a twice-a-day schedule.", review: "Approved in round 1." }, "merged", 0);
 }
