@@ -63,7 +63,7 @@ export function TeamsPage() {
                     <div key={a.id} className="flex min-w-0 items-center gap-2 py-0.5 text-sm" style={{ opacity: a.enabled ? 1 : 0.5 }}>
                       <Avatar look={lookFor(a.name, parseJson(a.appearance, {}))} size={24} />
                       <span className="truncate">{a.name}</span>
-                      {lead === a.id && members.length > 1 && <Badge variant="outline" className="border-primary/40 text-primary">lead</Badge>}
+                      {lead === a.id && members.length > 1 && <Badge variant="outline" className="border-primary/40 text-primary-text">lead</Badge>}
                       {!a.enabled && <Badge variant="secondary">off</Badge>}
                     </div>
                   ))}

@@ -41,3 +41,6 @@ Things that cost real debugging time. Read the ones that touch your change befor
 
 ## The office route test is slow
 `walking routes` in `web/src/office/scene.test.ts` walks every desk to every spot and takes about 5 s on a busy machine, so the default 5 s test timeout failed it now and then (looked like a flaky test, was a timeout). It has an explicit 30 s limit; keep it when you add furniture, which makes it slower.
+
+## Brand color as text
+`--primary` is a dark amber made for button backgrounds. As text on the dark theme it measures about 2.5:1, below the 4.5:1 minimum, and the accessibility scan fails on it. Text, links and badge labels use `text-primary-text` (a lighter amber in dark, the same color in light). Do not use `text-primary` outside `components/ui/`.

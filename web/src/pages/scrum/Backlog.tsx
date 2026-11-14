@@ -144,7 +144,7 @@ function ItemEditor({ item, onChanged }: { item: Item; onChanged: () => void }) 
     <div className="flex flex-col gap-4 overflow-auto p-5">
       <div>
         <div className="flex items-center gap-2">
-          <span className={cn("inline-flex items-center gap-1.5 text-xs capitalize", item.status === "ready" || item.status === "done" ? "text-success" : item.status === "error" ? "text-destructive" : item.status === "refining" ? "text-primary" : "text-muted-foreground")}>
+          <span className={cn("inline-flex items-center gap-1.5 text-xs capitalize", item.status === "ready" || item.status === "done" ? "text-success" : item.status === "error" ? "text-destructive" : item.status === "refining" ? "text-primary-text" : "text-muted-foreground")}>
             <span className={cn("size-2 rounded-full bg-current", item.status === "refining" && "animate-pulse")} />
             {label}
           </span>
