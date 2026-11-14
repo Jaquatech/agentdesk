@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useCallback, Fragment, useEffect, useMemo, useState } from "react";
 import { Download, Plus, RefreshCw } from "lucide-react";
 import { get, put, post, del } from "../api.ts";
 import { Field, FooterGap, Modal, ToneBadge } from "../components/ui.tsx";
@@ -37,8 +37,8 @@ export function UsagePage() {
   const [days, setDays] = useState(30);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [openDay, setOpenDay] = useState<string | null>(null);
-  const load = () => get<Usage>(`/api/usage?days=${days}`).then(setUsage);
-  useEffect(() => { load(); }, [days]);
+  const load = useCallback(() => get<Usage>(`/api/usage?days=${days}`).then(setUsage), [days]);
+  useEffect(() => { load(); }, [load]);
 
   const t = usage?.totals;
   const prompt = t ? t.tokens_in + t.cache_read + t.cache_write : 0;

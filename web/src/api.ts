@@ -135,7 +135,7 @@ export function closeLiveEvents() {
 
 export function useLiveEvents(fn: Listener) {
   const ref = useRef(fn);
-  ref.current = fn;
+  useEffect(() => { ref.current = fn; });
   useEffect(() => {
     ensureSource();
     const l: Listener = (e) => ref.current(e);
@@ -152,6 +152,7 @@ export function useLoad<T>(url: string | null, deps: unknown[] = []) {
     if (!url) return;
     get<T>(url).then((d) => { setData(d); setError(null); }).catch((e) => setError(e.message));
   }, [url]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `deps` is the caller's own list of reload triggers
   useEffect(() => { reload(); }, [reload, ...deps]);
   return { data, setData, error, reload };
 }

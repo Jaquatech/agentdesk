@@ -9,11 +9,13 @@ import { dirname } from "node:path";
 import { SEED_PRICES } from "./pricing.ts";
 import { seedDocuments } from "./documents.ts";
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- rows are read by column name all over the server; the schema is the type */
 type Statement = {
   run(...params: any[]): { changes: number | bigint; lastInsertRowid: number | bigint };
   get(...params: any[]): any;
   all(...params: any[]): any[];
 };
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * SQLite through Node's built-in driver (node:sqlite): no native package to compile, so `npm install` works on a

@@ -59,6 +59,7 @@ export function Avatar({ look, size = 40 }: { look: Look; size?: number }) {
     ctx.clearRect(0, 0, 16, 16);
     ctx.imageSmoothingEnabled = false;
     drawCharacter(ctx, 8, 21, look, "stand", 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- redraw only when the look changes, not for every new object with the same values
   }, [look.shirt, look.hair, look.skin, look.hairStyle]);
   return <canvas ref={ref} width={16} height={16} className="shrink-0 rounded-lg bg-muted" style={{ width: size, height: size, imageRendering: "pixelated" }} />;
 }

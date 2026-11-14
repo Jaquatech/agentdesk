@@ -26,10 +26,21 @@ export function stepToMarkdown(e: TranscriptEntry): string {
   }
 }
 
+/** The columns of a task and of its runs that the export reads. */
+type TaskExportRow = {
+  id: number; slug: string; title: string; status: string; project: string | null; branch: string | null; round: number;
+  worker: string | null; reviewer: string | null; sprint_number: number | null; paths: string; cost_usd: number; tokens: number;
+  created_at: string; updated_at: string; error: string; feedback: string; summary: string; review: string; verdict: string; spec: string;
+};
+type RunExportRow = {
+  kind: string; round: number; agent: string | null; model: string | null; status: string; turns: number; seconds: number;
+  cost_usd: number; transcript: string | null; summary: string;
+};
+
 export function taskToMarkdown(db: DB, taskId: number): string | null {
   const t = db.prepare(`SELECT t.*, p.name AS project, w.name AS worker, r.name AS reviewer, s.number AS sprint_number
     FROM tasks t LEFT JOIN projects p ON p.id = t.project_id LEFT JOIN agents w ON w.id = t.worker_id
-    LEFT JOIN agents r ON r.id = t.reviewer_id LEFT JOIN sprints s ON s.id = t.sprint_id WHERE t.id = ?`).get(taskId) as Record<string, any> | undefined;
+    LEFT JOIN agents r ON r.id = t.reviewer_id LEFT JOIN sprints s ON s.id = t.sprint_id WHERE t.id = ?`).get(taskId) as TaskExportRow | undefined;
   if (!t) return null;
   const out: string[] = [];
   out.push(`# ${t.title}`, "");
@@ -45,7 +56,7 @@ export function taskToMarkdown(db: DB, taskId: number): string | null {
   if (t.review) out.push("", `## Review${t.verdict ? ` (${t.verdict})` : ""}`, "", cut(t.review, 6000));
   if (t.spec) out.push("", "## Spec", "", cut(t.spec, 8000));
 
-  const runs = db.prepare(`SELECT r.*, a.name AS agent FROM runs r LEFT JOIN agents a ON a.id = r.agent_id WHERE r.task_id = ? ORDER BY r.id`).all(taskId) as Record<string, any>[];
+  const runs = db.prepare(`SELECT r.*, a.name AS agent FROM runs r LEFT JOIN agents a ON a.id = r.agent_id WHERE r.task_id = ? ORDER BY r.id`).all(taskId) as RunExportRow[];
   out.push("", "## Activity", "");
   let budget = 350_000; // characters for all runs together
   for (const r of runs) {

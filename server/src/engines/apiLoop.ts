@@ -113,7 +113,7 @@ When you are done, call ${finalTool.name} exactly once. Do not ask questions; ta
         for (const call of calls) {
           if (call.name === finalTool.name) {
             log({ kind: "tool", tool: call.name, input: call.input });
-            const summary = String((call.input as any).summary ?? lastText ?? "");
+            const summary = String((call.input as { summary?: unknown }).summary ?? lastText ?? "");
             return done(true, summary, call.input);
           }
           const outcome = await runTool(call.name, call.input, {

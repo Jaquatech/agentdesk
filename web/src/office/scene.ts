@@ -238,7 +238,8 @@ export class OfficeScene {
       const walking = sp.path.length > 0;
       const spot = this.atSpot(sp);
       let pose: Pose = "stand", dir: Dir = sp.dir, chair = false;
-      let bx0 = sp.x - 0.22, bx1 = sp.x + 0.22, by0 = sp.y - 0.22, by1 = sp.y + 0.22;
+      const bx0 = sp.x - 0.22, bx1 = sp.x + 0.22;
+      let by0 = sp.y - 0.22, by1 = sp.y + 0.22;
       if (walking) pose = "walk";
       else if (sp.at === "desk") {
         pose = ["typing", "running"].includes(a.state) ? "type" : "sit"; dir = "fl"; chair = true;

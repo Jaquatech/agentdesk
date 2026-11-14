@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { Check as CheckIcon, Circle, Copy, Download, ExternalLink, GitMerge, RotateCcw, Square, Trash2, X } from "lucide-react";
 import { get, post, parseJson, useLiveEvents, type Agent, type Check, type Run, type Task, type TaskChecks } from "../api.ts";
@@ -36,10 +36,10 @@ export function TaskPanel({ chatId, agents, initialGroup, initialTask }: { chatI
   const [selected, setSelected] = useState<number | null>(initialTask ?? null);
   const [group, setGroup] = useState<TaskGroup>(TABS.some((t) => t.id === initialGroup) ? (initialGroup as TaskGroup) : "active");
   const tasksRef = useRef<Task[]>([]);
-  tasksRef.current = tasks;
+  useEffect(() => { tasksRef.current = tasks; });
 
-  const load = () => get<Task[]>(`/api/tasks?${chatId ? `chat=${chatId}` : `group=${group}`}`).then(setTasks);
-  useEffect(() => { load(); }, [chatId, group]);
+  const load = useCallback(() => get<Task[]>(`/api/tasks?${chatId ? `chat=${chatId}` : `group=${group}`}`).then(setTasks), [chatId, group]);
+  useEffect(() => { load(); }, [load]);
   useLiveEvents((ev) => {
     if (ev.type === "scrum" && !chatId) { load(); return; }
     if (ev.type !== "task" || (chatId && ev.chatId !== chatId)) return;
@@ -173,8 +173,8 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
 
   const [checks, setChecks] = useState<TaskChecks | null>(null);
   const [waitingFor, setWaitingFor] = useState<{ id: number; title: string; status: string; worker: string } | null>(null);
-  const loadRuns = () => get<{ runs: Run[]; checks: TaskChecks; waiting_for: typeof waitingFor }>(`/api/tasks/${task.id}`).then((d) => { setRuns(d.runs); setChecks(d.checks); setWaitingFor(d.waiting_for ?? null); });
-  useEffect(() => { loadRuns(); }, [task.id, task.status, task.round]);
+  const loadRuns = useCallback(() => get<{ runs: Run[]; checks: TaskChecks; waiting_for: typeof waitingFor }>(`/api/tasks/${task.id}`).then((d) => { setRuns(d.runs); setChecks(d.checks); setWaitingFor(d.waiting_for ?? null); }), [task.id]);
+  useEffect(() => { loadRuns(); }, [loadRuns, task.status, task.round]);
   useLiveEvents((e) => { if (e.type === "task" && task.status === "queued" && e.chatId === task.chat_id && e.task.id !== task.id) loadRuns(); });
 
   const [retryWorker, setRetryWorker] = useState("");

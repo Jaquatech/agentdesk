@@ -47,4 +47,9 @@ export default tseslint.config(
       "jsx-a11y/anchor-is-valid": "warn",
     },
   },
+  // Tests read parsed JSON from the API and build loose fixtures; typing each one adds noise, not safety.
+  {
+    files: ["server/test/**/*.ts", "web/src/**/*.test.{ts,tsx}"],
+    rules: { "@typescript-eslint/no-explicit-any": "off" },
+  },
 );

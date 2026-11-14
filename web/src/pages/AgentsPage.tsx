@@ -108,10 +108,11 @@ function AgentForm({ agent, providers, teams, onClose, onSaved, onDuplicate }: {
   const caps = useCapabilities(provider ? `/api/providers/${provider.id}/capabilities?model=${encodeURIComponent(f.model || provider.default_model || "")}` : null);
   const set = (k: keyof Agent, v: unknown) => setF((x) => ({ ...x, [k]: v }));
 
+  const providerId = provider?.id;
   useEffect(() => {
-    if (!provider) return;
-    post<{ ok: boolean; models?: string[] }>(`/api/providers/${provider.id}/test`).then((r) => setModelsFor({ providerId: provider.id, models: r.models ?? [] })).catch(() => {});
-  }, [provider?.id]);
+    if (providerId === undefined) return;
+    post<{ ok: boolean; models?: string[] }>(`/api/providers/${providerId}/test`).then((r) => setModelsFor({ providerId, models: r.models ?? [] })).catch(() => {});
+  }, [providerId]);
 
   const save = async () => {
     setError("");
