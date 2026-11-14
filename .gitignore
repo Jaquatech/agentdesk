@@ -4,3 +4,7 @@ data/
 *.log
 .env
 data-demo/
+
+# Playwright
+test-results/
+playwright-report/

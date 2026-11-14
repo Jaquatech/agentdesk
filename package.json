@@ -12,6 +12,7 @@
     "start": "npm run start --workspace server",
     "demo": "npm run demo --workspace server",
     "demo:reset": "node scripts/demo-reset.mjs",
+    "e2e": "playwright test",
     "dev": "concurrently -k -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "npm run dev --workspace server",
     "dev:web": "npm run dev --workspace web",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
     "concurrently": "^10.0.6",
     "eslint": "^10.15.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
