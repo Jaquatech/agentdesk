@@ -1,6 +1,6 @@
 # Release notes
 
-## Unreleased
+## 1.5.0 (2026-11-14)
 
 ### Accessibility
 - Found by a new scan of the approval banner: the Deny button was hard to read on the dark theme. It is now an outlined button with a red border. The scans also cover a form with a validation error and an open dropdown.
