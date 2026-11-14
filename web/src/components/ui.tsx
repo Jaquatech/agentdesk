@@ -8,9 +8,9 @@ import { drawCharacter } from "../office/draw.ts";
 import type { Look } from "../office/palette.ts";
 
 const STATUS_TONE: Record<string, string> = {
-  building: "border-primary/40 text-primary",
-  verifying: "border-primary/40 text-primary",
-  reviewing: "border-primary/40 text-primary",
+  building: "border-primary/40 text-primary-text",
+  verifying: "border-primary/40 text-primary-text",
+  reviewing: "border-primary/40 text-primary-text",
   approved: "border-success/40 text-success",
   merged: "border-success/40 text-success",
   needs_attention: "border-warning/40 text-warning",
@@ -77,7 +77,7 @@ export function ToneBadge({ tone, children, title }: { tone?: "good" | "bad" | "
   const cls = tone === "good" ? "border-success/40 text-success"
     : tone === "bad" ? "border-destructive/40 text-destructive"
     : tone === "wait" ? "border-warning/40 text-warning"
-    : tone === "accent" ? "border-primary/40 text-primary"
+    : tone === "accent" ? "border-primary/40 text-primary-text"
     : "";
   return <Badge variant="outline" title={title} className={cls}>{children}</Badge>;
 }

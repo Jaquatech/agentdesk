@@ -129,7 +129,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
                   const open = !collapsed.has(p.id);
                   const pchats = chats.filter((c) => c.project_id === p.id);
                   return (
-                    <Collapsible key={p.id} open={open} onOpenChange={(next) => setCollapsed((s) => { const n = new Set(s); if (next) n.delete(p.id); else n.add(p.id); return n; })}>
+                    <Collapsible asChild key={p.id} open={open} onOpenChange={(next) => setCollapsed((s) => { const n = new Set(s); if (next) n.delete(p.id); else n.add(p.id); return n; })}>
                       <SidebarMenuItem>
                         <div className="flex items-center">
                           <CollapsibleTrigger asChild>

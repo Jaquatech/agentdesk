@@ -140,7 +140,7 @@ function DailyChart({ daily, days, onPick, picked }: { daily: Usage["daily"]; da
       <CardContent>
         {series.every((d) => !d.runs) ? <p className="py-8 text-center text-sm text-muted-foreground">No calls in this period yet.</p> : (
           <div className="relative" role="group" aria-label="Cost per day: select a day to see its calls" onMouseLeave={() => setHover(null)}>
-            <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label="Cost per day">
+            <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="group" aria-label="Cost per day">
               {[0, 0.5, 1].map((f) => (
                 <g key={f}>
                   <line x1={padL} x2={W - padR} y1={y(max * f)} y2={y(max * f)} className="stroke-border" />

@@ -51,7 +51,7 @@ export function ScrumPage({ projectId, initial }: { projectId: number; initial?:
           </TabsList>
         </Tabs>
       </header>
-      <div className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-2 text-sm text-primary">
+      <div className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-2 text-sm text-primary-text">
         <Flag />
         <div className="min-w-0 flex-1"><b className="font-medium text-foreground">{data.cycle.text}</b></div>
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Sprint capacity = developers in the team × points per developer">

@@ -236,7 +236,7 @@ function FolderPicker({ start, onPick, onClose }: { start: string; onPick: (p: s
         )}
         {list?.dirs.map((d) => (
           <button key={d.path} type="button" className="flex w-full items-center gap-2 border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted" onClick={() => open(d.path)}>
-            {d.git ? <FolderGit2 className="text-primary" /> : <FolderOpen className="text-muted-foreground" />} {d.name}
+            {d.git ? <FolderGit2 className="text-primary-text" /> : <FolderOpen className="text-muted-foreground" />} {d.name}
             {d.git && <ToneBadge tone="accent">git</ToneBadge>}
           </button>
         ))}

@@ -77,7 +77,7 @@ export function AgentsPage() {
                 <Avatar look={lookFor(a.name, parseJson(a.appearance, {}))} size={36} />
                 <div className="min-w-0">
                   <b>{a.name}</b>{!a.enabled && <Badge variant="secondary" className="ml-2">off</Badge>}
-                  {" "}{teams.filter((t) => a.team_ids?.includes(t.id)).map((t) => <Badge key={t.id} variant="outline" className="mr-1 border-primary/40 text-primary">{t.name}</Badge>)}
+                  {" "}{teams.filter((t) => a.team_ids?.includes(t.id)).map((t) => <Badge key={t.id} variant="outline" className="mr-1 border-primary/40 text-primary-text">{t.name}</Badge>)}
                   <div className="text-xs text-muted-foreground">{a.provider_name ?? "no provider"} · <span className="font-mono">{a.model || "provider default"}</span></div>
                 </div>
                 <span className="ml-auto text-xs text-muted-foreground">{a.max_turns} turns · {a.timeout_min} min</span>

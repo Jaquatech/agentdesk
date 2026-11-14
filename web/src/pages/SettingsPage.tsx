@@ -95,7 +95,7 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
                 </Field>
                 <Field label="Or use your own image" hint="PNG, JPG or SVG. It replaces the generated mark (shrunk to 256 px and stored in your local settings).">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={async (e) => {
+                    <Input type="file" aria-label="Upload a logo image" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={async (e) => {
                       const f = e.target.files?.[0];
                       if (!f) return;
                       try { set("logo_image", await shrinkImage(f)); } catch (err) { setMsg((err as Error).message); }

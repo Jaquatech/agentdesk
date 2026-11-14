@@ -18,7 +18,7 @@ export function Page({ title, actions, children, width = "narrow", bleed }: {
         <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium">{title}</div>
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </header>
-      <div className={cn("min-h-0 flex-1", bleed ? "flex flex-col overflow-hidden" : "overflow-auto")}>
+      <div tabIndex={bleed ? undefined : 0} className={cn("min-h-0 flex-1", bleed ? "flex flex-col overflow-hidden" : "overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset")}>
         <div className={cn(
           "flex flex-col gap-4",
           bleed ? "h-full min-h-0" : "p-6",
