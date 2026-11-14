@@ -28,8 +28,10 @@ export function NoFillInput({ className, ...props }: React.ComponentProps<typeof
 }
 
 /** Dropdown that allows a blank value (mapped internally; Radix rejects ""). */
-export function Choice({ id, value, onValueChange, options, placeholder, disabled, className, size, title }: {
+export function Choice({ id, value, onValueChange, options, placeholder, disabled, className, size, title, label }: {
   id?: string;
+  /** Accessible name when no visible label points at this control. */
+  label?: string;
   value: string;
   onValueChange: (v: string) => void;
   options: { value: string; label: string }[];
@@ -43,7 +45,7 @@ export function Choice({ id, value, onValueChange, options, placeholder, disable
   const known = options.some((o) => (o.value === "" ? BLANK : o.value) === current);
   return (
     <Select value={known ? current : undefined} onValueChange={(v) => onValueChange(v === BLANK ? "" : v)} disabled={disabled}>
-      <SelectTrigger id={id} size={size} title={title} className={cn("w-full min-w-0", className)}>
+      <SelectTrigger id={id} size={size} title={title} aria-label={label} className={cn("w-full min-w-0", className)}>
         <SelectValue placeholder={placeholder ?? "Choose…"} />
       </SelectTrigger>
       <SelectContent position="popper">
@@ -81,7 +83,7 @@ export function ModelPicker({ id, models, value, onChange, allowDefault, default
     { value: "__other", label: "Other…" },
   ];
   return (
-    <Choice id={id} className="font-mono" value={value} options={options} onValueChange={(v) => {
+    <Choice id={id} label="Model" className="font-mono" value={value} options={options} onValueChange={(v) => {
       if (v === "__other") { setCustom(true); return; }
       onChange(v);
     }} />
