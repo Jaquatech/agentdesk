@@ -63,6 +63,7 @@ export function engineFor(provider: ResolvedProvider): Engine {
 
 /** Cheap connectivity check for the Providers page: list models (or `claude --version`). */
 export async function testProvider(db: DB, vault: Vault, p: ProviderRow, apiKey?: string): Promise<{ ok: boolean; message: string; models?: string[] }> {
+  if (demoMode()) return { ok: true, message: "Demo mode: no connection is made", models: ["demo-model"] };
   try {
     if (p.kind === "claude-cli") {
       const r = await runProgram(process.env.AGENTDESK_CLAUDE_BIN || "claude", ["--version"], { cwd: process.cwd(), timeoutMs: 20_000 });
