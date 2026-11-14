@@ -15,12 +15,18 @@
     "dev:server": "npm run dev --workspace server",
     "dev:web": "npm run dev --workspace web",
     "build": "npm run build --workspace web && npm run typecheck --workspace server",
-    "test": "npm test --workspace server && npm test --workspace web"
+    "test": "npm test --workspace server && npm test --workspace web",
+    "lint": "eslint . --max-warnings 206"
   },
   "engines": {
     "node": ">=22.13"
   },
   "devDependencies": {
-    "concurrently": "^10.0.6"
+    "concurrently": "^10.0.6",
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "typescript-eslint": "^8.72.2"
   }
 }

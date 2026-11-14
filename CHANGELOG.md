@@ -1,5 +1,11 @@
 # Release notes
 
+## Unreleased
+
+### Changes
+- Added the project's engineering standards, stage gates, decisions and pitfalls under `docs/`. No change to how the app behaves.
+- Added ESLint and a GitHub Actions workflow that runs lint, tests and build on every push and pull request.
+
 ## 1.4.0 (2026-11-12)
 
 ### Changes

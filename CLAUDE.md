@@ -9,6 +9,7 @@ A local-only tool where a planner splits work across developer agents and a revi
 npm run setup        # install + build the UI
 npm run dev          # server on 4317 (reload) + Vite on 5173 (/api proxied)
 npm run demo         # scripted agents, no key, no cost, separate data folder (data-demo/)
+npm run lint         # ESLint on server and web (CI runs lint, test, build)
 npm test             # server (vitest, ~52 tests) + web
 npm run build        # web build + server typecheck (tsc --noEmit)
 npx tsc --noEmit -p server        # quick typecheck
@@ -52,6 +53,18 @@ Node >= 22.13 (uses the built-in `node:sqlite`). The UI is shadcn/ui on Tailwind
 - **Office** (`web/src/office/`): isometric canvas, no assets. `layout.ts` is pure (blocks per team or one open block, desks, lounge furniture, break `spots`, walking routes through the shared corridor; tested in `scene.test.ts`, including that routes never cross furniture or glass). `scene.ts` moves sprites and depth-sorts (`sortItems`), `props.ts` draws furniture, the invaders cabinet and slot machine (pure functions of time), `people.ts` characters, `logo.ts` the emblem. Features and logo are settings keys `office_*` and `logo_*` (defaults in `db.ts`); `/api/office` also returns teams with member ids. New furniture: add a rect to `layout.ts`, draw it in `props.ts`, add it to the route test's `rects`.
 - **Demo engine** (`engines/demo.ts`) answers every tool the app uses, including the Scrum ones; extend it when you add a new tool, or the demo breaks.
 - **Model guide ratings** are expectations unless marked "seen" (observed in real runs here). Do not mark a rating "seen" without evidence.
+
+## Standards and gates
+
+Full text in `docs/standards.md`; decisions (Settled / Known and open) in `docs/decisions.md`; costly mistakes in `docs/pitfalls.md`. Read the pitfalls that touch your change before you start, and add one when something bites.
+
+- **Order of priority:** get the work done; usability; security of the user's data.
+- **Use what exists:** focus, keyboard, dismissal and ARIA come from `web/src/components/ui/` or the browser, never hand-rolled in a page. Open the existing file that does the same job (the twin table in `standards.md`) before writing a new one.
+- **UI work:** check current web platform guidance first (`npx -y modern-web-guidance@latest search "<2-5 words>"`, then `retrieve`), then adapt the idea to React and shadcn. Not for backend, tooling or copy.
+- **Untrusted input:** model, agent, repository and tool output is shown as text or sanitized Markdown, never as HTML, and never decides a path, command or URL without validation.
+- **Ask first** before a new dependency, a new migration shape, or anything touching secrets, host checks, git safety or the vault.
+- **Gates:** 0 start, 1 works (`npm run lint`, `npm test`, `npm run build` exit 0; UI checked in demo mode by keyboard), 2 clean (cold read of the diff, remove generated-looking code, docs and `## Unreleased` updated), 3 release ready (usability, security, platform, project rules; run when a release is asked for). A finding is fixed with a test, or recorded in `docs/decisions.md`.
+- **Pass means exit code 0,** not a reading of the output.
 
 ## Rules
 
