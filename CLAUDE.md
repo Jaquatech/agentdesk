@@ -70,7 +70,7 @@ Full text in `docs/standards.md`; decisions (Settled / Known and open) in `docs/
 
 - **Migrations:** never edit an applied one; append a new string to `MIGRATIONS`.
 - **Secrets:** API keys are encrypted in the vault (`crypto.ts`); values never leave the server and are never printed, logged, committed or sent to the UI. Logs carry outcomes, not values.
-- **Local only:** the server binds to 127.0.0.1 and refuses other hosts and cross-site writes. Keep it that way.
+- **Local only:** the server binds to 127.0.0.1 and refuses other hosts and cross-site writes. Keep it that way. It also sends a strict CSP (`server/src/securityHeaders.ts`): the UI must not need inline scripts or any other host, and a change that does is a security decision.
 - **Git safety:** agents work in worktrees; the user's own checkout is not touched. Only branches this tool created (`task/...`) are deleted on a remote. Commands outside an agent's allow-list need the user's approval.
 - **Tests that call the API** need a `host: localhost` header and a session cookie from `POST /api/auth/setup` (username of 3+ characters). Replace the engine with `engineOverride.engine`. See `test/pipeline.test.ts` and `test/scrum.test.ts`.
 - **UI changes:** check with a real browser (Playwright is fine) in demo mode; type checks do not show layout problems.

@@ -15,6 +15,7 @@ import { registerTeams } from "./teams.ts";
 import { registerModelGuide } from "./modelGuide.ts";
 import { Scrum, registerScrum } from "./scrum.ts";
 import { registerBudget } from "./budget.ts";
+import { SECURITY_HEADERS } from "./securityHeaders.ts";
 import { Orchestrator } from "./orchestrator/orchestrator.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -39,6 +40,8 @@ export async function buildApp(opts: AppOptions) {
       return reply.code(403).send({ error: "Cross-site request refused" });
     }
   });
+
+  app.addHook("onRequest", async (_req, reply) => { reply.headers(SECURITY_HEADERS); });
 
   registerAuth(app, db);
   registerRoutes(app, db, vault, orch, opts.dataDir);

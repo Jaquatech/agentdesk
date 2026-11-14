@@ -252,7 +252,7 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
           />
           <Button size="icon" onClick={send} disabled={planning || uploading || (!text.trim() && !ready.length)} aria-label="Send"
             title={uploading ? "Waiting for uploads" : undefined}><Send /></Button>

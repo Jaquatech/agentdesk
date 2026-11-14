@@ -26,6 +26,15 @@ export function Office({ chatId }: { chatId?: number }) {
   const [data, setData] = useState<OfficeData | null>(null);
   const [activity, setActivity] = useState<Map<number, Activity>>(new Map());
   const [selected, setSelected] = useState<number | null>(null);
+  const [reduceMotion, setReduceMotion] = useState(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const redrawRef = useRef(() => {});
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReduceMotion(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
     get<OfficeData>("/api/office").then((d) => {
@@ -48,6 +57,7 @@ export function Office({ chatId }: { chatId?: number }) {
     loadImage(data.settings.logo_image || "").then((img) => {
       if (cancelled) return;
       scene.configure({ features: featuresFromSettings(data.settings), teams: data.teams ?? [], logo: logoSpecFromSettings(data.settings, img) });
+      redrawRef.current();
     });
     return () => { cancelled = true; };
   }, [data]);
@@ -62,11 +72,12 @@ export function Office({ chatId }: { chatId?: number }) {
       };
     });
     sceneRef.current.setAgents(agents);
+    redrawRef.current();
   }, [data, activity]);
 
-  useEffect(() => { sceneRef.current.selected = selected; }, [selected]);
+  useEffect(() => { sceneRef.current.selected = selected; redrawRef.current(); }, [selected]);
 
-  // render loop
+  // render loop; with reduced motion the office is a still picture that is redrawn when something changes
   useEffect(() => {
     const canvas = canvasRef.current!, stage = stageRef.current!;
     const ctx = canvas.getContext("2d")!;
@@ -81,36 +92,46 @@ export function Office({ chatId }: { chatId?: number }) {
       canvas.style.width = `${r.width}px`;
       canvas.style.height = `${r.height}px`;
     };
+    const draw = (now: number) => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      sceneRef.current.draw(ctx, canvas.width / dpr, canvas.height / dpr, styleRef.current, now);
+    };
     resize();
-    const ro = new ResizeObserver(resize);
+    const ro = new ResizeObserver(() => { resize(); if (reduceMotion) draw(performance.now()); });
     ro.observe(stage);
 
     const frame = (now: number) => {
-      const scene = sceneRef.current;
-      scene.update(Math.min(64, now - last), Date.now());
+      sceneRef.current.update(Math.min(64, now - last), Date.now());
       last = now;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      scene.draw(ctx, canvas.width / dpr, canvas.height / dpr, styleRef.current, now);
+      draw(now);
       raf = requestAnimationFrame(frame);
     };
-    raf = requestAnimationFrame(frame);
+    if (reduceMotion) {
+      redrawRef.current = () => draw(performance.now());
+      draw(performance.now());
+    } else {
+      redrawRef.current = () => {};
+      raf = requestAnimationFrame(frame);
+    }
 
     const toCanvas = (e: MouseEvent) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
     const move = (e: MouseEvent) => {
       const p = toCanvas(e);
       sceneRef.current.hover = sceneRef.current.hitTest(p.x, p.y);
       canvas.style.cursor = sceneRef.current.hover ? "pointer" : "default";
+      if (reduceMotion) draw(performance.now());
     };
     const click = (e: MouseEvent) => { const p = toCanvas(e); setSelected(sceneRef.current.hitTest(p.x, p.y)); };
     canvas.addEventListener("mousemove", move);
     canvas.addEventListener("click", click);
     return () => {
       cancelAnimationFrame(raf);
+      redrawRef.current = () => {};
       ro.disconnect();
       canvas.removeEventListener("mousemove", move);
       canvas.removeEventListener("click", click);
     };
-  }, []);
+  }, [reduceMotion]);
 
   const agents = data?.agents.filter((a) => a.enabled) ?? [];
   const sel = agents.find((a) => a.id === selected);

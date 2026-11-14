@@ -4,6 +4,9 @@
 
 ### Changes
 - Added the project's engineering standards, stage gates, decisions and pitfalls under `docs/`. No change to how the app behaves.
+- The server now sends a Content-Security-Policy and related security headers. The UI loads only from its own origin; images in Markdown that point to other sites are not shown.
+- Pressing Enter to send a chat message or add a project note no longer fires while you are composing text with an input method (Japanese, Chinese, Korean).
+- With the system setting "reduce motion" on, the isometric office is a still picture and UI animations are switched off.
 - Added ESLint and a GitHub Actions workflow that runs lint, tests and build on every push and pull request.
 
 ## 1.4.0 (2026-11-12)

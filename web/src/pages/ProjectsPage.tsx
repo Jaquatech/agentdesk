@@ -260,7 +260,7 @@ function Journal({ projectId }: { projectId: number }) {
       </Card>
       <div className="flex items-center gap-2">
         <NoFillInput value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a note yourself, e.g. 'Static site: no npm, preview by opening index.html'"
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); add(); } }} />
         <Button type="button" size="sm" variant="outline" onClick={add}>Add</Button>
       </div>
     </div>
