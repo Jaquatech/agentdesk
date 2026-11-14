@@ -36,6 +36,7 @@ export function LoginPage({ setup, onDone }: { setup: boolean; onDone: () => voi
         <CardContent>
           <form onSubmit={submit}>
             <FieldGroup>
+              {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the sign-in form is the only thing on the page */}
               <Field label="Username"><Input autoFocus value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" /></Field>
               <Field label="Password" hint={setup ? "At least 8 characters. Stored as a hash on this machine only." : undefined}>
                 <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={setup ? "new-password" : "current-password"} />

@@ -144,7 +144,8 @@ function CheckRow({ check, runId, running, waiting }: { check: Check; runId: num
   const result = check.status === "passed" ? "passed" : check.status === "failed" ? `failed${check.exit !== null ? ` (exit ${check.exit})` : ""}` : check.status === "stopped" ? "stopped (you stopped the task)" : running || waiting ? "waiting" : "not run";
   return (
     <div className="border-t py-1.5 first:border-t-0">
-      <div className={cn("flex items-center gap-2", expandable && "cursor-pointer")} onClick={expandable ? toggle : undefined} role={expandable ? "button" : undefined} aria-expanded={expandable ? open : undefined}>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- the role is set whenever the row can expand */}
+      <div className={cn("flex items-center gap-2", expandable && "cursor-pointer")} onClick={expandable ? toggle : undefined} onKeyDown={expandable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } : undefined} tabIndex={expandable ? 0 : undefined} role={expandable ? "button" : undefined} aria-expanded={expandable ? open : undefined}>
         {check.status === "passed" ? <CheckIcon className="text-success" /> : check.status === "failed" ? <X className="text-destructive" /> : <Circle className="text-muted-foreground" />}
         <code className="min-w-0 truncate font-mono text-xs">{check.command}</code>
         <span className="ml-auto text-xs text-muted-foreground">{result}{check.ms !== null ? ` · ${check.ms < 1000 ? `${check.ms} ms` : `${(check.ms / 1000).toFixed(1)} s`}` : ""}</span>

@@ -16,7 +16,7 @@
     "dev:web": "npm run dev --workspace web",
     "build": "npm run build --workspace web && npm run typecheck --workspace server",
     "test": "npm test --workspace server && npm test --workspace web",
-    "lint": "eslint . --max-warnings 206"
+    "lint": "eslint . --max-warnings 192"
   },
   "engines": {
     "node": ">=22.13"

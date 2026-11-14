@@ -139,7 +139,7 @@ function DailyChart({ daily, days, onPick, picked }: { daily: Usage["daily"]; da
       </CardHeader>
       <CardContent>
         {series.every((d) => !d.runs) ? <p className="py-8 text-center text-sm text-muted-foreground">No calls in this period yet.</p> : (
-          <div className="relative" onMouseLeave={() => setHover(null)}>
+          <div className="relative" role="group" aria-label="Cost per day: select a day to see its calls" onMouseLeave={() => setHover(null)}>
             <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label="Cost per day">
               {[0, 0.5, 1].map((f) => (
                 <g key={f}>
@@ -159,7 +159,8 @@ function DailyChart({ daily, days, onPick, picked }: { daily: Usage["daily"]; da
                         d={`M${x},${H - padB} V${H - padB - hgt + r} Q${x},${H - padB - hgt} ${x + r},${H - padB - hgt} H${x + barW - r} Q${x + barW},${H - padB - hgt} ${x + barW},${H - padB - hgt + r} V${H - padB} Z`} />
                     )}
                     <rect x={padL + i * step} y={padT} width={step} height={H - padT - padB} fill="transparent"
-                      onMouseEnter={() => setHover(i)} onClick={() => d.runs && onPick(d.day)} style={{ cursor: d.runs ? "pointer" : "default" }} />
+                      onMouseEnter={() => setHover(i)} onClick={() => d.runs && onPick(d.day)} style={{ cursor: d.runs ? "pointer" : "default" }}
+                      {...(d.runs ? { tabIndex: 0, role: "button", "aria-label": `${fmtDay(d.day)}, ${fmtUsd(d.cost_usd)}, ${d.runs} call${d.runs === 1 ? "" : "s"}`, onFocus: () => setHover(i), onBlur: () => setHover(null), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(d.day); } } } : {})} />
                     {i % labelEvery === 0 && <text x={padL + i * step + step / 2} y={H - 6} className="fill-muted-foreground text-[11px]" textAnchor="middle">{shortDay(d.day)}</text>}
                   </g>
                 );

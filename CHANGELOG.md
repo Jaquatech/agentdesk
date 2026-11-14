@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- Keyboard and screen-reader fixes: backlog items in Scrum open from their title with the keyboard, the "Sprint" back link is a real button, a task's check rows open and close with Enter or Space, the days in the Usage chart can be reached with Tab, and the message box in Chat is labelled.
 - Added the project's engineering standards, stage gates, decisions and pitfalls under `docs/`. No change to how the app behaves.
 - The server now sends a Content-Security-Policy and related security headers. The UI loads only from its own origin; images in Markdown that point to other sites are not shown.
 - Pressing Enter to send a chat message or add a project note no longer fires while you are composing text with an input method (Japanese, Chinese, Korean).

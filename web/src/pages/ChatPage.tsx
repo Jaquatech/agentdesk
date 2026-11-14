@@ -237,7 +237,7 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
         {hasImages && caps && caps.vision === null && caps.agent && (
           <p className="mx-auto mb-1.5 max-w-3xl text-xs text-warning">{caps.agent}'s model (<code>{caps.model}</code>) does not say whether it reads images ({caps.source}). If it can't, the reply will ignore them.</p>
         )}
-        <div className={cn("mx-auto flex max-w-3xl flex-wrap items-end gap-2 rounded-xl border bg-card p-2", dragging && "border-primary ring-3 ring-primary/30")}
+        <div role="group" aria-label="Message" className={cn("mx-auto flex max-w-3xl flex-wrap items-end gap-2 rounded-xl border bg-card p-2", dragging && "border-primary ring-3 ring-primary/30")}
           onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
           onDragLeave={() => setDragging(false)}
           onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); } }}>

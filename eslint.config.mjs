@@ -36,7 +36,7 @@ export default tseslint.config(
       ...jsxA11y.flatConfigs.recommended.rules,
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/refs": "warn",
-      "jsx-a11y/label-has-associated-control": "warn",
+      "jsx-a11y/label-has-associated-control": ["error", { controlComponents: ["Checkbox"], depth: 3 }],
       "jsx-a11y/click-events-have-key-events": "warn",
       "jsx-a11y/no-static-element-interactions": "warn",
       "jsx-a11y/no-autofocus": "warn",

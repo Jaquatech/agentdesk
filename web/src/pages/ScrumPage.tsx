@@ -173,7 +173,7 @@ function BacklogView({ data, sel, setSel, reload }: { data: Overview; sel: Sel |
     reload();
   };
   const row = (i: Item) => (
-    <div key={i.id} className={cn("grid cursor-pointer grid-cols-[auto_1fr] items-start gap-2 border-b px-4 py-3", same(current, { k: "item", id: i.id }) && "bg-accent")} onClick={() => setSel({ k: "item", id: i.id })}>
+    <div key={i.id} role="presentation" className={cn("grid cursor-pointer grid-cols-[auto_1fr] items-start gap-2 border-b px-4 py-3", same(current, { k: "item", id: i.id }) && "bg-accent")} onClick={() => setSel({ k: "item", id: i.id })}>
       {movable.includes(i) ? (
         <span className="flex flex-col">
           <Button variant="ghost" size="icon-xs" title="Higher priority" onClick={(e) => { e.stopPropagation(); move(i, -1); }}><ArrowUp /></Button>
@@ -181,7 +181,7 @@ function BacklogView({ data, sel, setSel, reload }: { data: Overview; sel: Sel |
         </span>
       ) : <span className="w-5" />}
       <div className="flex min-w-0 flex-col gap-1">
-        <b>{i.title}</b>
+        <button type="button" className="text-left font-bold" aria-current={same(current, { k: "item", id: i.id }) ? "true" : undefined} onClick={() => setSel({ k: "item", id: i.id })}>{i.title}</button>
         <div className="flex flex-wrap gap-1">
           {i.status === "refining" && <ToneBadge tone="wait">{STEP[i.step] ?? "refining"}…</ToneBadge>}
           {i.status === "ready" && <ToneBadge tone="good">ready</ToneBadge>}
@@ -409,7 +409,7 @@ function TaskPane({ id, agents, onAction, sprint, onBack }: { id: number; agents
   return (
     <div className="flex min-h-0 min-w-0 flex-col overflow-auto">
       <div className="flex items-center gap-3 px-4 pt-2.5">
-        {sprint && <a href="#" onClick={(e) => { e.preventDefault(); onBack(sprint.id); }}>← Sprint {sprint.number}{sprint.status === "released" ? " release" : ""}</a>}
+        {sprint && <Button variant="link" className="h-auto p-0" onClick={() => onBack(sprint.id)}>← Sprint {sprint.number}{sprint.status === "released" ? " release" : ""}</Button>}
         <a className="ml-auto text-xs text-muted-foreground" href={`#/tasks?group=${group}&task=${task.id}`}>Open in Running tasks →</a>
       </div>
       <TaskDetail key={task.id} task={task} name={name} workers={agents.filter((a) => a.role === "worker" && a.enabled)} onAction={() => { load(); onAction(); }} />
