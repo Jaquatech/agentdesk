@@ -63,7 +63,7 @@ export function pickAgent(db: DB, role: Role, o: { teamId?: number | null; prefe
  */
 export function pickPlanner(db: DB, o: { chatId?: number; projectId?: number }): AgentRow | undefined {
   let projectId = o.projectId;
-  let chosen: (number | null)[] = [];
+  const chosen: (number | null)[] = [];
   let teamId: number | null;
   if (o.chatId) {
     const c = db.prepare("SELECT planner_id, project_id FROM chats WHERE id = ?").get(o.chatId) as { planner_id: number | null; project_id: number } | undefined;

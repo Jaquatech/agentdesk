@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { DB } from "../db.ts";
 import { getSettings, json } from "../db.ts";
-import { pickAgent, pickPlanner, teamAgents, teamOfChat, teamOfProject, team } from "../teams.ts";
+import { pickAgent, pickPlanner, teamAgents, teamOfChat, team } from "../teams.ts";
 import type { Scrum } from "../scrum.ts";
 import { overBudget } from "../budget.ts";
 import type { Vault } from "../crypto.ts";
@@ -33,7 +33,6 @@ export type TaskRow = {
 export type TaskStatus = "proposed" | "queued" | "building" | "verifying" | "reviewing" | "approved" | "merged"
   | "needs_attention" | "failed" | "cancelled" | "interrupted";
 
-const ACTIVE: TaskStatus[] = ["building", "verifying", "reviewing"];
 
 /**
  * The team lead: the planner turns a chat message into tasks; each task runs

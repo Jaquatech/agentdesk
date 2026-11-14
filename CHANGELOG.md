@@ -5,6 +5,9 @@
 ### Accessibility
 - An automated scan now checks every page in both themes. It found and fixed: the sidebar project list was not a valid list, links in text were told apart only by color (they are underlined now), the amber text and the green badge were too dim on the dark theme, the logo upload had no name, the model picker in the agent form had no name, links in dialogs were not underlined, the usage chart announced itself wrongly, and scrolling pages could not be reached by keyboard (they can now, with a focus ring).
 
+### Maintenance
+- 33 code warnings fixed: unused code removed, provider replies and the web API helper are typed instead of `any`.
+
 ### Demo
 - The first demo start adds a fictional Mars-gadget startup (team, agents, a small git project with a backlog), so every page has something to show. Test connection and model info answer instantly in demo mode.
 - `npm run demo:reset` stops a leftover demo server and clears the demo data (on Windows the old server could keep the database locked).

@@ -238,7 +238,7 @@ function PlanPanel({ s, data, reload }: { s: Sprint; data: Overview; reload: () 
       {p.items.map((i) => (
         <label key={i.id} className="flex cursor-pointer items-center gap-2 py-0.5 text-sm" style={{ opacity: i.too_big ? 0.5 : 1 }}>
           <Checkbox checked={pick.has(i.id)} disabled={i.too_big}
-            onCheckedChange={() => setPick((x) => { const n = new Set(x); n.has(i.id) ? n.delete(i.id) : n.add(i.id); return n; })} />
+            onCheckedChange={() => setPick((x) => { const n = new Set(x); if (n.has(i.id)) n.delete(i.id); else n.add(i.id); return n; })} />
           <span className="min-w-0 flex-1 truncate">{i.title}</span>
           <ToneBadge>{i.points ?? "?"} pts</ToneBadge>{i.too_big && <ToneBadge tone="bad">too big</ToneBadge>}
         </label>

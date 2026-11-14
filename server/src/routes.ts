@@ -199,7 +199,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     if (!path && b.source !== "local") path = join(dataDir, "repos", name.replace(/[^\w.-]+/g, "-"));
     // A parent folder given for a remote repo (exists, not a clone, has files): clone into <parent>/<repo name>.
     else if (b.source !== "local" && path && existsSync(path) && !existsSync(join(path, ".git")) && readdirSync(path).length > 0) {
-      const repoName = repoUrl.replace(/\.git$/, "").split(/[\/:]/).filter(Boolean).pop() || name.replace(/[^\w.-]+/g, "-");
+      const repoName = repoUrl.replace(/\.git$/, "").split(/[/:]/).filter(Boolean).pop() || name.replace(/[^\w.-]+/g, "-");
       path = join(path, repoName);
     }
     return {

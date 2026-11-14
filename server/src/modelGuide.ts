@@ -41,7 +41,7 @@ const sizeOf = (model: string) => {
   const m = /(?:^|[:\-_ ])(\d+(?:\.\d+)?)b(?![a-z])/i.exec(model);
   return m ? Number(m[1]) : null;
 };
-const isCloud = (model: string) => /(?:[:\-]cloud)$/i.test(model);
+const isCloud = (model: string) => /(?:[:-]cloud)$/i.test(model);
 const embedding = (model: string) => /embed|bge-|rerank/i.test(model);
 const claude = (family: string) => (m: string) => new RegExp(`(^|[/-])${family}($|-)`, "i").test(m) || m.toLowerCase() === family;
 

@@ -43,7 +43,7 @@ function shapePath(ctx: CanvasRenderingContext2D, shape: string, cx: number, cy:
       ctx.lineTo(cx + r * 0.86, cy + r * 0.1); ctx.quadraticCurveTo(cx + r * 0.8, cy + r * 0.66, cx, cy + r * 1.02);
       ctx.quadraticCurveTo(cx - r * 0.8, cy + r * 0.66, cx - r * 0.86, cy + r * 0.1); break;
     case "hex":
-      for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + (i * Math.PI) / 3; const x = cx + Math.cos(a) * r * 1.02, y = cy + Math.sin(a) * r * 1.02; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } break;
+      for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + (i * Math.PI) / 3; const x = cx + Math.cos(a) * r * 1.02, y = cy + Math.sin(a) * r * 1.02; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); } break;
     case "square": {
       const w = r * 1.7, rr = r * 0.42;
       ctx.moveTo(cx - w / 2 + rr, cy - w / 2); ctx.arcTo(cx + w / 2, cy - w / 2, cx + w / 2, cy + w / 2, rr); ctx.arcTo(cx + w / 2, cy + w / 2, cx - w / 2, cy + w / 2, rr);
@@ -52,7 +52,7 @@ function shapePath(ctx: CanvasRenderingContext2D, shape: string, cx: number, cy:
     case "diamond":
       ctx.moveTo(cx, cy - r * 1.08); ctx.lineTo(cx + r * 1.0, cy); ctx.lineTo(cx, cy + r * 1.08); ctx.lineTo(cx - r * 1.0, cy); break;
     case "badge": // scalloped seal
-      for (let i = 0; i < 24; i++) { const a = (i * Math.PI * 2) / 24; const rr = r * (i % 2 ? 0.9 : 1.04); const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } break;
+      for (let i = 0; i < 24; i++) { const a = (i * Math.PI * 2) / 24; const rr = r * (i % 2 ? 0.9 : 1.04); const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); } break;
     default:
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
   }
@@ -73,7 +73,7 @@ function glyph(ctx: CanvasRenderingContext2D, kind: string, cx: number, cy: numb
       for (const rot of [-0.9, 0.9]) { ctx.beginPath(); ctx.ellipse(cx, cy, r * 0.72, r * 0.26, rot, 0, Math.PI * 2); ctx.stroke(); }
       break;
     case "wave":
-      for (let i = -1; i <= 1; i++) { ctx.beginPath(); for (let x = -0.6; x <= 0.6; x += 0.05) { const px = cx + x * r, py = cy + i * r * 0.3 + Math.sin(x * 5.2) * r * 0.1; x === -0.6 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); } ctx.stroke(); } break;
+      for (let i = -1; i <= 1; i++) { ctx.beginPath(); for (let x = -0.6; x <= 0.6; x += 0.05) { const px = cx + x * r, py = cy + i * r * 0.3 + Math.sin(x * 5.2) * r * 0.1; if (x === -0.6) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.stroke(); } break;
     case "cube":
       ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.62); ctx.lineTo(cx + r * 0.54, cy - r * 0.31); ctx.lineTo(cx, cy); ctx.lineTo(cx - r * 0.54, cy - r * 0.31); ctx.closePath(); ctx.fill();
       ctx.globalAlpha = 0.72; ctx.beginPath(); ctx.moveTo(cx - r * 0.54, cy - r * 0.19); ctx.lineTo(cx - 0.05 * r, cy + r * 0.12); ctx.lineTo(cx - 0.05 * r, cy + r * 0.64); ctx.lineTo(cx - r * 0.54, cy + r * 0.34); ctx.closePath(); ctx.fill();

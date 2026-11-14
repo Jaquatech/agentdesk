@@ -4,7 +4,7 @@ export class ApiError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
 
-export async function api<T = any>(method: string, url: string, body?: unknown): Promise<T> {
+export async function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
     headers: body !== undefined ? { "content-type": "application/json" } : {},
@@ -19,10 +19,10 @@ export async function api<T = any>(method: string, url: string, body?: unknown):
   return data as T;
 }
 
-export const get = <T = any>(url: string) => api<T>("GET", url);
-export const post = <T = any>(url: string, body: unknown = {}) => api<T>("POST", url, body);
-export const put = <T = any>(url: string, body: unknown) => api<T>("PUT", url, body);
-export const del = <T = any>(url: string) => api<T>("DELETE", url);
+export const get = <T = unknown>(url: string) => api<T>("GET", url);
+export const post = <T = unknown>(url: string, body: unknown = {}) => api<T>("POST", url, body);
+export const put = <T = unknown>(url: string, body: unknown) => api<T>("PUT", url, body);
+export const del = <T = unknown>(url: string) => api<T>("DELETE", url);
 
 // ---------- types ----------
 

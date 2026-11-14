@@ -30,7 +30,7 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
   };
   const size = (n: number) => n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
 
-  useEffect(() => { get("/api/settings").then(setS); }, []);
+  useEffect(() => { get<Record<string, string>>("/api/settings").then(setS); }, []);
   if (!s) return <Page title="Settings"><Skeleton className="h-40 w-full" /></Page>;
   const set = (k: string, v: string) => setS({ ...s, [k]: v });
   const save = async () => { setS(await put("/api/settings", s)); setSaved("Saved"); onChanged(); setTimeout(() => setSaved(""), 2000); };

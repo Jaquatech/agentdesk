@@ -4,6 +4,17 @@ import { ChatProvider, ChatRequest, ChatResponse, Block, ProviderError } from ".
  * Any OpenAI-compatible chat completions endpoint: OpenAI, Azure OpenAI (v1 path), Ollama (/v1),
  * vLLM, llama.cpp llama-server, LM Studio, OpenLLM.
  */
+/** The parts of an OpenAI-compatible reply that are read here; every field may be missing. */
+type ChatReply = {
+  error?: string | { type?: string; message?: string };
+  choices?: { finish_reason?: string; message?: {
+    content?: unknown; reasoning?: unknown; reasoning_content?: unknown;
+    tool_calls?: { id?: string; function?: { name?: string; arguments?: string } }[];
+  } }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
+};
+type ModelsReply = { error?: { message?: string }; data?: { id?: string; name?: string }[]; models?: { id?: string; name?: string }[] };
+
 export class OpenAICompatibleProvider implements ChatProvider {
   constructor(private baseUrl: string, private apiKey?: string) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
@@ -19,26 +30,26 @@ export class OpenAICompatibleProvider implements ChatProvider {
     const off = req.thinking === "off";
     // Qwen3 (not the coder models, which do not think) switches thinking off with "/no_think" in the prompt.
     const softSwitch = off && /qwen3/i.test(req.model) && !/coder/i.test(req.model);
-    const messages: any[] = [{ role: "system", content: softSwitch ? `${req.system}\n\n/no_think` : req.system }];
+    const messages: Record<string, unknown>[] = [{ role: "system", content: softSwitch ? `${req.system}\n\n/no_think` : req.system }];
     for (const m of req.messages) {
       if (m.role === "assistant") {
-        const text = m.content.filter((b) => b.type === "text").map((b: any) => b.text).join("\n");
-        const calls = m.content.filter((b) => b.type === "tool_use").map((b: any) => ({
+        const text = m.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n");
+        const calls = m.content.flatMap((b) => (b.type === "tool_use" ? [{
           id: b.id, type: "function", function: { name: b.name, arguments: JSON.stringify(b.input ?? {}) },
-        }));
+        }] : []));
         // Always a string: Ollama rejects a null content ("invalid message content type: <nil>").
         messages.push({ role: "assistant", content: text, ...(calls.length ? { tool_calls: calls } : {}) });
       } else {
         for (const b of m.content) {
           if (b.type === "tool_result") messages.push({ role: "tool", tool_call_id: b.tool_use_id, content: b.content });
         }
-        const text = m.content.filter((b) => b.type === "text").map((b: any) => b.text).join("\n");
-        const images = m.content.filter((b) => b.type === "image");
+        const text = m.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n");
+        const images = m.content.flatMap((b) => (b.type === "image" ? [b] : []));
         if (images.length) {
           // Vision models (OpenAI, Ollama llava/gemma3/qwen-vl…) take images as data URLs.
           messages.push({ role: "user", content: [
             ...(text ? [{ type: "text", text }] : []),
-            ...images.map((b: any) => ({ type: "image_url", image_url: { url: `data:${b.mediaType};base64,${b.data}` } })),
+            ...images.map((b) => ({ type: "image_url", image_url: { url: `data:${b.mediaType};base64,${b.data}` } })),
           ] });
         } else if (text) messages.push({ role: "user", content: text });
       }
@@ -58,11 +69,11 @@ export class OpenAICompatibleProvider implements ChatProvider {
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST", headers: this.headers(), body: JSON.stringify(body), signal: req.signal,
     });
-    const data = await res.json().catch(() => ({})) as any;
+    const data = await res.json().catch(() => ({})) as ChatReply;
     if (!res.ok) {
       const e = data?.error;
       const msg = typeof e === "string" ? e : e?.message;
-      throw new ProviderError(`${res.status} ${e?.type ?? ""}: ${msg ?? res.statusText}`.trim(), res.status);
+      throw new ProviderError(`${res.status} ${typeof e === "object" ? e.type ?? "" : ""}: ${msg ?? res.statusText}`.trim(), res.status);
     }
     const choice = data.choices?.[0] ?? {};
     const msg = choice.message ?? {};
@@ -75,7 +86,7 @@ export class OpenAICompatibleProvider implements ChatProvider {
     for (const c of msg.tool_calls ?? []) {
       let input: Record<string, unknown>;
       try { input = JSON.parse(c.function?.arguments || "{}"); } catch { input = { _raw: c.function?.arguments }; }
-      content.push({ type: "tool_use", id: c.id || `call_${content.length}`, name: c.function?.name, input });
+      content.push({ type: "tool_use", id: c.id || `call_${content.length}`, name: String(c.function?.name ?? ""), input });
     }
     const u = data.usage ?? {};
     return {
@@ -88,9 +99,9 @@ export class OpenAICompatibleProvider implements ChatProvider {
 
   async listModels(): Promise<string[]> {
     const res = await fetch(`${this.baseUrl}/models`, { headers: this.headers() });
-    const data = await res.json().catch(() => ({})) as any;
+    const data = await res.json().catch(() => ({})) as ModelsReply;
     if (!res.ok) throw new ProviderError(`${res.status}: ${data?.error?.message ?? res.statusText}`, res.status);
-    return (data.data ?? data.models ?? []).map((m: any) => m.id ?? m.name);
+    return (data.data ?? data.models ?? []).map((m) => String(m.id ?? m.name));
   }
 }
 
