@@ -20,7 +20,7 @@ type DocList = {
 };
 type Doc = DocList & { body: string; created_at: string; links?: { id: number; title: string }[]; backlinks?: { id: number; title: string }[] };
 
-const GENERAL_ORDER = ["guidelines", "models", "cycle"];
+const GENERAL_ORDER = ["guidelines", "standards", "ui", "models", "cycle"];
 const SECTIONS: { id: string; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "architecture", label: "Architecture" },
