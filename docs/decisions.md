@@ -12,6 +12,9 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 
 - **Lint is a ratchet.** ESLint (typescript-eslint, react-hooks, jsx-a11y) runs with `--max-warnings` set to today's count, so existing issues are warnings and any new one fails CI. When you fix warnings, lower the number in the root `package.json` `lint` script. Generated shadcn files in `web/src/components/ui/` are not linted.
 
+- **Dependency overrides in the root `package.json`.** ESLint is on 10; `eslint-plugin-jsx-a11y` only declares support for 9, so it is allowed through an override (it works; remove the override when the plugin adds 10). `minimatch` is forced to 11 only under `@typescript-eslint/typescript-estree` and `@ts-morph/common` to clear an advisory; a global override breaks the accessibility plugin, which needs the old one. Run `npm audit` before a release.
+- **Accepted audit finding: `deepmerge` (3 low, through the `shadcn` command-line tool).** No fixed version exists (4.3.1 is the latest). It is a build-time tool that is not part of the running app.
+
 ## Known and open
 
 - 192 lint warnings from before the rules: 142 `any`, 16 hook dependency lists, 11 state set inside an effect, 3 ref read during render, 20 unused or style items. Fix them page by page when touching it, and lower the cap. The accessibility rules (jsx-a11y) have no warnings left.

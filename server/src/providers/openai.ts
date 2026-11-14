@@ -73,7 +73,7 @@ export class OpenAICompatibleProvider implements ChatProvider {
     const raw = String(msg.content ?? "");
     const thinking = String(msg.reasoning ?? msg.reasoning_content ?? (raw.includes("</think>") ? raw.slice(0, raw.lastIndexOf("</think>")).replace(/^<think>/, "") : "")).trim();
     for (const c of msg.tool_calls ?? []) {
-      let input: Record<string, unknown> = {};
+      let input: Record<string, unknown>;
       try { input = JSON.parse(c.function?.arguments || "{}"); } catch { input = { _raw: c.function?.arguments }; }
       content.push({ type: "tool_use", id: c.id || `call_${content.length}`, name: c.function?.name, input });
     }
