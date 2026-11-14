@@ -9,6 +9,7 @@ A local-only tool where a planner splits work across developer agents and a revi
 npm run setup        # install + build the UI
 npm run dev          # server on 4317 (reload) + Vite on 5173 (/api proxied)
 npm run demo         # scripted agents, no key, no cost, separate data folder (data-demo/)
+npm run demo:reset   # stop a leftover demo server and clear data-demo/ (the next demo re-seeds)
 npm run lint         # ESLint on server and web (CI runs lint, test, build)
 npm test             # server (vitest, ~52 tests) + web
 npm run build        # web build + server typecheck (tsc --noEmit)

@@ -106,6 +106,7 @@ npm run demo       # try it with scripted agents: no key, no cost
 Open **http://localhost:4317** and create your local account. When you are ready for real work, stop the demo
 (Ctrl+C) and run `npm start` instead. Demo mode keeps its data in `data-demo/`, real mode in `data/`; to keep
 the agents and providers you set up in the demo, copy `data-demo` to `data` once before the first `npm start`.
+To start the demo over from the seed, run `npm run demo:reset` (it also stops a demo server left running).
 
 ### Optional tools: sign in once
 

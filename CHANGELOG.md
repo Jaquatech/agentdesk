@@ -4,6 +4,7 @@
 
 ### Demo
 - The first demo start adds a fictional Mars-gadget startup (team, agents, a small git project with a backlog), so every page has something to show. Test connection and model info answer instantly in demo mode.
+- `npm run demo:reset` stops a leftover demo server and clears the demo data (on Windows the old server could keep the database locked).
 
 ### Changes
 - The app loads faster: pages (Office, Documents, Scrum, Chat and the rest) are fetched when you first open them, so the first download is about half the size (120 kB instead of 234 kB compressed).
