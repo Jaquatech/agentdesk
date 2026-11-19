@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Store } from "lucide-react";
 import { get, post, put, del, parseJson, type Agent, type Appearance, type Provider, type Role, type Team } from "../api.ts";
 import { Avatar, Field, FooterGap, Modal } from "../components/ui.tsx";
@@ -15,6 +15,12 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+
+/** Keep in step with server/src/answerLimit.ts. */
+const MIN_ANSWER_TOKENS = 1024;
+const MAX_ANSWER_TOKENS = 128_000;
+const DEFAULT_ANSWER_TOKENS = 32_000;
+const ANSWER_TOKENS_ERROR = `Max answer tokens must be a whole number from ${MIN_ANSWER_TOKENS} to ${MAX_ANSWER_TOKENS}.`;
 
 const ROLE_INFO: Record<Role, { label: string; text: string }> = {
   planner: { label: "Planner / architect", text: "Reads the code and your message, answers, and splits work into tasks." },
@@ -46,7 +52,7 @@ export function AgentsPage() {
 
   const startNew = (role: Role) => setEditing({
     role, name: "", provider_id: providers[0]?.id ?? null, model: "", context: templates?.contexts[role] ?? "",
-    max_turns: role === "worker" ? 120 : 40, timeout_min: role === "worker" ? 60 : 20,
+    max_turns: role === "worker" ? 120 : 40, timeout_min: role === "worker" ? 60 : 20, max_answer_tokens: DEFAULT_ANSWER_TOKENS,
     allowed_tools: JSON.stringify(role === "worker" ? templates?.workerTools ?? [] : []), appearance: "{}", enabled: 1,
     team_ids: teams.length === 1 ? [teams[0].id] : [],
   });
@@ -57,7 +63,7 @@ export function AgentsPage() {
     while (taken.has(name.toLowerCase())) name = nextName(name);
     setEditing({
       role: g.role, name, provider_id: providers[0]?.id ?? null, model: "", context: g.context,
-      max_turns: g.max_turns, timeout_min: g.timeout_min, allowed_tools: JSON.stringify(g.allowed_tools), appearance: "{}", enabled: 1,
+      max_turns: g.max_turns, timeout_min: g.timeout_min, max_answer_tokens: DEFAULT_ANSWER_TOKENS, allowed_tools: JSON.stringify(g.allowed_tools), appearance: "{}", enabled: 1,
       team_ids: teams.length === 1 ? [teams[0].id] : [],
     });
   };
@@ -102,6 +108,7 @@ function AgentForm({ agent, providers, teams, onClose, onSaved, onDuplicate }: {
   const [tools, setTools] = useState(parseJson<string[]>(agent.allowed_tools, []).join("\n"));
   const [modelsFor, setModelsFor] = useState<{ providerId: number; models: string[] } | null>(null);
   const [error, setError] = useState("");
+  const tokensRef = useRef<HTMLInputElement>(null);
   const [teamIds, setTeamIds] = useState<number[]>(agent.team_ids ?? []);
   const provider = providers.find((p) => p.id === Number(f.provider_id));
   const models = provider && modelsFor?.providerId === provider.id ? modelsFor.models : [];
@@ -116,8 +123,14 @@ function AgentForm({ agent, providers, teams, onClose, onSaved, onDuplicate }: {
 
   const save = async () => {
     setError("");
+    const tokens = f.max_answer_tokens === undefined ? DEFAULT_ANSWER_TOKENS : f.max_answer_tokens;
+    if (typeof tokens !== "number" || !Number.isInteger(tokens) || tokens < MIN_ANSWER_TOKENS || tokens > MAX_ANSWER_TOKENS) {
+      setError(ANSWER_TOKENS_ERROR);
+      tokensRef.current?.focus();
+      return;
+    }
     const body = {
-      ...f, appearance: look, enabled: f.enabled !== 0,
+      ...f, max_answer_tokens: tokens, appearance: look, enabled: f.enabled !== 0,
       allowed_tools: tools.split("\n").map((s) => s.trim()).filter(Boolean),
       team_ids: teamIds,
     };
@@ -170,8 +183,27 @@ function AgentForm({ agent, providers, teams, onClose, onSaved, onDuplicate }: {
                 defaultLabel={`Provider default${provider?.default_model ? ` (${provider.default_model})` : ""}`} />
               <CapabilityBadges caps={caps} role={f.role} />
             </Field>
-            <Field label="Thinking" hint={f.thinking === "off" ? "Answers right away: much faster on local models." : "Reasoning models (Qwen3, gpt-oss, DeepSeek-R1) think before each answer; small ones can use the whole answer limit on it."}>
+            <Field label="Thinking" hint={f.thinking === "off" ? "Answers right away: much faster on local models." : "Reasoning models (Qwen3, gpt-oss, DeepSeek-R1) think before each answer and can use up Max answer tokens before writing anything."}>
               <Choice value={f.thinking ?? ""} onValueChange={(v) => set("thinking", v)} options={[{ value: "", label: "Model default" }, { value: "off", label: "Off (or as little as the model allows)" }]} />
+            </Field>
+            <Field label="Max answer tokens" invalid={error === ANSWER_TOKENS_ERROR} hint="Output limit for each model call, from 1024 to 128000. Reasoning models spend it on thinking before the answer.">
+              <Input
+                ref={tokensRef}
+                type="number"
+                name="max_answer_tokens"
+                inputMode="numeric"
+                autoComplete="off"
+                min={MIN_ANSWER_TOKENS}
+                max={MAX_ANSWER_TOKENS}
+                step={1}
+                aria-invalid={error === ANSWER_TOKENS_ERROR || undefined}
+                value={typeof f.max_answer_tokens === "number" && Number.isFinite(f.max_answer_tokens) ? f.max_answer_tokens : f.max_answer_tokens === undefined ? DEFAULT_ANSWER_TOKENS : ""}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  set("max_answer_tokens", raw === "" ? Number.NaN : Number(raw));
+                  if (error === ANSWER_TOKENS_ERROR) setError("");
+                }}
+              />
             </Field>
             {provider && f.role && (
               <ModelAdvice kind={provider.kind} models={models} role={f.role} context={f.context ?? ""} value={f.model ?? ""} onPick={(m) => set("model", m)} />

@@ -12,6 +12,7 @@ describe("demo seed", () => {
     expect(seedDemo(ctx.db, dataDir)).toBe(true);
     const count = (table: string) => (ctx.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
     expect(count("agents")).toBe(4);
+    expect(ctx.db.prepare("SELECT DISTINCT max_answer_tokens AS n FROM agents").all()).toEqual([{ n: 32000 }]);
     expect(count("team_members")).toBe(4);
     expect(ctx.db.prepare("SELECT process, team_id FROM projects").get()).toMatchObject({ process: "scrum" });
     expect(count("backlog_items")).toBe(6);

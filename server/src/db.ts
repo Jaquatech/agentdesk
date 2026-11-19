@@ -391,6 +391,11 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE documents ADD COLUMN sprint_id INTEGER REFERENCES sprints(id) ON DELETE CASCADE;
   `,
+  // Output tokens one model call may use. Reasoning models spend these on thinking before the answer.
+  // DEFAULT fills rows that already exist.
+  `
+  ALTER TABLE agents ADD COLUMN max_answer_tokens INTEGER NOT NULL DEFAULT 32000;
+  `,
 ];
 
 export function openDb(file: string): DB {

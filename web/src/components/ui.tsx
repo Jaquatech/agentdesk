@@ -34,18 +34,25 @@ export function Modal({ title, onClose, children, footer, wide }: {
   );
 }
 
-/** Label, control and optional hint. One control gets the label's id; several are grouped. */
-export function Field({ label, hint, children, className }: { label?: ReactNode; hint?: ReactNode; children: ReactNode; className?: string }) {
+/** Label, control and optional hint. One control gets the label's id and the hint; several are grouped. */
+export function Field({ label, hint, children, className, invalid }: {
+  label?: ReactNode; hint?: ReactNode; children: ReactNode; className?: string; invalid?: boolean;
+}) {
   const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   const only = Children.count(children) === 1 && isValidElement(children) ? children : null;
+  const described = only?.props as { id?: string; "aria-describedby"?: string } | undefined;
   const control = only
-    ? cloneElement(only as ReactElement<{ id?: string }>, { id: (only.props as { id?: string }).id ?? id })
+    ? cloneElement(only as ReactElement<{ id?: string; "aria-describedby"?: string }>, {
+        id: described?.id ?? id,
+        ...(hintId ? { "aria-describedby": described?.["aria-describedby"] ?? hintId } : {}),
+      })
     : <div className="flex flex-col gap-2">{children}</div>;
   return (
-    <ShadField className={className} data-invalid={undefined}>
+    <ShadField className={className} data-invalid={invalid || undefined}>
       {label != null && label !== "" && <FieldLabel htmlFor={id}>{label}</FieldLabel>}
       {control}
-      {hint ? <FieldDescription>{hint}</FieldDescription> : null}
+      {hint ? <FieldDescription id={hintId}>{hint}</FieldDescription> : null}
     </ShadField>
   );
 }

@@ -5,6 +5,8 @@ export type AgentRow = {
   id: number; name: string; role: "planner" | "worker" | "reviewer"; provider_id: number | null;
   model: string; context: string; max_turns: number; timeout_min: number; allowed_tools: string;
   appearance: string; enabled: number; ask_approval?: number; thinking?: string;
+  /** Output token cap for one model call. Missing on rows built in tests: the engine uses the default. */
+  max_answer_tokens?: number;
 };
 
 export type ResolvedProvider = {

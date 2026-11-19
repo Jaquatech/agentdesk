@@ -33,6 +33,8 @@ export type ChatResponse = {
   content: Block[];
   /** Hidden reasoning, when the model shows it (for the run log only). */
   thinking?: string;
+  /** Output cap that was sent. Lower than the request when the model refused a higher one. */
+  maxTokens?: number;
   stopReason: "end" | "tool_use" | "max_tokens" | "other";
   usage: Usage;
 };

@@ -156,6 +156,55 @@ describe("asking before a command", () => {
   });
 });
 
+describe("max answer tokens", () => {
+  const run = (a: AgentRow, chat: ReturnType<typeof scripted>) => new ApiLoopEngine().run({
+    agent: a, cwd: mkdtempSync(join(tmpdir(), "ad-loop-")), system: "s", prompt: "p", mode: "read",
+    provider: { id: 1, name: "p", baseUrl: "", kind: "openai", model: "m", chat },
+  });
+  const noteOf = (r: { transcript?: { kind: string; text?: string }[] }) => r.transcript!.find((e) => e.kind === "note")?.text ?? "";
+
+  it("sends the member's limit", async () => {
+    const chat = scripted([
+      (req) => {
+        expect(req.maxTokens).toBe(12_000);
+        return { content: [{ type: "text", text: "ok" }], stopReason: "end", usage };
+      },
+    ]);
+    await run({ ...agent("planner"), max_answer_tokens: 12_000 }, chat);
+    expect(chat.requests[0].maxTokens).toBe(12_000);
+  });
+
+  it("sends 32000 when the member has no stored limit", async () => {
+    const chat = scripted([() => ({ content: [{ type: "text", text: "ok" }], stopReason: "end", usage })]);
+    await run(agent("planner"), chat);
+    expect(chat.requests[0].maxTokens).toBe(32_000);
+  });
+
+  it("names the member's limit when thinking uses the whole answer", async () => {
+    const chat = scripted([() => ({ content: [], stopReason: "max_tokens", usage: { ...usage, output: 12_000 }, maxTokens: 12_000 })]);
+    const note = noteOf(await run({ ...agent("planner"), max_answer_tokens: 12_000 }, chat));
+    expect(note).toContain("Used the whole answer limit (12000 tokens)");
+    expect(note).toContain("Raise Max answer tokens");
+    expect(note).toContain("Thinking to Off");
+  });
+
+  it("names the model's lower cap when the provider had to step down", async () => {
+    const chat = scripted([() => ({ content: [], stopReason: "max_tokens", usage: { ...usage, output: 8192 }, maxTokens: 8192 })]);
+    const note = noteOf(await run({ ...agent("planner"), max_answer_tokens: 32_000 }, chat));
+    expect(note).toContain("8192");
+    expect(note).toContain("This agent's Max answer tokens is 32000");
+    expect(note).toContain("only accepted 8192");
+    expect(note).toContain("will not help until the model allows more");
+  });
+
+  it("does not suggest turning Thinking off when it is already off", async () => {
+    const chat = scripted([() => ({ content: [], stopReason: "max_tokens", usage: { ...usage, output: 12_000 } })]);
+    const note = noteOf(await run({ ...agent("planner"), max_answer_tokens: 12_000, thinking: "off" }, chat));
+    expect(note).toContain("Raise Max answer tokens");
+    expect(note).not.toContain("Thinking");
+  });
+});
+
 describe("read-only agents", () => {
   it("never ask: a reviewer's command outside its list is refused", async () => {
     const chat = scripted([
