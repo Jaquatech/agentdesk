@@ -34,6 +34,8 @@ export type Agent = {
   id: number; name: string; role: Role; provider_id: number | null; provider_name?: string; provider_kind?: ProviderKind;
   model: string; context: string; max_turns: number; timeout_min: number; allowed_tools: string; appearance: string; enabled: number;
   ask_approval?: number; team_ids?: number[]; thinking?: string;
+  /** Output token cap for one model call. */
+  max_answer_tokens?: number;
 };
 export type Team = {
   id: number; name: string; description: string; planner_id: number | null; reviewer_id: number | null;

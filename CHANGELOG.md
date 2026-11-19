@@ -1,5 +1,10 @@
 # Release notes
 
+## Unreleased
+
+### Changes
+- Each agent has a **Max answer tokens** setting next to Thinking (default 32 000, from 1024 to 128 000). Model calls use it instead of a fixed 8192. A model that rejects a higher limit is asked again with the limit it allows, and the task continues. When thinking uses the whole limit and there is no answer, the note names the agent's limit and suggests raising it or turning Thinking off.
+
 ## 1.5.0 (2026-11-14)
 
 ### Accessibility

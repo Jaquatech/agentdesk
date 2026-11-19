@@ -5,6 +5,7 @@ import type { ChatMessage, Block, ToolDef } from "../providers/types.ts";
 import { textOf } from "../providers/types.ts";
 import { callCost } from "../pricing.ts";
 import { LoopGuard, loopWarning } from "./loopGuard.ts";
+import { answerLimit, emptyAnswerNote } from "../answerLimit.ts";
 
 /**
  * Built-in agent loop for any API provider (Anthropic, OpenAI-compatible, Ollama).
@@ -40,6 +41,7 @@ When you are done, call ${finalTool.name} exactly once. Do not ask questions; ta
     for (const img of att?.images ?? []) first.push({ type: "image", mediaType: img.mime, data: img.base64 });
     const messages: ChatMessage[] = [{ role: "user", content: first }];
     const maxTurns = Math.max(1, req.agent.max_turns || 60);
+    const maxTokens = answerLimit(req.agent.max_answer_tokens);
     let tokensIn = 0, tokensOut = 0, cacheRead = 0, cacheWrite = 0, cost = 0, turns = 0, lastText = "";
     let changedFiles = 0, nudges = 0;
     const guard = new LoopGuard();
@@ -68,7 +70,7 @@ When you are done, call ${finalTool.name} exactly once. Do not ask questions; ta
         req.onActivity?.("thinking", `turn ${turns}`);
         const callStart = Date.now();
         const res = await chat.chat({
-          model: req.provider.model, system, messages, tools, maxTokens: 8192, signal: req.signal,
+          model: req.provider.model, system, messages, tools, maxTokens, signal: req.signal,
           thinking: req.agent.thinking === "off" ? "off" : undefined,
           toolChoice: turns === maxTurns ? finalTool.name : undefined,
         });
@@ -89,9 +91,10 @@ When you are done, call ${finalTool.name} exactly once. Do not ask questions; ta
         const calls = res.content.filter((b): b is Extract<Block, { type: "tool_use" }> => b.type === "tool_use");
         if (!calls.length && !text && res.stopReason === "max_tokens") {
           // The whole answer budget went to reasoning: nothing to show, and the next turn will likely do the same.
-          log({ kind: "note", text: `Used the whole answer limit (${res.usage.output} tokens) on thinking and gave no answer.` +
-            (req.agent.thinking === "off" ? "" : " Set Thinking to Off for this agent to get answers faster.") });
-          req.onLog?.("⚠ used the whole answer limit on thinking");
+          const accepted = res.maxTokens && res.maxTokens > 0 && res.maxTokens < maxTokens ? res.maxTokens : maxTokens;
+          const note = emptyAnswerNote(maxTokens, accepted, req.agent.thinking === "off");
+          log({ kind: "note", text: note });
+          req.onLog?.(`⚠ used the whole answer limit (${accepted} tokens) on thinking`);
         }
         if (!calls.length) {
           // Small models often paste the code into their answer instead of calling the tools. That changes nothing,

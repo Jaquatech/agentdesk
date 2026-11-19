@@ -1,4 +1,6 @@
 import { ChatProvider, ChatRequest, ChatResponse, Block, ProviderError } from "./types.ts";
+import { DEFAULT_MAX_ANSWER_TOKENS } from "../answerLimit.ts";
+import { withOutputCap } from "./outputCap.ts";
 
 /**
  * Any OpenAI-compatible chat completions endpoint: OpenAI, Azure OpenAI (v1 path), Ollama (/v1),
@@ -27,6 +29,12 @@ export class OpenAICompatibleProvider implements ChatProvider {
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
+    const requested = req.maxTokens ?? DEFAULT_MAX_ANSWER_TOKENS;
+    const { value, maxTokens } = await withOutputCap(requested, (cap) => this.complete(req, cap));
+    return { ...value, maxTokens };
+  }
+
+  private async complete(req: ChatRequest, maxTokens: number): Promise<ChatResponse> {
     const off = req.thinking === "off";
     // Qwen3 (not the coder models, which do not think) switches thinking off with "/no_think" in the prompt.
     const softSwitch = off && /qwen3/i.test(req.model) && !/coder/i.test(req.model);
@@ -54,7 +62,7 @@ export class OpenAICompatibleProvider implements ChatProvider {
         } else if (text) messages.push({ role: "user", content: text });
       }
     }
-    const body: Record<string, unknown> = { model: req.model, messages, max_tokens: req.maxTokens ?? 8192 };
+    const body: Record<string, unknown> = { model: req.model, messages, max_tokens: maxTokens };
     if (off) {
       body.think = false; // Ollama's switch; other servers ignore unknown fields
       if (/gpt-oss/i.test(req.model)) body.reasoning_effort = "low"; // gpt-oss always reasons; "low" is the least

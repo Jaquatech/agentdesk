@@ -149,8 +149,8 @@ Then restart the server (Ctrl+C, `npm start`). The database updates itself on st
 2. **Providers & keys**: add a provider and paste its key. Press **Test connection**: the model list loads into the dropdown.
 3. **Agents**: create a planner, one or more developers and a reviewer, or press **Add from gallery** for ready-made
    ones (frontend, test writer, security reviewer, product manager, docs writer, Frends and Efecte developers, …).
-   Each agent has a provider, a model, its starting context (standing instructions), turn and time limits, allowed
-   tools, its teams and a look. One developer works on one task at a time; for three in parallel, create three
+   Each agent has a provider, a model, its starting context (standing instructions), turn and time limits, a
+   **Max answer tokens** limit (how long one reply may be), allowed tools, its teams and a look. One developer works on one task at a time; for three in parallel, create three
    (the form has **Duplicate**).
 4. **Teams** (optional): group agents, e.g. "Web" and "Integration", and pick each team's planner and reviewer.
    An agent can be in several teams. Without teams, every enabled agent works on every project.
@@ -270,6 +270,12 @@ the limit is raised. Only finished calls count, so one running call can overshoo
 |---|---|
 | Claude Code CLI | `claude -p --output-format stream-json` in the worktree, with the agent's allowed tools (`Read`, `Edit`, `Bash(npm test:*)`, …). Uses the provider's key if set, else your Claude Code sign-in. Cost comes from the CLI. |
 | Anthropic / OpenAI-compatible / Ollama | Built-in tool loop: `list_files`, `read_file`, `search`, `write_file`, `edit_file`, `run_command`, then a final tool. See **Permissions** below. Cost = tokens × the model's price (Usage & billing → Model prices). |
+
+Those API agents send **Max answer tokens** with each model call (the agent form, beside Thinking; default 32 000).
+That is the longest reply the model may write. A reasoning model spends it on thinking first. If thinking uses it all
+and there is no answer, the run log names the limit and suggests raising it or turning Thinking off. A model that
+refuses a limit above its own is called again with the lower limit it allows, and the task continues. Claude Code CLI
+agents keep the CLI's own reply length.
 
 Planners and reviewers are always read-only. Plans and verdicts are structured output (`submit_plan`,
 `submit_review`).

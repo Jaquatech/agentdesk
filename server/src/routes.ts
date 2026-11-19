@@ -20,6 +20,7 @@ import { blockingTask } from "./orchestrator/overlap.ts";
 import { taskToMarkdown } from "./taskExport.ts";
 import { applyReleasePage, applyTaskPage, ensureProjectPages, refreshLinks, syncTaskPage } from "./documents.ts";
 import { appVersion } from "./version.ts";
+import { parseMaxAnswerTokens } from "./answerLimit.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request JSON; each route reads and validates the fields it needs
 type Body = Record<string, any>;
@@ -154,7 +155,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     .map(({ teams, ...a }) => ({ ...a, team_ids: teams ? String(teams).split(",").map(Number) : [] })));
   app.get("/api/agents/gallery", async () => galleryForUi());
   app.get("/api/agents/templates", async () => ({ contexts: ROLE_TEMPLATES, workerTools: DEFAULT_WORKER_TOOLS }));
-  const agentFields = (b: Body) => ({
+  const agentFields = (b: Body, max_answer_tokens: number) => ({
     name: String(b.name ?? "").trim(), role: b.role, provider_id: b.provider_id ? id(b.provider_id) : null,
     model: String(b.model ?? "").trim(), context: String(b.context ?? ""),
     max_turns: Math.max(1, Number(b.max_turns) || 80), timeout_min: Math.max(1, Number(b.timeout_min) || 60),
@@ -162,13 +163,16 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     appearance: JSON.stringify(b.appearance ?? {}), enabled: b.enabled === false ? 0 : 1,
     ask_approval: b.ask_approval === false || b.ask_approval === 0 ? 0 : 1,
     thinking: b.thinking === "off" ? "off" : "",
+    max_answer_tokens,
   });
   app.post("/api/agents", async (req, reply) => {
-    const f = agentFields(req.body as Body);
+    const maxAnswer = parseMaxAnswerTokens((req.body as Body).max_answer_tokens);
+    if (!maxAnswer.ok) return bad(reply, maxAnswer.error);
+    const f = agentFields(req.body as Body, maxAnswer.value);
     if (!f.name) return bad(reply, "Name is required");
     try {
-      const info = db.prepare(`INSERT INTO agents (name, role, provider_id, model, context, max_turns, timeout_min, allowed_tools, appearance, enabled, ask_approval, thinking)
-        VALUES (@name, @role, @provider_id, @model, @context, @max_turns, @timeout_min, @allowed_tools, @appearance, @enabled, @ask_approval, @thinking)`).run(f);
+      const info = db.prepare(`INSERT INTO agents (name, role, provider_id, model, context, max_turns, timeout_min, allowed_tools, appearance, enabled, ask_approval, thinking, max_answer_tokens)
+        VALUES (@name, @role, @provider_id, @model, @context, @max_turns, @timeout_min, @allowed_tools, @appearance, @enabled, @ask_approval, @thinking, @max_answer_tokens)`).run(f);
       const agentId = Number(info.lastInsertRowid);
       if (Array.isArray((req.body as Body).team_ids)) setAgentTeams(db, agentId, (req.body as Body).team_ids.map(Number));
       bus.publish({ type: "agent", agentId, state: "idle" });
@@ -176,11 +180,13 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     } catch (err) { return sqlError(reply, err); }
   });
   app.put("/api/agents/:id", async (req, reply) => {
-    const f = agentFields(req.body as Body);
+    const maxAnswer = parseMaxAnswerTokens((req.body as Body).max_answer_tokens);
+    if (!maxAnswer.ok) return bad(reply, maxAnswer.error);
+    const f = agentFields(req.body as Body, maxAnswer.value);
     try {
       db.prepare(`UPDATE agents SET name = @name, role = @role, provider_id = @provider_id, model = @model, context = @context,
         max_turns = @max_turns, timeout_min = @timeout_min, allowed_tools = @allowed_tools, appearance = @appearance,
-        enabled = @enabled, ask_approval = @ask_approval, thinking = @thinking WHERE id = @id`).run({ ...f, id: id((req.params as Body).id) });
+        enabled = @enabled, ask_approval = @ask_approval, thinking = @thinking, max_answer_tokens = @max_answer_tokens WHERE id = @id`).run({ ...f, id: id((req.params as Body).id) });
       if (Array.isArray((req.body as Body).team_ids)) setAgentTeams(db, id((req.params as Body).id), (req.body as Body).team_ids.map(Number));
       return { ok: true };
     } catch (err) { return sqlError(reply, err); }

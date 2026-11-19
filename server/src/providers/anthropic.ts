@@ -1,4 +1,6 @@
 import { ChatProvider, ChatRequest, ChatResponse, Block, ProviderError } from "./types.ts";
+import { DEFAULT_MAX_ANSWER_TOKENS } from "../answerLimit.ts";
+import { withOutputCap } from "./outputCap.ts";
 
 const VERSION = "2023-06-01";
 
@@ -19,9 +21,15 @@ export class AnthropicProvider implements ChatProvider {
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
+    const requested = req.maxTokens ?? DEFAULT_MAX_ANSWER_TOKENS;
+    const { value, maxTokens } = await withOutputCap(requested, (cap) => this.complete(req, cap));
+    return { ...value, maxTokens };
+  }
+
+  private async complete(req: ChatRequest, maxTokens: number): Promise<ChatResponse> {
     const body: Record<string, unknown> = {
       model: req.model,
-      max_tokens: req.maxTokens ?? 8192,
+      max_tokens: maxTokens,
       // The system prompt and tool list stay the same across turns, so they are cached.
       system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }],
       messages: req.messages.map((m, i) => ({
