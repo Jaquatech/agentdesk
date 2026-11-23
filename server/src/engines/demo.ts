@@ -7,6 +7,24 @@ import type { Engine, EngineRequest, EngineResult, TranscriptEntry } from "./typ
  * The planner proposes two small tasks, developers "work" for a while and write a note file,
  * the reviewer asks for one fix round on the first task and approves the rest.
  */
+/** Overview text the live sprint task writes. Exported so a test can match the page without running the waits. */
+export const DEMO_OVERVIEW = `Red Dust Gadgets builds small gadgets for a Mars crew. This page was updated by the developer working on the airlock dust alarm.
+
+## Goals
+- A pocket vacuum that keeps dust out of the airlock
+- Hot chocolate that stays in the cup in low gravity
+- Playlists chosen by crater
+
+## Now
+The airlock dust alarm is in the current sprint: a threshold you can set, and a note on how to test it.
+`;
+
+/** The queued task of the active demo sprint. Other scripted tasks do not write the wiki. */
+export function demoLiveWiki(prompt: string): { title: string; section: string; body: string } | undefined {
+  if (!prompt.startsWith("# Task:") || prompt.includes("# Round") || !prompt.includes("Dust Buddy: airlock dust alarm")) return undefined;
+  return { title: "Overview", section: "overview", body: DEMO_OVERVIEW };
+}
+
 export class DemoEngine implements Engine {
   private reviews = new Map<string, number>();
 
@@ -131,6 +149,14 @@ export class DemoEngine implements Engine {
       const fix = req.prompt.includes("# Round");
       writeFileSync(join(req.cwd, "demo", slug === "demo-notes" ? "notes.md" : slug === "demo-changelog" ? "changelog.md" : `${slug}.md`),
         `# ${slug}\n\nWritten by the demo engine at ${new Date().toISOString()}.\n${fix ? "\n## Risks\nNone; demo only.\n" : ""}`);
+      // The active sprint's live task (Dust Buddy, queued, runs on its own) updates Overview once.
+      const wiki = demoLiveWiki(req.prompt);
+      if (wiki && req.writeWiki) {
+        const output = req.writeWiki(wiki);
+        step({ kind: "tool", tool: "write_wiki", input: wiki, output });
+        req.onActivity?.("typing", "wiki Overview");
+        req.onLog?.("→ wiki Overview");
+      }
       return result(fix ? "- Added the Risks section" : "- Added the file\n- Tests: none needed (demo)");
     } catch (err) {
       return { ...result(""), ok: false, error: String((err as Error).message) };

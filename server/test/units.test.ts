@@ -6,7 +6,7 @@ import { commandAllowed, globToRegex, runTool } from "../src/engines/tools.ts";
 import { splitChain, needsShell } from "../src/orchestrator/shell.ts";
 import { pathAllowed } from "../src/orchestrator/git.ts";
 import { parseAllowedTools } from "../src/engines/types.ts";
-import { lastJsonBlock } from "../src/engines/claudeCli.ts";
+import { lastJsonBlock, takeWikiFromSummary, CLAUDE_WIKI_INSTRUCTIONS } from "../src/engines/claudeCli.ts";
 import { normalizePlan } from "../src/orchestrator/orchestrator.ts";
 import { Vault, hashPassword, verifyPassword } from "../src/crypto.ts";
 
@@ -74,6 +74,12 @@ describe("structured output", () => {
   it("reads the last JSON block", () => {
     expect(lastJsonBlock("text\n```json\n{\"a\":1}\n```\nmore\n```json\n{\"a\":2}\n```")).toEqual({ a: 2 });
     expect(lastJsonBlock("no json")).toBeUndefined();
+    const summary = "Added the alarm.\n\n```json\n{\"wiki\":[{\"section\":\"setup\",\"body\":\"Run it.\"}]}\n```";
+    expect(takeWikiFromSummary(summary)).toEqual({ summary: "Added the alarm.", wiki: [{ section: "setup", body: "Run it." }] });
+    expect(takeWikiFromSummary("No wiki here.")).toEqual({ summary: "No wiki here." });
+    for (const name of ["overview", "architecture", "roadmap", "setup", "decisions", "releases", "Road map", "General"]) {
+      expect(CLAUDE_WIKI_INSTRUCTIONS).toContain(name);
+    }
   });
   it("normalizes plan slugs and drops empty tasks", () => {
     const p = normalizePlan({ reply: "r", tasks: [{ title: "Fix Login!", spec: "x" }, { slug: "fix-login", spec: "y" }, { title: "empty", spec: " " }] }, []);

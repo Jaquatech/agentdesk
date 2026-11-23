@@ -165,8 +165,6 @@ export const STANDARD_PAGES = [
   { slot: "setup", title: "Setup", body: "How to run it, the environment, and gotchas.\n" },
 ] as const;
 
-const SLOT_SET = new Set<string>(STANDARD_PAGES.map((p) => p.slot));
-
 type TaskBits = { id: number; project_id: number; title: string; spec: string; summary: string; review: string; verdict: string };
 
 /** Insert any missing general guides, then the standard pages of every project and a page for every task. */
@@ -297,36 +295,83 @@ export function refreshLinks(db: DB, docId: number, body: string) {
 
 export type WikiWrite = { title?: string; section?: string; body?: string };
 
-/** Planner writes. Only this project's pages. General pages are refused. */
-export function applyWikiWrites(db: DB, projectId: number, writes: WikiWrite[]) {
-  let updated = 0;
+/** One entry per requested write: `updated`, or a short reason the page was left as it was. */
+export type WikiWriteResult = { result: string };
+
+/** `Road map`, `road-map`, `Overview.md` and `docs/Setup.md` all become a single key. */
+function normalizeWikiKey(raw: string): string {
+  const base = raw.trim().toLowerCase().replace(/\\/g, "/").split("/").pop() ?? "";
+  return base.replace(/\.md$/i, "").replace(/[\s_-]+/g, "");
+}
+
+function slotFor(raw: string): string | undefined {
+  const key = normalizeWikiKey(raw);
+  if (!key) return undefined;
+  for (const page of STANDARD_PAGES) {
+    if (key === page.slot || key === normalizeWikiKey(page.title)) return page.slot;
+  }
+  return undefined;
+}
+
+function manyFor(raw: string): "decisions" | "releases" | undefined {
+  const key = normalizeWikiKey(raw);
+  if (key === "decisions" || key === "decision") return "decisions";
+  if (key === "releases" || key === "release" || key === "releasenotes" || key === "releasenote") return "releases";
+  return undefined;
+}
+
+/**
+ * Project-agent writes. Only this project's pages.
+ * Slot pages (overview, architecture, roadmap, setup) are matched by section, then by title, and a missing title is ignored.
+ * decisions and releases are one page per title. A General page is never changed.
+ */
+export function applyWikiWrites(db: DB, projectId: number, writes: WikiWrite[]): WikiWriteResult[] {
+  const results: WikiWriteResult[] = [];
   const note = db.prepare("UPDATE documents SET body = ?, updated_at = datetime('now') WHERE id = ?");
+  const general = db.prepare("SELECT title FROM documents WHERE project_id IS NULL").all() as { title: string }[];
+  const generalTitle = (raw: string) => {
+    const key = normalizeWikiKey(raw);
+    if (!key) return undefined;
+    return general.find((g) => normalizeWikiKey(g.title) === key)?.title;
+  };
   for (const w of writes ?? []) {
+    if (!w || typeof w !== "object") { results.push({ result: 'unknown section ""' }); continue; }
     const title = String(w.title ?? "").trim().slice(0, 200);
     const body = String(w.body ?? "");
-    const section = String(w.section ?? "").trim();
-    if (!title || !body.trim()) continue;
-    if (SLOT_SET.has(section)) {
-      const row = db.prepare("SELECT id FROM documents WHERE project_id = ? AND slot = ?").get(projectId, section) as { id: number } | undefined;
-      if (!row) continue;
+    const sectionRaw = String(w.section ?? "").trim();
+    if (!body.trim()) { results.push({ result: "empty body" }); continue; }
+    const fromSection = slotFor(sectionRaw);
+    const many = fromSection ? undefined : manyFor(sectionRaw);
+    // A slot title is only a fallback when the section itself is not already a project section.
+    const slot = fromSection ?? (many ? undefined : slotFor(title));
+    if (!slot) {
+      const blocked = generalTitle(title) ?? generalTitle(sectionRaw);
+      if (blocked) { results.push({ result: `general page "${blocked}"` }); continue; }
+    }
+    if (slot) {
+      const row = db.prepare("SELECT id FROM documents WHERE project_id = ? AND slot = ?").get(projectId, slot) as { id: number } | undefined;
+      if (!row) { results.push({ result: `unknown section "${sectionRaw || slot}"` }); continue; }
       note.run(body, row.id);
       refreshLinks(db, row.id, body);
-      updated++;
-    } else if (section === "decisions" || section === "releases") {
-      const row = db.prepare("SELECT id FROM documents WHERE project_id = ? AND section = ? AND title = ? AND task_id IS NULL").get(projectId, section, title) as { id: number } | undefined;
-      if (row) note.run(body, row.id);
-      else {
-        const info = db.prepare("INSERT INTO documents (project_id, title, body, kind, section) VALUES (?, ?, ?, 'project', ?)")
-          .run(projectId, title, body, section);
-        refreshLinks(db, Number(info.lastInsertRowid), body);
-        updated++;
-        continue;
-      }
-      refreshLinks(db, row.id, body);
-      updated++;
+      results.push({ result: "updated" });
+      continue;
     }
+    if (!many) { results.push({ result: `unknown section "${sectionRaw}"` }); continue; }
+    if (!title) { results.push({ result: "missing title" }); continue; }
+    const row = db.prepare("SELECT id, sprint_id FROM documents WHERE project_id = ? AND section = ? AND title = ? AND task_id IS NULL")
+      .get(projectId, many, title) as { id: number; sprint_id: number | null } | undefined;
+    if (row) {
+      note.run(body, row.id);
+      refreshLinks(db, row.id, body);
+      if (row.sprint_id) applyReleasePage(db, row.sprint_id, body);
+    } else {
+      const info = db.prepare("INSERT INTO documents (project_id, title, body, kind, section) VALUES (?, ?, ?, 'project', ?)")
+        .run(projectId, title, body, many);
+      refreshLinks(db, Number(info.lastInsertRowid), body);
+    }
+    results.push({ result: "updated" });
   }
-  return updated;
+  return results;
 }
 
 /** Project pages for an agent's prompt. General pages are not included. */

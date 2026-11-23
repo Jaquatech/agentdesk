@@ -51,6 +51,29 @@ describe("built-in agent loop", () => {
     expect(third[1].content).toContain("not allowed");
   });
 
+  it("read mode can update the wiki and still has no file write tools", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ad-loop-"));
+    const seen: string[] = [];
+    const chat = scripted([
+      (req) => {
+        const names = req.tools!.map((t) => t.name);
+        expect(names).toContain("write_wiki");
+        expect(names).not.toContain("write_file");
+        expect(req.system).toMatch(/Road map/);
+        return { content: [{ type: "tool_use", id: "1", name: "write_wiki", input: { section: "Road map", body: "Next: the alarm." } }], stopReason: "tool_use", usage };
+      },
+      () => ({ content: [{ type: "tool_use", id: "2", name: "submit_review", input: { verdict: "approve", review: "ok" } }], stopReason: "tool_use", usage }),
+    ]);
+    const r = await new ApiLoopEngine().run({
+      agent: agent("reviewer"), cwd: dir, system: "s", prompt: "p", mode: "read", output: REVIEW_TOOL,
+      writeWiki: (page) => { seen.push(`${page.section}:${page.body}`); return "updated"; },
+      provider: { id: 1, name: "p", baseUrl: "", kind: "ollama", model: "m", chat },
+    });
+    expect(seen).toEqual(["Road map:Next: the alarm."]);
+    expect(r.transcript?.some((e) => e.tool === "write_wiki" && e.output === "updated")).toBe(true);
+    expect(r.output).toEqual({ verdict: "approve", review: "ok" });
+  });
+
   it("read mode has no write tools and returns structured output", async () => {
     const dir = mkdtempSync(join(tmpdir(), "ad-loop-"));
     const chat = scripted([
