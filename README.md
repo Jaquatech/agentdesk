@@ -224,6 +224,8 @@ Paste, drop or attach files on a chat message. The original file is kept as you 
 
 The planner, and in a Scrum project the product manager, reads images when its model can read images, and the first part of that Markdown copy (about 20 000 characters). To hear the rest, ask for the next part by the file's name, for example "read the rest of budget.csv". The message shows whether the copy was made. A file that cannot be read is marked failed, and the message still sends. Files on earlier messages stay as names, with the size and how many parts the agent can ask for.
 
+The limits above are the defaults. **Attachment handling** (sidebar, group **Platform settings**) sets them per file type: Markdown copy on or off, characters sent with the message, spreadsheet rows and columns, and image size. A change applies to files attached afterwards.
+
 ## Scrum: backlog, sprints, release
 
 Set a project's **How work is run** to *Scrum* (Projects). The chat then talks to a product manager instead of a planner, and the

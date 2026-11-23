@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 // Automated accessibility scan of every page in demo mode (WCAG 2.0/2.1 A and AA rules).
 // It finds a part of the problems (roughly a third); keyboard and screen-reader checks by hand stay part of the gates.
-const pages = ["#/office", "#/teams", "#/agents", "#/providers", "#/documents", "#/usage", "#/projects", "#/settings", "#/version", "#/tasks", "#/scrum/1"];
+const pages = ["#/office", "#/teams", "#/agents", "#/providers", "#/documents", "#/usage", "#/projects", "#/settings", "#/attachments", "#/version", "#/tasks", "#/scrum/1"];
 
 for (const theme of ["dark", "light"] as const) test(`no accessibility violations on any page (${theme} theme)`, async ({ page }) => {
   await page.goto("/");
