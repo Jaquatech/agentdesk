@@ -115,3 +115,8 @@ describe("GET /api/licenses", () => {
     expect(body.licenses.MIT).toBeGreaterThan(0);
   });
 });
+
+it("allows Zlib (permissive, used by pako as MIT AND Zlib)", () => {
+  expect(licenseAllowed("Zlib")).toBe(true);
+  expect(licenseAllowed("MIT AND Zlib")).toBe(true);
+});

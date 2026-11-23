@@ -33,3 +33,5 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 - The accessibility scan skips the tab buttons (`[role="tab"]`): Radix points them at panels (`aria-controls`) that these pages do not render, since the tabs only switch what the page shows below. Fix by rendering a panel per tab, or by dropping the attribute.
 - The CSP allows inline styles (`style-src 'unsafe-inline'`) because Radix injects style elements. Tighten with a nonce if that changes.
 - With reduced motion the office is a still picture: agents do not walk to a new place when their state changes until the page is reloaded (labels and bubbles still update).
+
+- **Zlib is on the licence allow-list.** It is a permissive licence (like MIT), and the package pako is licensed MIT AND Zlib. Approved by the owner's architect role when the licence check was added.
