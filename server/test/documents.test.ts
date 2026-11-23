@@ -121,8 +121,9 @@ describe("documents", () => {
     const wiki = projectWikiContext(ctx.db, project.body.id);
     expect(wiki).toMatch(/A small tool/);
     expect(wiki).toMatch(/Add a button/);
-    expect(wiki).not.toMatch(/Coding guidelines/);
-    expect(wiki).not.toMatch(/Choosing AI models/);
+    expect(wiki).toMatch(/Coding guidelines/);
+    expect(wiki).not.toMatch(/Every behaviour change has a check/);
+    expect(wiki).not.toMatch(/The ratings below are the live guide/);
 
     const tool = await runTool("write_wiki", { title: "Setup", section: "setup", body: "Run the app from the project folder." }, {
       cwd: folder, canWrite: true, commandPrefixes: [],

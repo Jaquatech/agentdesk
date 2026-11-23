@@ -58,6 +58,8 @@ describe("built-in agent loop", () => {
       (req) => {
         const names = req.tools!.map((t) => t.name);
         expect(names).toContain("write_wiki");
+        expect(names).toContain("read_wiki");
+        expect(names).toContain("search_wiki");
         expect(names).not.toContain("write_file");
         expect(req.system).toMatch(/Road map/);
         return { content: [{ type: "tool_use", id: "1", name: "write_wiki", input: { section: "Road map", body: "Next: the alarm." } }], stopReason: "tool_use", usage };

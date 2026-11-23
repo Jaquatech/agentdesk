@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { ROLLUP_MARKER } from "../chatHistory.ts";
 import type { Engine, EngineRequest, EngineResult, TranscriptEntry } from "./types.ts";
 
 /**
@@ -37,6 +38,28 @@ export function demoLiveWiki(prompt: string): { title: string; section: string; 
   return { title: "Overview", section: "overview", body: DEMO_OVERVIEW };
 }
 
+/** The latest user line, from a free chat (`## User`) or a Scrum chat (`## Business owner`). */
+function latestAsk(prompt: string): string {
+  return ([...prompt.matchAll(/## (?:User|Business owner)\n([^\n]*)/g)].at(-1)?.[1] ?? "").trim();
+}
+
+/**
+ * A question about an old decision is not in the history window. The scripted planner looks it up
+ * with the same tools a real model would call, and quotes the page.
+ */
+function lookupWiki(req: EngineRequest, step: (e: Omit<TranscriptEntry, "t">) => void): string | undefined {
+  if (!req.readWiki) return undefined;
+  const ask = latestAsk(req.prompt);
+  if (!/\b(decide|decision|wiki|look up|lookup)\b/i.test(ask)) return undefined;
+  const query = ask.slice(0, 160);
+  const found = req.searchWiki?.(query) ?? "";
+  const page = req.readWiki({ section: "decisions" });
+  step({ kind: "tool", tool: "search_wiki", input: { query }, output: found });
+  step({ kind: "tool", tool: "read_wiki", input: { section: "decisions" }, output: page });
+  req.onActivity?.("reading", "wiki");
+  return `From the wiki:\n\n${page}`;
+}
+
 export class DemoEngine implements Engine {
   private reviews = new Map<string, number>();
 
@@ -55,7 +78,12 @@ export class DemoEngine implements Engine {
       ok: true, summary, output, turns: 6, costUsd: 0, tokensIn: 4_000, cacheRead: 36_000, cacheWrite: 2_000, tokensOut: 1_800, seconds: Math.round((Date.now() - t0) / 1000),
     });
     try {
+      if (req.prompt.startsWith(ROLLUP_MARKER)) {
+        return result("Kept the decisions from the messages that left the window.\nNames and outcomes are in this note.\nThe recent messages stay in the chat.");
+      }
       if (req.output?.name === "submit_backlog") {
+        const looked = lookupWiki(req, step);
+        if (looked) return result("backlog", { reply: looked, items: [] });
         req.onActivity?.("thinking", "reading the request");
         await wait(1100);
         if (req.prompt.startsWith("# Write one backlog item")) {
@@ -111,6 +139,8 @@ export class DemoEngine implements Engine {
         });
       }
       if (req.agent.role === "planner") {
+        const looked = lookupWiki(req, step);
+        if (looked) return result("plan", { reply: looked, tasks: [] });
         for (const f of ["README.md", "src/", "package.json"]) { req.onActivity?.("reading", `read ${f}`); await wait(900); }
         req.onActivity?.("thinking", "splitting the work");
         await wait(1200);

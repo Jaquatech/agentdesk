@@ -53,6 +53,7 @@ const states: { name: string; route: string; open: (page: Page) => Promise<void>
   { name: "open dropdown in the agent form", route: "#/agents", open: async (p) => {
     await p.getByRole("main").getByRole("button", { name: /^New/ }).first().click(); await p.getByRole("combobox").first().click(); await expect(p.getByRole("listbox")).toBeVisible(); } },
   { name: "chat", route: "#/chat/1", open: async () => {} },
+  { name: "new chat dialog", route: "#/", open: async (p) => { await p.getByRole("button", { name: "New chat", exact: true }).click(); await expect(p.getByRole("dialog")).toBeVisible(); } },
 ];
 
 for (const s of states) test(`no accessibility violations: ${s.name}`, async ({ page }) => {

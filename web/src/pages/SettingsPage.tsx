@@ -117,6 +117,9 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Tasks running at the same time" hint="Each developer works on one task at a time."><Input type="number" min={1} max={8} value={s.max_parallel} onChange={(e) => set("max_parallel", e.target.value)} /></Field>
               <Field label="Fix rounds after a failed check or review" hint="Then the task waits for you."><Input type="number" min={0} max={5} value={s.max_review_rounds} onChange={(e) => set("max_review_rounds", e.target.value)} /></Field>
+              <Field label="Messages sent from a chat" hint="The last this many messages go with each planner or product-manager reply (6–40). A smaller window costs fewer tokens. A chat that grows past it keeps a three-line note in the project journal, once per window. Anything that must last belongs in the wiki, the journal, or a note on an attachment.">
+                <Input type="number" min={6} max={40} value={s.chat_history_messages ?? "16"} onChange={(e) => set("chat_history_messages", e.target.value)} />
+              </Field>
             </div>
             <label className="flex items-center gap-2 text-sm"><Checkbox checked={s.auto_run_plans === "true"} onCheckedChange={(v) => set("auto_run_plans", String(v === true))} /> Run plans right away (otherwise you press "Run plan")</label>
             <label className="flex items-center gap-2 text-sm"><Checkbox checked={s.push_and_pr === "true"} onCheckedChange={(v) => set("push_and_pr", String(v === true))} /> Push approved branches and open a pull request (projects with a remote)</label>

@@ -400,6 +400,11 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE attachments ADD COLUMN note TEXT NOT NULL DEFAULT '';
   `,
+  // How far a chat's older messages have been folded into the journal, and how big the last prompt was.
+  `
+  ALTER TABLE chats ADD COLUMN history_rolled_to INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE runs ADD COLUMN prompt_chars INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 export function openDb(file: string): DB {
@@ -444,7 +449,18 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   push_and_pr: "true",
   budget_day_usd: "10",
   budget_sprint_usd: "20",
+  // Messages of one chat sent with each planner or product-manager call. Allowed range is 6–40.
+  chat_history_messages: "16",
 };
+
+/** Last messages of a chat that go into a planner call. Empty or nonsense falls back to the default; outside 6–40 is clamped. */
+export function historyWindow(value: unknown): number {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 16;
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n)) return 16;
+  return Math.min(40, Math.max(6, n));
+}
 
 export function getSettings(db: DB): Record<string, string> {
   const rows = db.prepare("SELECT key, value FROM settings").all() as { key: string; value: string }[];

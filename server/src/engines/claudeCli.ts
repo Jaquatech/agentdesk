@@ -21,6 +21,7 @@ export function claudeAttachmentPrompt(att: PromptAttachments | undefined): stri
  */
 export const CLAUDE_WIKI_INSTRUCTIONS = `
 # Project wiki
+Your instructions already contain the wiki index and the Overview page. There is no read_wiki tool here.
 You may update this project's pages. Do not call a write_wiki tool; it is not available here.
 After your summary, end with one fenced json block and nothing after it:
 \`\`\`json

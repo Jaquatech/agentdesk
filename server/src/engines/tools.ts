@@ -18,6 +18,10 @@ export type ToolContext = {
   ask?: (command: string) => Promise<{ allowed: boolean; by?: string }>;
   /** Updates one project wiki page. Absent = write_wiki is refused. File writes stay behind canWrite. */
   writeWiki?: (page: { title?: string; section: string; body: string }) => string;
+  /** Reads one wiki page, including General pages. Absent = read_wiki is refused. */
+  readWiki?: (q: { section?: string; title?: string }) => string;
+  /** Searches wiki titles and text, including General pages. Absent = search_wiki is refused. */
+  searchWiki?: (query: string) => string;
 };
 
 export type ToolOutcome = { content: string; isError?: boolean; activity: AgentState; detail: string };
@@ -66,6 +70,27 @@ export const WRITE_TOOLS: ToolDef[] = [
     },
   },
 ];
+
+export const READ_WIKI_TOOL: ToolDef = {
+  name: "read_wiki",
+  description: "Read one wiki page by section or title. Covers this project's pages and General pages. A long page is cut and the result says how many characters were omitted. General pages cannot be edited.",
+  input_schema: {
+    type: "object",
+    properties: {
+      section: { type: "string", description: "overview, architecture, roadmap, setup, decisions, releases, tasks, or a page title" },
+      title: { type: "string", description: "Page title. Use it for a decision, a release, a task page, or a General page." },
+    },
+  },
+};
+
+export const SEARCH_WIKI_TOOL: ToolDef = {
+  name: "search_wiki",
+  description: "Find wiki pages whose title, section or text matches the query. Returns matching titles and a short snippet, including General pages.",
+  input_schema: {
+    type: "object", required: ["query"],
+    properties: { query: { type: "string", description: "Words to look for, such as a decision or a page title" } },
+  },
+};
 
 export const WIKI_TOOL: ToolDef = {
   name: "write_wiki",
@@ -179,6 +204,16 @@ export async function runTool(name: string, input: Record<string, any>, ctx: Too
         if (count !== 1) throw new Error(`old_text matches ${count} times; it must match exactly once`);
         writeFileSync(file, text.replace(String(input.old_text), () => String(input.new_text)), "utf8");
         return { content: `Edited ${input.path}`, activity: "typing", detail: `edit ${input.path}` };
+      }
+      case "read_wiki": {
+        if (!ctx.readWiki) throw new Error("This agent cannot read the wiki");
+        const content = ctx.readWiki({ section: String(input.section ?? ""), title: String(input.title ?? "") });
+        return { content, activity: "reading", detail: `wiki ${String(input.title || input.section).slice(0, 40)}` };
+      }
+      case "search_wiki": {
+        if (!ctx.searchWiki) throw new Error("This agent cannot search the wiki");
+        const content = ctx.searchWiki(String(input.query ?? ""));
+        return { content, activity: "reading", detail: `wiki search ${String(input.query ?? "").slice(0, 40)}` };
       }
       case "write_wiki": {
         if (!ctx.writeWiki) throw new Error("This agent cannot edit the wiki");

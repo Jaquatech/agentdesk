@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join, isAbsolute, resolve, dirname } from "node:path";
 import { homedir } from "node:os";
 import type { DB } from "./db.ts";
-import { getSettings, setSetting, DEFAULT_SETTINGS, json } from "./db.ts";
+import { getSettings, setSetting, DEFAULT_SETTINGS, historyWindow, json } from "./db.ts";
 import { secretHint, type Vault } from "./crypto.ts";
 import { bus, type LiveEvent } from "./bus.ts";
 import { testProvider, secretValue, DEFAULT_BASE_URL, type ProviderRow } from "./providers/index.ts";
@@ -52,7 +52,8 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
   app.put("/api/settings", async (req) => {
     const body = req.body as Body;
     for (const [k, v] of Object.entries(body)) {
-      if (k in DEFAULT_SETTINGS || /^default_(planner|worker|reviewer)_id$/.test(k)) setSetting(db, k, String(v));
+      if (k === "chat_history_messages") setSetting(db, k, String(historyWindow(v)));
+      else if (k in DEFAULT_SETTINGS || /^default_(planner|worker|reviewer)_id$/.test(k)) setSetting(db, k, String(v));
     }
     orch.tick();
     return getSettings(db);
@@ -403,10 +404,16 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     const chatId = id((req.params as Body).id);
     const chat = db.prepare("SELECT * FROM chats WHERE id = ?").get(chatId);
     if (!chat) return bad(reply, "Not found", 404);
+    const usage = db.prepare(`SELECT
+      COALESCE((SELECT SUM(tokens_in + cache_read + cache_write + tokens_out) FROM runs WHERE chat_id = ? AND engine != 'shell'), 0) AS tokens,
+      COALESCE((SELECT tokens_in + cache_read + cache_write FROM runs WHERE chat_id = ? AND engine != 'shell' ORDER BY id DESC LIMIT 1), 0) AS last_prompt_tokens,
+      COALESCE((SELECT prompt_chars FROM runs WHERE chat_id = ? AND engine != 'shell' ORDER BY id DESC LIMIT 1), 0) AS last_prompt_chars
+    `).get(chatId, chatId, chatId) as { tokens: number; last_prompt_tokens: number; last_prompt_chars: number };
     return {
       chat,
       planner_id: orch.plannerFor(chatId)?.id ?? null, // who answers the next message
       planning: orch.isPlanning(chatId),
+      usage,
       messages: (() => {
         const files = db.prepare("SELECT id, message_id, name, mime, size, note FROM attachments WHERE chat_id = ? AND message_id IS NOT NULL ORDER BY id")
           .all(chatId) as { message_id: number }[];
