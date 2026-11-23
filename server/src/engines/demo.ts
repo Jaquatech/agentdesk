@@ -38,6 +38,23 @@ export function demoLiveWiki(prompt: string): { title: string; section: string; 
   return { title: "Overview", section: "overview", body: DEMO_OVERVIEW };
 }
 
+/**
+ * "read attachment notes.txt part 2" fetches that part with the same tool a real model would call.
+ * A normal demo reply does not take this path.
+ */
+function lookupAttachment(req: EngineRequest, step: (e: Omit<TranscriptEntry, "t">) => void): string | undefined {
+  if (!req.readAttachment) return undefined;
+  const ask = latestAsk(req.prompt);
+  const m = /\bread attachment\s+(.+?)(?:\s+part\s+(\d+))?\s*$/i.exec(ask);
+  if (!m) return undefined;
+  const name = m[1].trim();
+  const part = Number(m[2] || 1);
+  const output = req.readAttachment(name, part);
+  step({ kind: "tool", tool: "read_attachment", input: { name, part }, output });
+  req.onActivity?.("reading", name);
+  return output;
+}
+
 /** The latest user line, from a free chat (`## User`) or a Scrum chat (`## Business owner`). */
 function latestAsk(prompt: string): string {
   return ([...prompt.matchAll(/## (?:User|Business owner)\n([^\n]*)/g)].at(-1)?.[1] ?? "").trim();
@@ -82,7 +99,7 @@ export class DemoEngine implements Engine {
         return result("Kept the decisions from the messages that left the window.\nNames and outcomes are in this note.\nThe recent messages stay in the chat.");
       }
       if (req.output?.name === "submit_backlog") {
-        const looked = lookupWiki(req, step);
+        const looked = lookupAttachment(req, step) ?? lookupWiki(req, step);
         if (looked) return result("backlog", { reply: looked, items: [] });
         req.onActivity?.("thinking", "reading the request");
         await wait(1100);
@@ -139,7 +156,7 @@ export class DemoEngine implements Engine {
         });
       }
       if (req.agent.role === "planner") {
-        const looked = lookupWiki(req, step);
+        const looked = lookupAttachment(req, step) ?? lookupWiki(req, step);
         if (looked) return result("plan", { reply: looked, tasks: [] });
         for (const f of ["README.md", "src/", "package.json"]) { req.onActivity?.("reading", `read ${f}`); await wait(900); }
         req.onActivity?.("thinking", "splitting the work");

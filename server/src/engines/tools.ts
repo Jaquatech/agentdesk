@@ -22,6 +22,8 @@ export type ToolContext = {
   readWiki?: (q: { section?: string; title?: string }) => string;
   /** Searches wiki titles and text, including General pages. Absent = search_wiki is refused. */
   searchWiki?: (query: string) => string;
+  /** Reads one part of a file attached in this chat, by name. Absent = read_attachment is refused. */
+  readAttachment?: (name: string, part: number) => string;
 };
 
 export type ToolOutcome = { content: string; isError?: boolean; activity: AgentState; detail: string };
@@ -70,6 +72,18 @@ export const WRITE_TOOLS: ToolDef[] = [
     },
   },
 ];
+
+export const READ_ATTACHMENT_TOOL: ToolDef = {
+  name: "read_attachment",
+  description: "Read one part of a file the user attached in this chat. Pass the file's name, never a path. Each part is about 20 000 characters. The result starts with \"part 2 of 5\". Omit part for the first part.",
+  input_schema: {
+    type: "object", required: ["name"],
+    properties: {
+      name: { type: "string", description: "The attachment's name in this chat" },
+      part: { type: "integer", description: "Part number starting at 1. Omit for the first part." },
+    },
+  },
+};
 
 export const READ_WIKI_TOOL: ToolDef = {
   name: "read_wiki",
@@ -204,6 +218,12 @@ export async function runTool(name: string, input: Record<string, any>, ctx: Too
         if (count !== 1) throw new Error(`old_text matches ${count} times; it must match exactly once`);
         writeFileSync(file, text.replace(String(input.old_text), () => String(input.new_text)), "utf8");
         return { content: `Edited ${input.path}`, activity: "typing", detail: `edit ${input.path}` };
+      }
+      case "read_attachment": {
+        if (!ctx.readAttachment) throw new Error("This agent cannot read attachments");
+        const part = input.part == null || input.part === "" ? 1 : Number(input.part);
+        const content = ctx.readAttachment(String(input.name ?? ""), part);
+        return { content, activity: "reading", detail: `attachment ${String(input.name ?? "").slice(0, 40)}` };
       }
       case "read_wiki": {
         if (!ctx.readWiki) throw new Error("This agent cannot read the wiki");

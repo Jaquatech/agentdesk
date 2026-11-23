@@ -412,6 +412,10 @@ const MIGRATIONS: string[] = [
   ALTER TABLE chats ADD COLUMN history_rollup_failures INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE chats ADD COLUMN history_rollup_anchor INTEGER NOT NULL DEFAULT 0;
   `,
+  // Markdown copy of a chat file: converted, truncated, failed: reason, needs_ocr, or empty when nothing was copied.
+  `
+  ALTER TABLE attachments ADD COLUMN status TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 export function openDb(file: string): DB {

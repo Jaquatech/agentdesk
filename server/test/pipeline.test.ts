@@ -441,10 +441,11 @@ describe("pipeline", () => {
     expect(served.rawPayload.equals(png)).toBe(true);
 
     const stats = await call("GET", "/api/attachments-cache");
-    expect(stats.files).toBe(2);
+    // The log keeps its original and a Markdown copy. The image is stored once.
+    expect(stats.files).toBe(3);
     expect(stats.folder).toContain("attachments");
     const cleared = await call("DELETE", "/api/attachments-cache");
-    expect(cleared.removed).toBe(2);
+    expect(cleared.removed).toBe(3);
     expect((await call("GET", "/api/attachments-cache")).files).toBe(0);
     const gone = await ctx.app.inject({ method: "GET", url: `/api/attachments/${img.id}`, headers: { cookie, host: "localhost" } });
     expect(gone.statusCode).toBe(404);

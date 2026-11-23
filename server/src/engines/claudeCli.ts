@@ -6,11 +6,18 @@ import { UNSENT_REPLY, type PromptAttachments } from "../attachments.ts";
 
 /** The "# Attached by the user" block. The CLI reads files itself, so sent files are paths and skipped files are named with the reason. */
 export function claudeAttachmentPrompt(att: PromptAttachments | undefined): string {
-  if (!att || (!att.paths.length && !att.skipped.length)) return "";
+  if (!att || (!att.paths.length && !att.skipped.length && !att.texts.length)) return "";
   const read = att.readPaths ?? [];
   const parts: string[] = [];
   if (read.length) parts.push(`Read these with the Read tool (images too):\n${read.map((f) => `- ${f}`).join("\n")}`);
   if (att.skipped.length) parts.push(`${att.skipped.map((s) => `- ${s}`).join("\n")}\n${UNSENT_REPLY}`);
+  for (const t of att.texts) {
+    const left = t.parts - t.part;
+    const more = t.parts > 1
+      ? `part ${t.part} of ${t.parts}. ${left} ${left === 1 ? "part remains" : "parts remain"}. The Markdown copy is in the list above; do not guess the rest.\n\n`
+      : "";
+    parts.push(`## ${t.name}\n${more}${t.content}`);
+  }
   if (!parts.length) return "";
   return `\n\n# Attached by the user\n${parts.join("\n")}`;
 }

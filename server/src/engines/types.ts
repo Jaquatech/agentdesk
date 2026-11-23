@@ -41,6 +41,8 @@ export type EngineRequest = {
   readWiki?: (q: { section?: string; title?: string }) => string;
   /** Find wiki pages by title, section or text. Offered with writeWiki. */
   searchWiki?: (query: string) => string;
+  /** Read one part of a file attached in this chat. Offered to every role when the call has a chat. The name is never a path. */
+  readAttachment?: (name: string, part: number) => string;
   /** Each run-log step as it happens (live Activity view). */
   onStep?: (entry: TranscriptEntry) => void;
 };

@@ -215,7 +215,7 @@ chat message → planner (read-only) → tasks (proposed) → Run plan
 
 ## Attachments
 
-Paste, drop or attach files on a chat message. The planner, and in a Scrum project the product manager, reads images when its model can read images, and text files up to 200 KB (plain text, Markdown, JSON, CSV, source files and the like). PDF, Word and Excel are named only: the reply says the file was not sent and why, and the message shows the same note. Files on earlier messages stay as names. Reading PDF, Word and Excel needs a follow-up that extracts the text, and likely a new dependency; this version does not add one.
+Paste, drop or attach files on a chat message. The original file is kept as you uploaded it. Text files (plain text, Markdown, JSON, XML, CSV, TSV, logs and source files) are also copied to Markdown. CSV and TSV get a short header with the column names and the row count. The planner, and in a Scrum project the product manager, reads images when its model can read images, and the first part of that Markdown copy (about 20 000 characters). To hear the rest, ask for the next part by the file's name, for example "read the rest of budget.csv". The message shows whether the copy was made. A file that cannot be read is marked failed, and the message still sends. PDF, Word and Excel are named only for now: the reply says the file was not sent and why. Files on earlier messages stay as names, with the size and how many parts the agent can ask for.
 
 ## Scrum: backlog, sprints, release
 
