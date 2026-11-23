@@ -15,6 +15,7 @@ import {
 import { runCommandLine, tail, type ShellKind } from "./shell.ts";
 import { loadForPrompt, type AttachmentRow, type PromptAttachments } from "../attachments.ts";
 import { readChatAttachment } from "../attachmentMarkdown.ts";
+import { parseRules } from "../attachmentRules.ts";
 import { getCapabilities } from "../providers/capabilities.ts";
 import { placeEnvFile, type EnvFileHandle } from "./envFile.ts";
 import { blockingTask, isStuck, waitKey } from "./overlap.ts";
@@ -162,7 +163,7 @@ export class Orchestrator {
     if (!files.length) return undefined;
     const p = resolveProvider(this.db, this.vault, agent);
     const caps = await getCapabilities(p.kind, p.baseUrl, p.model, p.apiKey);
-    const attachments = loadForPrompt(files, { vision: caps.vision, model: p.model });
+    const attachments = loadForPrompt(files, { vision: caps.vision, model: p.model, rules: parseRules(getSettings(this.db).attachment_rules) });
     const noted = new Map(attachments.notes.map((n) => [n.id, n.text]));
     const upd = this.db.prepare("UPDATE attachments SET note = ? WHERE id = ?");
     let changed = false;
