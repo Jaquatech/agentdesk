@@ -25,10 +25,21 @@ export function PendingFiles({ files, onRemove }: { files: Pending[]; onRemove: 
   );
 }
 
+/** What the conversion status means, shown under the message. The name stays on the line so two files are not mixed up. */
+export function attachmentStatusText(file: { name: string; status?: string }): string {
+  const status = file.status;
+  if (!status) return "";
+  if (status === "converted") return `${file.name}: Converted to Markdown`;
+  if (status === "truncated") return `${file.name}: Converted to Markdown, cut short`;
+  if (status === "needs_ocr") return `${file.name}: Needs a text scan`;
+  if (status.startsWith("failed:")) return `${file.name}: Not converted: ${status.slice("failed:".length).trim()}`;
+  return `${file.name}: ${status}`;
+}
+
 /** Files on a sent message. Images open full size in a new tab. A file the model did not receive shows its note underneath. */
 export function MessageFiles({ files }: { files: AttachmentInfo[] }) {
   if (!files.length) return null;
-  const notes = files.filter((f) => f.note);
+  const lines = files.flatMap((f) => [attachmentStatusText(f), f.note ?? ""].filter(Boolean).map((text) => ({ id: f.id, text })));
   return (
     <div className="flex flex-col items-end gap-1 pt-1.5">
       <div className="flex flex-wrap items-start justify-end gap-2">
@@ -40,7 +51,7 @@ export function MessageFiles({ files }: { files: AttachmentInfo[] }) {
               <FileText /><span className="truncate">{f.name}</span><span className="text-muted-foreground">{kb(f.size)}</span>
             </a>)}
       </div>
-      {notes.map((f) => <p key={`note-${f.id}`} className="max-w-sm text-right text-xs text-muted-foreground">{f.note}</p>)}
+      {lines.map((line, i) => <p key={`${line.id}-${i}`} className="max-w-sm text-right text-xs text-muted-foreground">{line.text}</p>)}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
 } from "./git.ts";
 import { runCommandLine, tail, type ShellKind } from "./shell.ts";
 import { loadForPrompt, type AttachmentRow, type PromptAttachments } from "../attachments.ts";
+import { readChatAttachment } from "../attachmentMarkdown.ts";
 import { getCapabilities } from "../providers/capabilities.ts";
 import { placeEnvFile, type EnvFileHandle } from "./envFile.ts";
 import { blockingTask, isStuck, waitKey } from "./overlap.ts";
@@ -132,7 +133,7 @@ export class Orchestrator {
   private messagePayload(messageId: number | bigint) {
     return {
       ...(this.db.prepare("SELECT * FROM messages WHERE id = ?").get(messageId) as { id: number }),
-      attachments: this.db.prepare("SELECT id, name, mime, size, note FROM attachments WHERE message_id = ? ORDER BY id").all(messageId),
+      attachments: this.db.prepare("SELECT id, name, mime, size, note, status FROM attachments WHERE message_id = ? ORDER BY id").all(messageId),
     };
   }
 
@@ -224,6 +225,7 @@ export class Orchestrator {
     this.db.prepare("UPDATE runs SET prompt_chars = ? WHERE id = ?").run(system.length + o.prompt.length, runId);
     this.busyAgents.add(o.agent.id);
     this.activity(o.agent.id, o.kind === "review" ? "reviewing" : "thinking", o.kind, o.taskId, o.chatId);
+    const attachmentChat = o.chatId;
     try {
       const result = await engineFor(provider).run({
         agent: o.agent, provider, cwd: o.cwd, system, prompt: o.prompt, mode: o.mode, output: o.output, signal: o.signal,
@@ -241,6 +243,8 @@ export class Orchestrator {
         } : undefined,
         readWiki: offerWiki && project ? (q) => readWikiPage(this.db, project.id, q) : undefined,
         searchWiki: offerWiki && project ? (q) => searchWikiPages(this.db, project.id, q) : undefined,
+        // Every role in a chat can read that chat's files. The tool takes a name, never a path.
+        readAttachment: attachmentChat ? (name, part) => readChatAttachment(this.db, attachmentChat, name, part) : undefined,
       });
       if (project && result.ok) noteWiki(this.db, project.id, result, lines);
       this.endRun(runId, result, lines);

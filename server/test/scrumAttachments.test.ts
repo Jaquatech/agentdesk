@@ -143,7 +143,8 @@ describe("scrum chat attachments", () => {
     const view = await call("GET", `/api/chats/${chat.id}`);
     const message = view.messages.filter((m: { role: string }) => m.role === "user").at(-1);
     expect(message.attachments.find((a: { name: string }) => a.name === "notes.txt").note).toBe("");
-    expect(message.attachments.find((a: { name: string }) => a.name === "report.pdf").note).toBe("report.pdf not sent: PDF files are named only");
+    expect(message.attachments.find((a: { name: string }) => a.name === "report.pdf").status.startsWith("failed: ")).toBe(true);
+    expect(message.attachments.find((a: { name: string }) => a.name === "report.pdf").note).toMatch(/^report\.pdf not sent: /);
 
     const item = ctx.db.prepare("SELECT request FROM backlog_items WHERE title = ?").get("Second item") as { request: string };
     expect(item.request).toContain("notes.txt");

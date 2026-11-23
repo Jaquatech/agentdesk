@@ -1,14 +1,29 @@
 import type { DB } from "./db.ts";
+import { earlierFileSummary } from "./attachmentMarkdown.ts";
 
-/** One non-event message, oldest-first once the window is applied. `files` names attachments; the latest user message's bytes are loaded separately. */
+/** One non-event message, oldest-first once the window is applied. `files` is a size-and-parts line; the latest user message's bytes are loaded separately. */
 export type ChatTurn = { id: number; role: string; content: string; files: string | null };
 
 /** The last `limit` messages of a chat, oldest first. Event lines (status) are not part of the conversation the model sees. */
 export function recentTurns(db: DB, chatId: number, limit: number): ChatTurn[] {
-  return (db.prepare(`SELECT m.id, m.role, m.content,
-      (SELECT GROUP_CONCAT(a.name, ', ') FROM attachments a WHERE a.message_id = m.id) AS files
-    FROM messages m WHERE m.chat_id = ? AND m.role != 'event' ORDER BY m.id DESC LIMIT ?`)
-    .all(chatId, limit) as ChatTurn[]).reverse();
+  const turns = (db.prepare(`SELECT id, role, content FROM messages
+    WHERE chat_id = ? AND role != 'event' ORDER BY id DESC LIMIT ?`)
+    .all(chatId, limit) as { id: number; role: string; content: string }[]).reverse();
+  if (!turns.length) return [];
+  const ids = turns.map((t) => t.id);
+  const files = db.prepare(`SELECT id, message_id, name, size, path, status FROM attachments
+    WHERE message_id IN (${ids.map(() => "?").join(",")}) ORDER BY id`)
+    .all(...ids) as { id: number; message_id: number; name: string; size: number; path: string; status: string }[];
+  const byMessage = new Map<number, typeof files>();
+  for (const f of files) {
+    const list = byMessage.get(f.message_id) ?? [];
+    list.push(f);
+    byMessage.set(f.message_id, list);
+  }
+  return turns.map((t) => {
+    const line = earlierFileSummary(byMessage.get(t.id) ?? []);
+    return { ...t, files: line || null };
+  });
 }
 
 /** Deliberate journal notes kept in a prompt. Roll-up rows are counted separately so they cannot push these out. */
