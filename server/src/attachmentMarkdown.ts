@@ -261,8 +261,11 @@ export function partsOnDisk(row: { id: number; path: string; status?: string; na
 }
 
 /** One line for an older message: name, size, and how many parts the agent can ask for. */
-export function earlierFileSummary(rows: { id: number; name: string; size: number; path: string; status?: string }[], rules?: AttachmentRules): string {
-  return rows.map((r) => `${r.name}, ${formatSize(r.size)}, ${partsPhrase(r.status ?? "", partsOnDisk(r, rules))}`).join("; ");
+export function earlierFileSummary(rows: { id: number; name: string; size: number; path: string; status?: string; image_note?: string }[], rules?: AttachmentRules): string {
+  // An image that was shown before is known by its note, so the model does not need the image again.
+  return rows.map((r) => r.image_note
+    ? `${r.name}, ${formatSize(r.size)}, image: "${r.image_note}"`
+    : `${r.name}, ${formatSize(r.size)}, ${partsPhrase(r.status ?? "", partsOnDisk(r, rules))}`).join("; ");
 }
 
 /**

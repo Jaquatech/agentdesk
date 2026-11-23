@@ -434,7 +434,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
       planning: orch.isPlanning(chatId),
       usage,
       messages: (() => {
-        const files = db.prepare("SELECT id, message_id, name, mime, size, note, status FROM attachments WHERE chat_id = ? AND message_id IS NOT NULL ORDER BY id")
+        const files = db.prepare("SELECT id, message_id, name, mime, size, note, status, image_note FROM attachments WHERE chat_id = ? AND message_id IS NOT NULL ORDER BY id")
           .all(chatId) as { message_id: number }[];
         return (db.prepare("SELECT * FROM messages WHERE chat_id = ? ORDER BY id").all(chatId) as { id: number }[])
           .map((m) => ({ ...m, attachments: files.filter((f) => f.message_id === m.id) }));

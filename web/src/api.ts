@@ -59,6 +59,8 @@ export type AttachmentInfo = {
   note?: string;
   /** converted, truncated, failed: reason, needs_ocr, or empty when nothing was copied. */
   status?: string;
+  /** One line the agent wrote about the image when it was shown; later messages use it. */
+  image_note?: string;
 };
 export type Message = {
   id: number; chat_id: number; role: "user" | "assistant" | "event"; agent_id: number | null; content: string; plan: string | null;

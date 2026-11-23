@@ -54,9 +54,37 @@ export function attachmentPrompt(att: PromptAttachments): string {
     ...att.texts.map((t) => `- ${t.name} (Markdown, part ${t.part} of ${t.parts})`),
     ...att.skipped.map((s) => `- ${s}`),
   ];
+  const imageLine = att.images.length ? `\n${IMAGE_NOTE_LINE}` : "";
   const caution = att.skipped.length ? `\n${UNSENT_REPLY}` : "";
   const texts = att.texts.map((t) => `\n\n## ${t.name}\n${partNotice(t)}${t.content}`).join("");
-  return `\n\n# Attached by the user\n${lines.join("\n")}${caution}${texts}`;
+  return `\n\n# Attached by the user\n${lines.join("\n")}${imageLine}${caution}${texts}`;
+}
+
+/** Asked of the agent that is shown an image, so later messages can use its note instead of the image. */
+const IMAGE_NOTE_LINE = "Put one short line per image in `image_notes` (name and what matters in it). It is stored, so later messages can use it without the image.";
+const MAX_IMAGE_NOTES = 10;
+const MAX_IMAGE_NOTE_CHARS = 300;
+
+/**
+ * Stores the `image_notes` an agent wrote for the images it was shown. Each note goes to the newest image of that
+ * name in this chat that has no note yet; an existing note is never overwritten. Returns the message ids updated.
+ */
+export function storeImageNotes(db: DB, chatId: number, raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  const updated = new Set<number>();
+  const find = db.prepare(
+    "UPDATE attachments SET image_note = ? WHERE id = (SELECT id FROM attachments WHERE chat_id = ? AND name = ? AND mime LIKE 'image/%' AND image_note = '' ORDER BY id DESC LIMIT 1) RETURNING message_id",
+  );
+  for (const entry of raw.slice(0, MAX_IMAGE_NOTES)) {
+    if (!entry || typeof entry !== "object") continue;
+    const { name, note } = entry as { name?: unknown; note?: unknown };
+    if (typeof name !== "string" || typeof note !== "string") continue;
+    const text = note.trim().slice(0, MAX_IMAGE_NOTE_CHARS);
+    if (!text) continue;
+    const rows = find.all(text, chatId, name) as { message_id: number | null }[];
+    for (const r of rows) if (r.message_id != null) updated.add(r.message_id);
+  }
+  return [...updated];
 }
 
 export function attachmentDir(dataDir: string) {

@@ -39,7 +39,8 @@ export function attachmentStatusText(file: { name: string; status?: string }): s
 /** Files on a sent message. Images open full size in a new tab. A file the model did not receive shows its note underneath. */
 export function MessageFiles({ files }: { files: AttachmentInfo[] }) {
   if (!files.length) return null;
-  const lines = files.flatMap((f) => [attachmentStatusText(f), f.note ?? ""].filter(Boolean).map((text) => ({ id: f.id, text })));
+  const lines = files.flatMap((f) => [attachmentStatusText(f), f.note ?? "", f.image_note ? `${f.name}: ${f.image_note}` : ""]
+    .filter(Boolean).map((text) => ({ id: f.id, text })));
   return (
     <div className="flex flex-col items-end gap-1 pt-1.5">
       <div className="flex flex-wrap items-start justify-end gap-2">

@@ -13,7 +13,7 @@ import {
   pushAndOpenPr, prComment, mergeTask, removeWorktree, syncBranch, squashInto, ensureSprintWorktree, type ProjectRow,
 } from "./git.ts";
 import { runCommandLine, tail, type ShellKind } from "./shell.ts";
-import { loadForPrompt, type AttachmentRow, type PromptAttachments } from "../attachments.ts";
+import { loadForPrompt, storeImageNotes, type AttachmentRow, type PromptAttachments } from "../attachments.ts";
 import { readChatAttachment } from "../attachmentMarkdown.ts";
 import { parseRules } from "../attachmentRules.ts";
 import { getCapabilities } from "../providers/capabilities.ts";
@@ -134,8 +134,15 @@ export class Orchestrator {
   private messagePayload(messageId: number | bigint) {
     return {
       ...(this.db.prepare("SELECT * FROM messages WHERE id = ?").get(messageId) as { id: number }),
-      attachments: this.db.prepare("SELECT id, name, mime, size, note, status FROM attachments WHERE message_id = ? ORDER BY id").all(messageId),
+      attachments: this.db.prepare("SELECT id, name, mime, size, note, status, image_note FROM attachments WHERE message_id = ? ORDER BY id").all(messageId),
     };
+  }
+
+  /** Stores the one-line notes an agent wrote for the images it was shown, and publishes the messages that got one. */
+  recordImageNotes(chatId: number, raw: unknown) {
+    for (const id of storeImageNotes(this.db, chatId, raw)) {
+      bus.publish({ type: "message", chatId, message: this.messagePayload(id) });
+    }
   }
 
   private log(taskId: number, line: string) {
@@ -382,6 +389,7 @@ Do not put this project's name, its data, or a customer name into General pages.
         this.postMessage(chatId, "event", `Planner ${planner.name} failed: ${result.error ?? "no plan returned"}`, planner.id);
         return;
       }
+      this.recordImageNotes(chatId, result.output.image_notes);
       const plan = normalizePlan(result.output, allSlugs); // slugs are unique per project: they name branches
       const bySlug = new Map(tasks.map((t) => [t.slug, t]));
       // Actions refer to task ids, so a button works for tasks from other chats too.

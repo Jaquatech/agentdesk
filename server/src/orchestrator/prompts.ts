@@ -45,6 +45,19 @@ export const WIKI_FIELD = {
   items: WIKI_ITEM,
 };
 
+export const IMAGE_NOTES_FIELD = {
+  type: "array",
+  description: "One short line per image the user attached in this message: what matters in it (text, numbers, error messages, layout). Only for images you were shown.",
+  items: {
+    type: "object",
+    required: ["name", "note"],
+    properties: {
+      name: { type: "string", description: "the image's file name, as listed under Attached by the user" },
+      note: { type: "string", description: "one short line" },
+    },
+  },
+};
+
 export const PLAN_TOOL: ToolDef = {
   name: "submit_plan",
   description: "your answer to the user and the tasks to run (tasks may be empty when no code change is needed)",
@@ -78,6 +91,7 @@ export const PLAN_TOOL: ToolDef = {
         description: "0-3 short notes for later chats in this project: decisions, findings, state (not a summary of this reply)",
       },
       wiki: WIKI_FIELD,
+      image_notes: IMAGE_NOTES_FIELD,
     },
   },
 };
@@ -177,6 +191,7 @@ export const SCRUM_TOOL: ToolDef = {
         properties: { name: { type: "string" }, goal: { type: "string" } },
       },
       wiki: WIKI_FIELD,
+      image_notes: IMAGE_NOTES_FIELD,
     },
   },
 };

@@ -221,6 +221,7 @@ Paste, drop or attach files on a chat message. The original file is kept as you 
 - Excel (`.xlsx`) becomes one table per sheet. A sheet longer than 200 rows or wider than 20 columns is cut, the copy says how much was left out, and the message says it was cut short. Older `.xls` files are named only.
 - Word (`.docx`) keeps headings, paragraphs, lists and tables. Older `.doc` files are named only.
 - A PDF with a text layer is copied page by page, with a heading for each page. A scanned or image-only PDF is marked as needing a text scan. The app does not guess what the picture says.
+- The first time an agent sees an image it writes a one-line note about it. The note is kept with the file and shown under the image, and later messages use the note instead of sending the image again.
 
 The planner, and in a Scrum project the product manager, reads images when its model can read images, and the first part of that Markdown copy (about 20 000 characters). To hear the rest, ask for the next part by the file's name, for example "read the rest of budget.csv". The message shows whether the copy was made. A file that cannot be read is marked failed, and the message still sends. Files on earlier messages stay as names, with the size and how many parts the agent can ask for.
 
