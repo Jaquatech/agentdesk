@@ -8,7 +8,9 @@
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --reporter=dot",
-    "demo": "tsx src/index.ts --demo"
+    "demo": "tsx src/index.ts --demo",
+    "licenses": "tsx src/licensesCli.ts",
+    "licenses:check": "tsx src/licensesCli.ts --check"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",

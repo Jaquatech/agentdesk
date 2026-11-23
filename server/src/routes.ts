@@ -21,6 +21,7 @@ import { blockingTask } from "./orchestrator/overlap.ts";
 import { taskToMarkdown } from "./taskExport.ts";
 import { applyReleasePage, applyTaskPage, ensureProjectPages, refreshLinks, syncTaskPage } from "./documents.ts";
 import { appVersion } from "./version.ts";
+import { readThirdParty, repoRoot } from "./licenses.ts";
 import { parseMaxAnswerTokens } from "./answerLimit.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- request JSON; each route reads and validates the fields it needs
@@ -49,6 +50,7 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
   // ---------- settings ----------
   const version = appVersion();
   app.get("/api/version", async () => version);
+  app.get("/api/licenses", async () => readThirdParty(repoRoot()));
   app.get("/api/settings", async () => getSettings(db));
   app.put("/api/settings", async (req) => {
     const body = req.body as Body;

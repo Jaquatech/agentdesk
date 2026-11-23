@@ -20,6 +20,8 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 - **Accepted audit findings: 6 (2 low, 4 moderate), all inside the `shadcn` command-line tool** (`deepmerge`, `ts-morph` with an old `minimatch`). No fixed `deepmerge` exists (4.3.1 is the latest). They are build-time only and not part of the running app. A stale nested `minimatch` under `@ts-morph/common` can probably be cleared by regenerating the lockfile, but a full regeneration dropped the TypeScript 7 platform package and broke the build, so the lockfile is changed incrementally only. Run `npm audit` before a release.
 
 - **Attachment limits are settings per file type.** The right size depends on the file: a wide spreadsheet needs more columns than a text file needs characters. The defaults equal the former constants, so nothing changes until the owner changes it. Changes apply to later uploads only, so earlier copies stay as the agent saw them.
+- **Licences are checked against an allow-list from the lockfile.** `server/src/licenses.ts` allows only permissive and file-level licences. A GPL or AGPL package would change what the owner can distribute, so `licenses:check` in CI fails on it, on a missing licence, or on a stale `THIRD_PARTY_NOTICES.md`. The check reads `package-lock.json` and needs no dependency.
+- **Zlib is on the licence allow-list.** It is a permissive licence (like MIT), and the package pako is licensed MIT AND Zlib. Approved by the owner's architect role when the licence check was added.
 
 ## Known and open
 
