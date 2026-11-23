@@ -30,6 +30,10 @@ Things that cost real debugging time. Read the ones that touch your change befor
 - **Task export can contain output from the user's project.** It is a plain download link and is never sent anywhere.
 - **The env file for checks exists only while no agent runs.** `runChecks` places it and removes it in `finally`; keep it that way.
 
+## Forms
+
+- **A validation message at the bottom of a tall dialog is off screen.** Put it on the field. Focusing the input does not scroll a message at the end of the form into view.
+
 ## Tests
 
 - **API tests need a `host: localhost` header and a session cookie** from `POST /api/auth/setup` (username of 3 or more characters).
