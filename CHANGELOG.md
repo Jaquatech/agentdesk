@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- The Version page lists the packages AgentDesk uses and their licences. `THIRD_PARTY_NOTICES.md` is generated from the lockfile, and CI fails when a licence is not on the allow-list or the file is stale.
 - An agent that sees an image writes one short note about it in the same answer. The note is shown under the image and used in later messages instead of the image.
 - Attachment limits are settings per file type (Markdown copy on or off, characters sent with the message, spreadsheet rows and columns, image size).
 - Attachment handling page (sidebar group Platform settings): limits per file type.

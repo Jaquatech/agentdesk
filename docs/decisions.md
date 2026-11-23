@@ -21,6 +21,8 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 
 - **Attachment limits are settings per file type.** The right size depends on the file: a wide spreadsheet needs more columns than a text file needs characters. The defaults equal the former constants, so nothing changes until the owner changes it. Changes apply to later uploads only, so earlier copies stay as the agent saw them.
 
+- **Licences are checked against an allow-list from the lockfile.** `server/src/licenses.ts` allows only permissive and file-level licences. A GPL or AGPL package would change what the owner can distribute, so `licenses:check` in CI fails on it, on a missing licence, or on a stale `THIRD_PARTY_NOTICES.md`. The check reads `package-lock.json` and needs no dependency.
+
 ## Known and open
 
 - Lint has no warnings left and the cap in `package.json` is 0, so a new warning fails CI. `any` is allowed in test files only (parsed JSON and loose fixtures). In `src` three places keep `any` on purpose, each with a comment saying why: the database rows (`db.ts`), request bodies (`Body` in routes, teams and Scrum) and the tool input from the model (`runTool`). Hook rules: effects keyed on a computed string or a caller's list carry a comment saying why.
