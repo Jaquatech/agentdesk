@@ -454,21 +454,84 @@ export function readWikiPage(db: DB, projectId: number, q: { section?: string; t
   return renderWikiPage(hits[0]);
 }
 
-const SEARCH_STOP = new Set(["what", "did", "about", "this", "that", "with", "from", "have", "your", "when", "where", "which", "look", "the", "and", "for", "please"]);
+const SEARCH_STOP = new Set([
+  "what", "did", "about", "this", "that", "with", "from", "have", "your", "when", "where", "which", "look", "the", "and", "for", "please",
+  "an", "or", "of", "to", "in", "on", "is", "it", "be", "as", "at", "by", "we", "do", "if", "so", "no", "up", "my", "me", "am",
+]);
+const SNIPPET_CHARS = 160;
+const SEARCH_PAGE_LIMIT = 8;
+/** A title match outranks a section match, which outranks a body match. Each distinct term counts once, at its best place. */
+const TITLE_WEIGHT = 3;
+const SECTION_WEIGHT = 2;
+const BODY_WEIGHT = 1;
 
-/** Titles (and sections) that match the query, each with a short snippet. General pages are included. */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Index of `term` as a whole word, or -1. Letters and digits stay inside a word, so "git" does not match "digit". */
+function wordIndex(hay: string, term: string): number {
+  if (!term) return -1;
+  const match = new RegExp(`(?:^|[^a-z0-9])(${escapeRegExp(term)})(?![a-z0-9])`, "i").exec(hay);
+  if (!match || match[1] == null) return -1;
+  return match.index + match[0].length - match[1].length;
+}
+
+function termWeight(page: WikiDoc, term: string): number {
+  if (wordIndex(page.title, term) >= 0) return TITLE_WEIGHT;
+  if (wordIndex(page.section, term) >= 0 || wordIndex(page.slot, term) >= 0) return SECTION_WEIGHT;
+  if (wordIndex(page.body, term) >= 0) return BODY_WEIGHT;
+  return 0;
+}
+
+function snippetAround(text: string, terms: string[]): string {
+  let at = -1;
+  let len = 0;
+  for (const term of terms) {
+    const index = wordIndex(text, term);
+    if (index >= 0 && (at < 0 || index < at)) { at = index; len = term.length; }
+  }
+  const clean = (slice: string) => slice.replace(/\s+/g, " ").trim();
+  if (at < 0) return clean(text).slice(0, SNIPPET_CHARS);
+  const pad = Math.max(0, Math.floor((SNIPPET_CHARS - len) / 2));
+  let from = Math.max(0, at - pad);
+  const to = Math.min(text.length, from + Math.max(SNIPPET_CHARS, len));
+  if (len < SNIPPET_CHARS && to - from < SNIPPET_CHARS) from = Math.max(0, to - SNIPPET_CHARS);
+  if (from > at) from = at;
+  let snip = clean(text.slice(from, to));
+  if (from > 0) snip = `…${snip}`;
+  if (to < text.length) snip = `${snip}…`;
+  return snip;
+}
+
+function matchSnippet(page: WikiDoc, terms: string[]): string {
+  const pageText = `${page.title}\n${page.body}`;
+  if (terms.some((term) => wordIndex(pageText, term) >= 0)) return snippetAround(pageText, terms);
+  return snippetAround(`${page.section} ${page.slot}\n${pageText}`, terms);
+}
+
+/**
+ * Pages whose title, section or text contains a query word, at most 8. General pages are included.
+ * Terms of two or more characters are kept; a short stop-word list is dropped. A term matches a whole word,
+ * ignoring case. Rank is how many distinct terms match, with a title or section match counting more than the body.
+ * Equal rank lists a project page before a General page. The snippet is about 160 characters around the first match.
+ */
 export function searchWikiPages(db: DB, projectId: number, query: string): string {
   const q = String(query ?? "").trim().toLowerCase();
   if (!q) return "Pass a query.";
-  const words = q.split(/\s+/).map((w) => w.replace(/[^a-z0-9]+/g, "")).filter((w) => w.length > 3 && !SEARCH_STOP.has(w)).slice(0, 8);
-  const terms = words.length ? words : [q.slice(0, 40)];
-  const hits = wikiDocs(db, projectId).filter((p) => {
-    const hay = `${p.title}\n${p.section}\n${p.slot}\n${p.body}`.toLowerCase();
-    return terms.some((t) => hay.includes(t));
-  }).slice(0, 8);
-  if (!hits.length) return "(no matching pages)";
-  return hits.map((p) => {
-    const where = p.project_id == null ? "General" : (p.section || p.kind || "project");
-    return `- ${p.title} (${where}): ${wikiFirstLine(p.body).slice(0, 180)}`;
+  const terms = [...new Set(q.split(/\s+/).map((w) => w.replace(/[^a-z0-9]+/g, "")).filter((w) => w.length >= 2 && !SEARCH_STOP.has(w)))].slice(0, 8);
+  if (!terms.length) return "(no matching pages)";
+  const ranked = wikiDocs(db, projectId).flatMap((page) => {
+    let score = 0;
+    for (const term of terms) score += termWeight(page, term);
+    return score > 0 ? [{ page, score }] : [];
+  }).sort((a, b) => b.score - a.score
+    || Number(a.page.project_id == null) - Number(b.page.project_id == null)
+    || a.page.title.localeCompare(b.page.title))
+    .slice(0, SEARCH_PAGE_LIMIT);
+  if (!ranked.length) return "(no matching pages)";
+  return ranked.map(({ page }) => {
+    const where = page.project_id == null ? "General" : (page.section || page.kind || "project");
+    return `- ${page.title} (${where}): ${matchSnippet(page, terms)}`;
   }).join("\n");
 }

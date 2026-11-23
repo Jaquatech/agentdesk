@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { get, post, put, del } from "../api.ts";
+import { get, post, put, del, type Agent } from "../api.ts";
 import { Field } from "../components/ui.tsx";
 import { Page, Section } from "../components/page.tsx";
 import { OFFICE_STYLES } from "../office/palette.ts";
@@ -21,6 +21,7 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
   const [pw, setPw] = useState({ current: "", password: "" });
   const [msg, setMsg] = useState("");
   const [cache, setCache] = useState<{ folder: string; files: number; bytes: number } | null>(null);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const loadCache = () => get<{ folder: string; files: number; bytes: number }>("/api/attachments-cache").then(setCache);
   useEffect(() => { loadCache(); }, []);
   const clearCache = async () => {
@@ -31,6 +32,8 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
   const size = (n: number) => n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`;
 
   useEffect(() => { get<Record<string, string>>("/api/settings").then(setS); }, []);
+  useEffect(() => { get<Agent[]>("/api/agents").then(setAgents); }, []);
+  const roleLabel = (role: Agent["role"]) => role === "worker" ? "developer" : role === "reviewer" ? "reviewer" : "planner";
   if (!s) return <Page title="Settings"><Skeleton className="h-40 w-full" /></Page>;
   const set = (k: string, v: string) => setS({ ...s, [k]: v });
   const save = async () => { setS(await put("/api/settings", s)); setSaved("Saved"); onChanged(); setTimeout(() => setSaved(""), 2000); };
@@ -119,6 +122,16 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
               <Field label="Fix rounds after a failed check or review" hint="Then the task waits for you."><Input type="number" min={0} max={5} value={s.max_review_rounds} onChange={(e) => set("max_review_rounds", e.target.value)} /></Field>
               <Field label="Messages sent from a chat" hint="The last this many messages go with each planner or product-manager reply (6–40). A smaller window costs fewer tokens. A chat that grows past it keeps a three-line note in the project journal, once per window. Anything that must last belongs in the wiki, the journal, or a note on an attachment.">
                 <Input type="number" min={6} max={40} value={s.chat_history_messages ?? "16"} onChange={(e) => set("chat_history_messages", e.target.value)} />
+              </Field>
+              <Field label="Agent for chat summaries" hint="A small model is enough for a three-line summary. Leave this empty to use the planner.">
+                <Choice
+                  value={s.rollup_agent_id ?? ""}
+                  onValueChange={(v) => set("rollup_agent_id", v)}
+                  options={[
+                    { value: "", label: "The planner" },
+                    ...agents.filter((a) => a.enabled !== 0 || String(a.id) === (s.rollup_agent_id ?? "")).map((a) => ({ value: String(a.id), label: `${a.name} (${roleLabel(a.role)})` })),
+                  ]}
+                />
               </Field>
             </div>
             <label className="flex items-center gap-2 text-sm"><Checkbox checked={s.auto_run_plans === "true"} onCheckedChange={(v) => set("auto_run_plans", String(v === true))} /> Run plans right away (otherwise you press "Run plan")</label>

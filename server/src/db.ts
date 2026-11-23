@@ -405,6 +405,13 @@ const MIGRATIONS: string[] = [
   ALTER TABLE chats ADD COLUMN history_rolled_to INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE runs ADD COLUMN prompt_chars INTEGER NOT NULL DEFAULT 0;
   `,
+  // Roll-up journal rows are marked so a prompt can keep deliberate notes. A failed roll-up
+  // remembers the attempt and the window edge, and waits for the window to slide before trying again.
+  `
+  ALTER TABLE project_journal ADD COLUMN kind TEXT NOT NULL DEFAULT '';
+  ALTER TABLE chats ADD COLUMN history_rollup_failures INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE chats ADD COLUMN history_rollup_anchor INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 export function openDb(file: string): DB {
@@ -451,6 +458,8 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   budget_sprint_usd: "20",
   // Messages of one chat sent with each planner or product-manager call. Allowed range is 6–40.
   chat_history_messages: "16",
+  // Agent that writes the three-line summary when a chat grows past the window. Empty = the planner.
+  rollup_agent_id: "",
 };
 
 /** Last messages of a chat that go into a planner call. Empty or nonsense falls back to the default; outside 6–40 is clamped. */

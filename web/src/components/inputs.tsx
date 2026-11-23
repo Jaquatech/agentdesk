@@ -28,7 +28,7 @@ export function NoFillInput({ className, ...props }: React.ComponentProps<typeof
 }
 
 /** Dropdown that allows a blank value (mapped internally; Radix rejects ""). */
-export function Choice({ id, value, onValueChange, options, placeholder, disabled, className, size, title, label }: {
+export function Choice({ id, value, onValueChange, options, placeholder, disabled, className, size, title, label, "aria-describedby": describedBy }: {
   id?: string;
   /** Accessible name when no visible label points at this control. */
   label?: string;
@@ -40,12 +40,13 @@ export function Choice({ id, value, onValueChange, options, placeholder, disable
   className?: string;
   size?: "sm" | "default";
   title?: string;
+  "aria-describedby"?: string;
 }) {
   const current = value === "" ? BLANK : value;
   const known = options.some((o) => (o.value === "" ? BLANK : o.value) === current);
   return (
     <Select value={known ? current : undefined} onValueChange={(v) => onValueChange(v === BLANK ? "" : v)} disabled={disabled}>
-      <SelectTrigger id={id} size={size} title={title} aria-label={label} className={cn("w-full min-w-0", className)}>
+      <SelectTrigger id={id} size={size} title={title} aria-label={label} aria-describedby={describedBy} className={cn("w-full min-w-0", className)}>
         <SelectValue placeholder={placeholder ?? "Choose…"} />
       </SelectTrigger>
       <SelectContent position="popper">
