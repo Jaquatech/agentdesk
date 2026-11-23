@@ -7,6 +7,8 @@ import { buildApp } from "../src/index.ts";
 import { engineOverride } from "../src/providers/index.ts";
 import { DemoEngine } from "../src/engines/demo.ts";
 import { applyWikiWrites, projectWikiContext, readWikiPage, searchWikiPages, WIKI_READ_CAP } from "../src/documents.ts";
+import { messagesDueForRollup, type RollupState } from "../src/chatHistory.ts";
+import { openDb, type DB } from "../src/db.ts";
 import { seedDemo } from "../src/demoSeed.ts";
 import { runTool } from "../src/engines/tools.ts";
 import type { EngineRequest, EngineResult } from "../src/engines/types.ts";
@@ -245,5 +247,174 @@ describe("lean context", () => {
     expect(wiki).not.toMatch(/The first two gadgets are on Mars/);
     expect(projectWikiContext(ctx.db, project.id, "job")).toMatch(/## Architecture \(architecture\)/);
     expect(projectWikiContext(ctx.db, project.id, "claude")).not.toMatch(/## Architecture \(architecture\)/);
+  });
+
+  it("a failing roll-up does not run again on the next message and does not break the chat", async () => {
+    const { ctx, repo, call } = await app();
+    await call("PUT", "/api/settings", { chat_history_messages: "6" });
+    const project = await call("POST", "/api/projects", { name: "demo", source: "local", path: repo });
+    const chat = await call("POST", "/api/chats", { project_id: project.body.id });
+    fill(ctx, chat.body.id as number, 39);
+    const prompts: string[] = [];
+    const failedRollup: EngineResult = { ok: false, summary: "This line must not be stored.", turns: 0, costUsd: null, tokensIn: 0, cacheRead: 0, cacheWrite: 0, tokensOut: 0, seconds: 0, error: "rollup boom" };
+    engineOverride.engine = { run: async (req) => {
+      prompts.push(req.prompt);
+      if (req.prompt.startsWith("# Summarize dropped chat messages")) return failedRollup;
+      return ok("plan", { reply: "Still here.", tasks: [] });
+    }};
+    await call("POST", `/api/chats/${chat.body.id}/messages`, { content: "first after the failure" });
+    await waitFor(() => (ctx.db.prepare("SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND role = 'assistant'").get(chat.body.id) as { n: number }).n >= 1 ? true : undefined);
+    await call("POST", `/api/chats/${chat.body.id}/messages`, { content: "second message, no second roll-up" });
+    await waitFor(() => (ctx.db.prepare("SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND role = 'assistant'").get(chat.body.id) as { n: number }).n >= 2 ? true : undefined);
+    expect(prompts.filter((p) => p.startsWith("# Summarize dropped chat messages"))).toHaveLength(1);
+    expect(prompts.filter((p) => p.includes("# Conversation"))).toHaveLength(2);
+    expect(ctx.db.prepare("SELECT content FROM messages WHERE chat_id = ? AND role = 'event' AND content LIKE 'Planning failed%'").all(chat.body.id)).toEqual([]);
+    const state = ctx.db.prepare("SELECT history_rolled_to, history_rollup_failures, history_rollup_anchor FROM chats WHERE id = ?").get(chat.body.id) as { history_rolled_to: number; history_rollup_failures: number; history_rollup_anchor: number };
+    expect(state.history_rollup_failures).toBe(1);
+    expect(state.history_rolled_to).toBe(0);
+    expect(state.history_rollup_anchor).toBeGreaterThan(0);
+    expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM project_journal WHERE text LIKE '%must not be stored%'").get()).toEqual({ n: 0 });
+
+    // ok with no summary lines is a failure too: nothing is stored, and the next message does not try again.
+    const chat2 = await call("POST", "/api/chats", { project_id: project.body.id });
+    fill(ctx, chat2.body.id as number, 39);
+    const prompts2: string[] = [];
+    engineOverride.engine = { run: async (req) => {
+      prompts2.push(req.prompt);
+      if (req.prompt.startsWith("# Summarize dropped chat messages")) return ok("   \n  ");
+      return ok("plan", { reply: "Still here.", tasks: [] });
+    }};
+    await call("POST", `/api/chats/${chat2.body.id}/messages`, { content: "blank summary" });
+    await waitFor(() => (ctx.db.prepare("SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND role = 'assistant'").get(chat2.body.id) as { n: number }).n >= 1 ? true : undefined);
+    await call("POST", `/api/chats/${chat2.body.id}/messages`, { content: "still no second roll-up" });
+    await waitFor(() => (ctx.db.prepare("SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND role = 'assistant'").get(chat2.body.id) as { n: number }).n >= 2 ? true : undefined);
+    expect(prompts2.filter((p) => p.startsWith("# Summarize dropped chat messages"))).toHaveLength(1);
+    expect(ctx.db.prepare("SELECT history_rollup_failures, history_rolled_to FROM chats WHERE id = ?").get(chat2.body.id)).toEqual({ history_rollup_failures: 1, history_rolled_to: 0 });
+    expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM project_journal WHERE chat_id = ? AND kind = 'rollup'").get(chat2.body.id)).toEqual({ n: 0 });
+  });
+
+  it("shows at most 10 roll-up notes when 40 other journal entries are present", async () => {
+    const { ctx, repo, call } = await app();
+    const project = await call("POST", "/api/projects", { name: "demo", source: "local", path: repo });
+    const chat = await call("POST", "/api/chats", { project_id: project.body.id });
+    const ins = ctx.db.prepare("INSERT INTO project_journal (project_id, text, kind) VALUES (?, ?, ?)");
+    for (let i = 1; i <= 40; i++) ins.run(project.body.id, `JNOTE-${i}-END`, "");
+    for (let i = 1; i <= 15; i++) ins.run(project.body.id, `JROLL-${i}-END`, "rollup");
+    let prompt = "";
+    engineOverride.engine = { run: async (req) => { prompt = req.prompt; return ok("plan", { reply: "Noted.", tasks: [] }); } };
+    await call("POST", `/api/chats/${chat.body.id}/messages`, { content: "hello" });
+    await waitFor(() => ctx.db.prepare("SELECT id FROM messages WHERE chat_id = ? AND content = 'Noted.'").get(chat.body.id) as { id: number } | undefined);
+    expect(prompt.match(/JNOTE-\d+-END/g)).toHaveLength(40);
+    expect(prompt.match(/JROLL-\d+-END/g)).toHaveLength(10);
+    expect(prompt).toMatch(/JNOTE-1-END/);
+    expect(prompt).toMatch(/JNOTE-40-END/);
+    expect(prompt).toMatch(/JROLL-6-END/);
+    expect(prompt).toMatch(/JROLL-15-END/);
+    expect(prompt).not.toMatch(/JROLL-5-END/);
+    expect(prompt).not.toMatch(/JROLL-1-END/);
+  });
+
+  it("uses the configured roll-up agent for the summary", async () => {
+    const { ctx, repo, call } = await app();
+    expect((await call("GET", "/api/settings")).body.rollup_agent_id).toBe("");
+    expect((await call("PUT", "/api/settings", { rollup_agent_id: "999999" })).body.rollup_agent_id).toBe("");
+    const provider = ctx.db.prepare("SELECT id FROM providers").get() as { id: number };
+    const tiny = await call("POST", "/api/agents", { name: "Tiny", role: "worker", provider_id: provider.id });
+    expect((await call("PUT", "/api/settings", { rollup_agent_id: String(tiny.body.id) })).body.rollup_agent_id).toBe(String(tiny.body.id));
+    const project = await call("POST", "/api/projects", { name: "demo", source: "local", path: repo });
+    const chat = await call("POST", "/api/chats", { project_id: project.body.id });
+    fill(ctx, chat.body.id as number, 39);
+    const seen: string[] = [];
+    engineOverride.engine = { run: async (req) => {
+      seen.push(`${req.prompt.startsWith("# Summarize dropped chat messages") ? "roll" : "plan"}:${req.agent.name}`);
+      if (req.prompt.startsWith("# Summarize dropped chat messages")) return ok("One.\nTwo.\nThree.");
+      return ok("plan", { reply: "Noted.", tasks: [] });
+    }};
+    await call("POST", `/api/chats/${chat.body.id}/messages`, { content: "please summarize the old part" });
+    await waitFor(() => ctx.db.prepare("SELECT id FROM messages WHERE chat_id = ? AND content = 'Noted.'").get(chat.body.id) as { id: number } | undefined);
+    expect(seen).toContain("roll:Tiny");
+    expect(seen).toContain("plan:Ada");
+    const row = ctx.db.prepare(`SELECT a.name AS name, j.kind AS kind FROM project_journal j JOIN agents a ON a.id = j.agent_id
+      WHERE j.chat_id = ? AND j.kind = 'rollup'`).get(chat.body.id) as { name: string; kind: string };
+    expect(row).toEqual({ name: "Tiny", kind: "rollup" });
+  });
+});
+
+describe("wiki search", () => {
+  const dbs: DB[] = [];
+  const dirs: string[] = [];
+  afterEach(() => {
+    while (dbs.length) dbs.pop()!.close();
+    while (dirs.length) rmSync(dirs.pop()!, { recursive: true, force: true });
+  });
+
+  function wiki() {
+    const dir = mkdtempSync(join(tmpdir(), "ad-search-"));
+    dirs.push(dir);
+    const db = openDb(join(dir, "app.db"));
+    dbs.push(db);
+    const id = Number(db.prepare("INSERT INTO projects (name, source, path) VALUES ('demo', 'local', ?)").run(dir).lastInsertRowid);
+    const page = (title: string, body: string, projectId: number | null, section = "") => {
+      db.prepare("INSERT INTO documents (project_id, title, body, kind, section) VALUES (?, ?, ?, ?, ?)")
+        .run(projectId, title, body, projectId == null ? "generic" : "project", section);
+    };
+    return { db, id, page };
+  }
+
+  it("matches two-character terms as whole words, and git does not match digit", () => {
+    const { db, id, page } = wiki();
+    page("Counters", "A digit counter sits here and nowhere else.", id, "decisions");
+    page("Source control", "We use git for history and nothing else.", id, "decisions");
+    page("API catalog", "The API returns JSON to callers.", id, "decisions");
+    page("Cycle length", "The PI lasts three sprints.", id, "decisions");
+    page("Reports", "Use SQL for the totals.", id, "decisions");
+
+    const git = searchWikiPages(db, id, "git");
+    expect(git).toMatch(/Source control/);
+    expect(git).toMatch(/git for history/);
+    expect(git).not.toMatch(/Counters/);
+
+    const pi = searchWikiPages(db, id, "PI");
+    expect(pi).toMatch(/Cycle length/);
+    expect(pi).toMatch(/lasts three sprints/);
+    expect(pi).not.toMatch(/API catalog/);
+
+    const api = searchWikiPages(db, id, "API");
+    expect(api).toMatch(/API catalog/);
+    expect(api).toMatch(/returns JSON/);
+    expect(searchWikiPages(db, id, "SQL")).toMatch(/Use SQL for the totals/);
+  });
+
+  it("ranks a title match above a body match, snippets the match, and lists a project page first on a tie", () => {
+    const { db, id, page } = wiki();
+    const pad = "lorem ".repeat(80);
+    page("Body only", `${pad}\nThe zxqterm sits in the middle of the page.\n${pad}`, id, "decisions");
+    page("zxqterm in the title", `${pad}\nNo special token here.\n${pad}`, id, "decisions");
+    const ranked = searchWikiPages(db, id, "zxqterm");
+    expect(ranked.indexOf("zxqterm in the title")).toBeGreaterThanOrEqual(0);
+    expect(ranked.indexOf("zxqterm in the title")).toBeLessThan(ranked.indexOf("Body only"));
+    expect(ranked).toMatch(/zxqterm sits in the middle/);
+
+    page("qtermrank zebra", "project page", id, "decisions");
+    page("qtermrank apple", "general page", null);
+    const order = searchWikiPages(db, id, "qtermrank");
+    expect(order.indexOf("qtermrank zebra")).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf("qtermrank zebra")).toBeLessThan(order.indexOf("qtermrank apple"));
+  });
+});
+
+describe("roll-up schedule", () => {
+  const quiet: RollupState = { history_rolled_to: 0, history_rollup_failures: 0, history_rollup_anchor: 0 };
+  const msgs = (n: number) => Array.from({ length: n }, (_, i) => ({ id: i + 1, role: "user", content: `m${i + 1}` }));
+
+  it("retries a failed roll-up only after half a window, then gives up after three failures", () => {
+    expect(messagesDueForRollup(msgs(7), 6, quiet).map((m) => m.id)).toEqual([1]);
+    // Seven messages, window 6: the first kept message is id 2. A failure anchors there.
+    const once = { history_rolled_to: 0, history_rollup_failures: 1, history_rollup_anchor: 2 };
+    expect(messagesDueForRollup(msgs(8), 6, once)).toEqual([]);
+    expect(messagesDueForRollup(msgs(9), 6, once)).toEqual([]);
+    expect(messagesDueForRollup(msgs(10), 6, once).map((m) => m.id)).toEqual([1, 2, 3, 4]);
+    const gaveUp = { history_rolled_to: 0, history_rollup_failures: 3, history_rollup_anchor: 2 };
+    expect(messagesDueForRollup(msgs(40), 6, gaveUp)).toEqual([]);
   });
 });

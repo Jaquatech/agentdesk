@@ -53,7 +53,11 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     const body = req.body as Body;
     for (const [k, v] of Object.entries(body)) {
       if (k === "chat_history_messages") setSetting(db, k, String(historyWindow(v)));
-      else if (k in DEFAULT_SETTINGS || /^default_(planner|worker|reviewer)_id$/.test(k)) setSetting(db, k, String(v));
+      else if (k === "rollup_agent_id") {
+        const n = Math.round(Number(String(v).trim()));
+        const row = Number.isInteger(n) && n > 0 ? db.prepare("SELECT id FROM agents WHERE id = ?").get(n) : undefined;
+        setSetting(db, k, row ? String(n) : "");
+      } else if (k in DEFAULT_SETTINGS || /^default_(planner|worker|reviewer)_id$/.test(k)) setSetting(db, k, String(v));
     }
     orch.tick();
     return getSettings(db);

@@ -23,6 +23,7 @@ Things that cost real debugging time. Read the ones that touch your change befor
 ## Documents
 
 - **Anything that must be remembered later belongs in the wiki, the journal, or a note on an attachment, not in message history.** The planner and the product manager see only the last `chat_history_messages` messages (default 16). Older messages are folded into one journal note per window slide (`chats.history_rolled_to`), not on every message.
+- **A failed history roll-up must not run again on the next message.** Record it (`chats.history_rollup_failures`, `history_rollup_anchor`) and wait until the window has slid by half a window. After three failures, stop. The chat still answers. Roll-up rows are `project_journal.kind = 'rollup'`; the prompt keeps at most 10 of them so they do not push out the newest 40 deliberate notes.
 - **Saving a task page copies its sections back onto the task without calling `updateTask`.** Calling it would sync the page again and loop.
 - **`applyWikiWrites` never updates a General page.** Every project agent writes through it. A section is normalized (`Road map`, `Overview.md`); a write that does not match is reported back instead of dropped.
 - **Read-only agents also need wiki access.** Planner, reviewer, architect and security run in read mode, and wiki writes do not touch the worktree. `callAgent` passes `writeWiki` whenever a project is known.

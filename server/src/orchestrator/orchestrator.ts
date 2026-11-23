@@ -21,7 +21,7 @@ import { setupProblem } from "../verifyHelp.ts";
 import { DEFAULT_WORKER_TOOLS } from "../engines/types.ts";
 import { PLAN_TOOL, REVIEW_TOOL, NOTES_TOOL, ROLE_TEMPLATES, WIKI_LINE, buildWorkerPrompt, buildReviewPrompt } from "./prompts.ts";
 import { applyWikiWrites, projectWikiContext, readWikiPage, searchWikiPages, syncTaskPage, type WikiWrite } from "../documents.ts";
-import { clipRollup, formatJournal, journalLines, recentTurns, rollupBatch, rollupPrompt, type ChatTurn } from "../chatHistory.ts";
+import { clipRollup, formatJournal, journalLines, recentTurns, recordRollupFailure, recordRollupSuccess, rollupAnchor, rollupBatch, rollupPrompt, type ChatTurn } from "../chatHistory.ts";
 
 export type TaskRow = {
   id: number; chat_id: number; project_id: number; message_id: number | null; slug: string; title: string;
@@ -262,26 +262,45 @@ export class Orchestrator {
   // ---------- planning ----------
 
   /**
-   * Last `chat_history_messages` of a chat. When older messages have fallen out, the planner writes one
+   * Last `chat_history_messages` of a chat. When older messages have fallen out, one agent writes a
    * three-line journal note for that stretch (once per window, not on every message) before the window is read.
+   * Settings `rollup_agent_id` names that agent; otherwise it is the planner. A failed call is recorded and
+   * not tried again until the window has slid by half a window. After three failures the chat stops trying.
+   * A roll-up never fails the chat.
    */
   async prepareHistory(chatId: number, planner: AgentRow): Promise<ChatTurn[]> {
     const chat = this.db.prepare("SELECT project_id FROM chats WHERE id = ?").get(chatId) as { project_id: number } | undefined;
     if (!chat) return [];
-    const window = historyWindow(getSettings(this.db).chat_history_messages);
+    const settings = getSettings(this.db);
+    const window = historyWindow(settings.chat_history_messages);
     const dropped = rollupBatch(this.db, chatId, window);
     if (dropped.length) {
       const project = this.project(chat.project_id);
       const taken = clipRollup(dropped);
-      const result = await this.callAgent({
-        agent: planner, kind: "rollup", chatId, projectId: project.id, cwd: project.path,
-        prompt: rollupPrompt(taken), mode: "read", wiki: "none",
-      });
-      const lines = (result.summary || "").split(/\r?\n/).map((s) => s.replace(/^[-*]\s*/, "").trim()).filter(Boolean).slice(0, 3);
-      if (result.ok && lines.length) {
-        const text = `Earlier in this chat:\n${lines.join("\n")}`.slice(0, 800);
-        this.db.prepare("INSERT INTO project_journal (project_id, chat_id, agent_id, text) VALUES (?, ?, ?, ?)").run(project.id, chatId, planner.id, text);
-        this.db.prepare("UPDATE chats SET history_rolled_to = ? WHERE id = ?").run(taken[taken.length - 1].id, chatId);
+      const raw = String(settings.rollup_agent_id ?? "").trim();
+      const picked = Math.round(Number(raw));
+      const writer = raw && Number.isInteger(picked) && picked > 0 ? (this.agent(picked) ?? planner) : planner;
+      const anchor = rollupAnchor(this.db, chatId, window);
+      let failed = false;
+      try {
+        const result = await this.callAgent({
+          agent: writer, kind: "rollup", chatId, projectId: project.id, cwd: project.path,
+          prompt: rollupPrompt(taken), mode: "read", wiki: "none",
+        });
+        const lines = (result.summary || "").split(/\r?\n/).map((s) => s.replace(/^[-*]\s*/, "").trim()).filter(Boolean).slice(0, 3);
+        if (result.ok && lines.length) {
+          const text = `Earlier in this chat:\n${lines.join("\n")}`.slice(0, 800);
+          this.db.transaction(() => {
+            this.db.prepare("INSERT INTO project_journal (project_id, chat_id, agent_id, text, kind) VALUES (?, ?, ?, ?, 'rollup')")
+              .run(project.id, chatId, writer.id, text);
+            recordRollupSuccess(this.db, chatId, taken[taken.length - 1].id);
+          })();
+        } else failed = true;
+      } catch {
+        failed = true;
+      }
+      if (failed) {
+        try { recordRollupFailure(this.db, chatId, anchor); } catch { /* a roll-up must not fail the chat */ }
       }
     }
     return recentTurns(this.db, chatId, window);

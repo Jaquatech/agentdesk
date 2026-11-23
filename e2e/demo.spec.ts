@@ -56,6 +56,20 @@ test("settings shows the chat history window", async ({ page }) => {
   await page.goto("/#/settings");
   await expect(page.getByLabel("Messages sent from a chat")).toHaveValue("16");
   await expect(page.getByText(/costs fewer tokens/)).toBeVisible();
+  const summary = page.getByLabel("Agent for chat summaries");
+  await expect(summary).toBeVisible();
+  await expect(page.getByText(/small model is enough/)).toBeVisible();
+  await summary.click();
+  await page.getByRole("option", { name: "Orbit (developer)" }).click();
+  await expect(summary).toContainText("Orbit (developer)");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved")).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Agent for chat summaries")).toContainText("Orbit (developer)");
+  await page.getByLabel("Agent for chat summaries").click();
+  await page.getByRole("option", { name: "The planner" }).click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved")).toBeVisible();
 });
 
 test("a new chat says what carries over", async ({ page }) => {
