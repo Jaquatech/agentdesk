@@ -8,14 +8,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  FIELD_INFO, KIND_INFO, KIND_ORDER, sameRules, withRuleValue,
+  FIELD_INFO, KIND_INFO, KIND_ORDER, kindSame, withKindFrom, withRuleValue,
   type AttachmentRules, type RuleField, type RuleKind, type RulesPayload,
 } from "../lib/attachmentRules.ts";
 
 export function AttachmentsPage() {
   const [payload, setPayload] = useState<RulesPayload | null>(null);
   const [rules, setRules] = useState<AttachmentRules | null>(null);
-  const [saved, setSaved] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [savedKind, setSavedKind] = useState<RuleKind | "">("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -32,30 +33,39 @@ export function AttachmentsPage() {
     );
   }
 
-  const save = async () => {
+  // Saves one box. The other boxes keep their unsaved edits in the page state.
+  const save = async (kind: RuleKind) => {
     setError("");
     try {
-      const answer = await put<RulesPayload>("/api/attachment-rules", { rules });
+      const answer = await put<RulesPayload>("/api/attachment-rules", { rules: withKindFrom(payload.rules, kind, rules) });
       setPayload(answer);
-      setRules(answer.rules);
-      setSaved("Saved");
-      setTimeout(() => setSaved(""), 2000);
+      setRules((current) => (current ? withKindFrom(current, kind, answer.rules) : current));
+      setSavedKind(kind);
+      setTimeout(() => setSavedKind(""), 2000);
     } catch (e) {
       setError((e as Error).message);
     }
   };
 
+  // The text is kept as typed, so an empty field can be retyped; the rule changes only for a finite number.
   const setNumber = (kind: RuleKind, field: RuleField, text: string) => {
+    const key = `${kind}.${field}`;
+    setDrafts({ ...drafts, [key]: text });
     const n = Number(text);
-    if (text.trim() === "" || !Number.isFinite(n)) return;
-    setRules(withRuleValue(rules, kind, field, n));
+    if (text.trim() !== "" && Number.isFinite(n)) setRules(withRuleValue(rules, kind, field, n));
+  };
+
+  const clearDraft = (kind: RuleKind, field: RuleField) => {
+    const key = `${kind}.${field}`;
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   };
 
   return (
-    <Page
-      title="Attachment handling"
-      actions={<><span className="text-xs text-muted-foreground">{saved}</span><Button onClick={save} disabled={sameRules(rules, payload.rules)}>Save</Button></>}
-    >
+    <Page title="Attachment handling">
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <p className="text-sm text-muted-foreground">
         Limits for attached files, per file type. They apply to files you attach after saving; files already attached keep their copy. Smaller limits cost fewer tokens.
@@ -76,23 +86,29 @@ export function AttachmentsPage() {
               </label>
               {payload.fields[kind].length > 0 && (
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {payload.fields[kind].map((field) => (
-                    <Field key={field} label={FIELD_INFO[field].label} hint={FIELD_INFO[field].hint}>
-                      <Input
-                        type="number"
-                        min={payload.ranges[field].min}
-                        max={payload.ranges[field].max}
-                        step={1}
-                        disabled={!rule.enabled}
-                        value={rule[field] ?? ""}
-                        onChange={(e) => setNumber(kind, field, e.target.value)}
-                      />
-                    </Field>
-                  ))}
+                  {payload.fields[kind].map((field) => {
+                    const key = `${kind}.${field}`;
+                    return (
+                      <Field key={field} label={FIELD_INFO[field].label} hint={FIELD_INFO[field].hint}>
+                        <Input
+                          type="number"
+                          min={payload.ranges[field].min}
+                          max={payload.ranges[field].max}
+                          step={1}
+                          disabled={!rule.enabled}
+                          value={drafts[key] ?? String(rule[field] ?? "")}
+                          onChange={(e) => setNumber(kind, field, e.target.value)}
+                          onBlur={() => clearDraft(kind, field)}
+                        />
+                      </Field>
+                    );
+                  })}
                 </div>
               )}
-              <div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={() => save(kind)} disabled={kindSame(rules, payload.rules, kind)}>Save</Button>
                 <Button variant="outline" size="sm" onClick={() => setRules({ ...rules, [kind]: payload.defaults[kind] })}>Reset</Button>
+                {savedKind === kind && <span className="text-xs text-muted-foreground">Saved</span>}
               </div>
             </CardContent>
           </Card>

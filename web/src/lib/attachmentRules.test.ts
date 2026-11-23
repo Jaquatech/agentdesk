@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIELD_INFO, KIND_INFO, KIND_ORDER, sameRules, withRuleValue, type AttachmentRules } from "./attachmentRules.ts";
+import { FIELD_INFO, KIND_INFO, KIND_ORDER, kindSame, sameRules, withKindFrom, withRuleValue, type AttachmentRules } from "./attachmentRules.ts";
 
 const rules: AttachmentRules = {
   text: { enabled: true, partChars: 20000 },
@@ -32,6 +32,28 @@ describe("sameRules", () => {
   it("is true for an equal copy and false after a change", () => {
     expect(sameRules(rules, structuredClone(rules))).toBe(true);
     expect(sameRules(withRuleValue(rules, "image", "maxMb", 3), rules)).toBe(false);
+  });
+});
+
+describe("kindSame", () => {
+  it("compares one kind only", () => {
+    expect(kindSame(rules, structuredClone(rules), "xlsx")).toBe(true);
+    const changed = withRuleValue(rules, "xlsx", "maxCols", 60);
+    expect(kindSame(changed, rules, "xlsx")).toBe(false);
+    expect(kindSame(changed, rules, "pdf")).toBe(true);
+  });
+});
+
+describe("withKindFrom", () => {
+  it("copies one kind from the source and leaves the inputs unchanged", () => {
+    const changed = withRuleValue(rules, "xlsx", "maxRows", 50);
+    const baseCopy = structuredClone(rules);
+    const next = withKindFrom(rules, "xlsx", changed);
+    expect(next.xlsx).toEqual(changed.xlsx);
+    expect(next.xlsx).not.toBe(changed.xlsx);
+    for (const kind of KIND_ORDER.filter((k) => k !== "xlsx")) expect(next[kind]).toEqual(rules[kind]);
+    expect(rules).toEqual(baseCopy);
+    expect(changed.xlsx.maxRows).toBe(50);
   });
 });
 
