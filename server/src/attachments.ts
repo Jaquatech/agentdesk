@@ -16,7 +16,11 @@ const MAX_TEXT_TO_MODEL = 200 * 1024;
 const TEXT_EXT = new Set([".txt", ".md", ".json", ".xml", ".xsl", ".xslt", ".csv", ".tsv", ".log", ".yaml", ".yml", ".ini", ".toml",
   ".html", ".htm", ".css", ".js", ".ts", ".tsx", ".jsx", ".py", ".cs", ".java", ".sql", ".ps1", ".sh", ".bat", ".cmd", ".config", ".env.example"]);
 
-export type AttachmentRow = { id: number; chat_id: number; message_id: number | null; name: string; mime: string; size: number; path: string; created_at: string };
+export type AttachmentRow = {
+  id: number; chat_id: number; message_id: number | null; name: string; mime: string; size: number; path: string; created_at: string;
+  /** Why this file was not sent, shown under the message. Empty when it was sent. */
+  note?: string;
+};
 
 export type PromptAttachments = {
   /** Images the model can look at. */
@@ -25,9 +29,28 @@ export type PromptAttachments = {
   texts: { name: string; content: string }[];
   /** Everything else (and files too big): named, not sent. */
   skipped: string[];
-  /** Absolute paths of all files (the Claude CLI reads them itself). */
+  /** Absolute paths of every file that is still on disk (the Claude CLI may allow that folder). */
   paths: string[];
+  /** Paths of files that were actually sent (images and text). Skipped files stay out of this list. */
+  readPaths: string[];
+  /** Short note per file that was not sent, for the chat under that message. */
+  notes: { id: number; text: string }[];
 };
+
+/** Told to the model whenever a file was named instead of sent, so the reply says so instead of guessing. */
+export const UNSENT_REPLY = "Say in your reply which of these were not sent and why. Do not guess their contents.";
+
+/** The "# Attached by the user" block the API loop adds to the prompt. Images are listed; the caller attaches the bytes. */
+export function attachmentPrompt(att: PromptAttachments): string {
+  if (!att.texts.length && !att.images.length && !att.skipped.length) return "";
+  const lines = [
+    ...att.images.map((i) => `- ${i.name} (image, shown below)`),
+    ...att.skipped.map((s) => `- ${s}`),
+  ];
+  const caution = att.skipped.length ? `\n${UNSENT_REPLY}` : "";
+  const texts = att.texts.map((t) => `\n\n## ${t.name}\n\`\`\`\n${t.content}\n\`\`\``).join("");
+  return `\n\n# Attached by the user\n${lines.join("\n")}${caution}${texts}`;
+}
 
 export function attachmentDir(dataDir: string) {
   return join(dataDir, "attachments");
@@ -36,20 +59,49 @@ export function attachmentDir(dataDir: string) {
 const isText = (a: { mime: string; name: string }) =>
   a.mime.startsWith("text/") || a.mime === "application/json" || a.mime === "application/xml" || TEXT_EXT.has(extname(a.name).toLowerCase());
 
+const kindOf = (a: { mime: string; name: string }) => {
+  const mime = a.mime.toLowerCase();
+  const ext = extname(a.name).toLowerCase();
+  if (mime === "application/pdf" || ext === ".pdf") return "PDF";
+  if (mime.includes("wordprocessing") || mime.includes("msword") || ext === ".doc" || ext === ".docx") return "Word";
+  if (mime.includes("spreadsheet") || mime.includes("ms-excel") || ext === ".xls" || ext === ".xlsx") return "Excel";
+  return "";
+};
+
+/** Short line under the chat message. The model gets the longer `skipped` string. */
+function unsentNote(a: AttachmentRow, why: "missing" | "vision" | "image-size" | "text-size" | "type"): string {
+  if (why === "missing") return `${a.name} not sent: removed from the cache`;
+  if (why === "vision") return `${extname(a.name).replace(/^\./, "").toUpperCase() || "Image"} not sent: this model cannot read images`;
+  if (why === "image-size") return `${a.name} not sent: larger than 5 MB`;
+  if (why === "text-size") return `${a.name} not sent: larger than 200 KB`;
+  const kind = kindOf(a);
+  return kind ? `${a.name} not sent: ${kind} files are named only` : `${a.name} not sent: this file type is named only`;
+}
+
 /** `vision: false` = the model cannot read images: they are named, not sent. */
 export function loadForPrompt(rows: AttachmentRow[], opts: { vision?: boolean | null; model?: string } = {}): PromptAttachments {
-  const out: PromptAttachments = { images: [], texts: [], skipped: [], paths: [] };
+  const out: PromptAttachments = { images: [], texts: [], skipped: [], paths: [], readPaths: [], notes: [] };
+  const skip = (a: AttachmentRow, line: string, why: "missing" | "vision" | "image-size" | "text-size" | "type") => {
+    out.skipped.push(line);
+    out.notes.push({ id: a.id, text: unsentNote(a, why) });
+  };
   for (const a of rows) {
-    if (!existsSync(a.path)) { out.skipped.push(`${a.name} (removed from the cache)`); continue; }
+    if (!existsSync(a.path)) { skip(a, `${a.name} (removed from the cache)`, "missing"); continue; }
     out.paths.push(a.path);
     if (IMAGE_TYPES.has(a.mime) && opts.vision === false) {
-      out.skipped.push(`${a.name} (image: ${opts.model || "this model"} cannot read images, so it was not sent)`);
+      skip(a, `${a.name} (image: ${opts.model || "this model"} cannot read images, so it was not sent)`, "vision");
     } else if (IMAGE_TYPES.has(a.mime) && a.size <= MAX_IMAGE_TO_MODEL) {
       out.images.push({ name: a.name, mime: a.mime, base64: readFileSync(a.path).toString("base64") });
+      out.readPaths.push(a.path);
     } else if (isText(a) && a.size <= MAX_TEXT_TO_MODEL) {
       out.texts.push({ name: a.name, content: readFileSync(a.path, "utf8") });
+      out.readPaths.push(a.path);
+    } else if (IMAGE_TYPES.has(a.mime)) {
+      skip(a, `${a.name} (${a.mime || "file"}, ${Math.round(a.size / 1024)} KB: not sent to the model)`, "image-size");
+    } else if (isText(a)) {
+      skip(a, `${a.name} (${a.mime || "file"}, ${Math.round(a.size / 1024)} KB: not sent to the model)`, "text-size");
     } else {
-      out.skipped.push(`${a.name} (${a.mime || "file"}, ${Math.round(a.size / 1024)} KB: not sent to the model)`);
+      skip(a, `${a.name} (${a.mime || "file"}, ${Math.round(a.size / 1024)} KB: not sent to the model)`, "type");
     }
   }
   return out;

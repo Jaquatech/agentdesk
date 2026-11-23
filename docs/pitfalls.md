@@ -16,6 +16,7 @@ Things that cost real debugging time. Read the ones that touch your change befor
 
 ## Scrum
 
+- **Every call that takes a chat message must pass its attachments.** Use `Orchestrator.promptAttachments` (latest message, the model's vision, `loadForPrompt`). A second copy that only names the files drops their contents: the product manager used to see names and nothing else.
 - **Sprint tasks with overlapping `paths` run in order.** Anything that ticks the queue must respect `blockingTask` in `orchestrator/overlap.ts`.
 - **A retry after release is refused.** A retry after the sprint closed but before release merges into the sprint branch and rewrites the notes.
 

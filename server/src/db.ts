@@ -396,6 +396,10 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE agents ADD COLUMN max_answer_tokens INTEGER NOT NULL DEFAULT 32000;
   `,
+  // Why a chat file was not sent to the model. Empty when it was sent. Shown under the message.
+  `
+  ALTER TABLE attachments ADD COLUMN note TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 export function openDb(file: string): DB {

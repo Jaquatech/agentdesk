@@ -25,18 +25,22 @@ export function PendingFiles({ files, onRemove }: { files: Pending[]; onRemove: 
   );
 }
 
-/** Files on a sent message. Images open full size in a new tab. */
+/** Files on a sent message. Images open full size in a new tab. A file the model did not receive shows its note underneath. */
 export function MessageFiles({ files }: { files: AttachmentInfo[] }) {
   if (!files.length) return null;
+  const notes = files.filter((f) => f.note);
   return (
-    <div className="flex flex-wrap items-start justify-end gap-2 pt-1.5">
-      {files.map((f) => f.mime.startsWith("image/")
-        ? <a key={f.id} href={`/api/attachments/${f.id}`} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border bg-muted no-underline" title={f.name}>
-            <img src={`/api/attachments/${f.id}`} alt={f.name} className="block max-h-50 max-w-70 object-contain" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).classList.add("att-missing"); }} />
-          </a>
-        : <a key={f.id} href={`/api/attachments/${f.id}`} className="inline-flex max-w-60 items-center gap-1.5 rounded-lg border bg-muted px-2 py-1 text-xs text-foreground no-underline" title={`${f.name} · ${kb(f.size)}`}>
-            <FileText /><span className="truncate">{f.name}</span><span className="text-muted-foreground">{kb(f.size)}</span>
-          </a>)}
+    <div className="flex flex-col items-end gap-1 pt-1.5">
+      <div className="flex flex-wrap items-start justify-end gap-2">
+        {files.map((f) => f.mime.startsWith("image/")
+          ? <a key={f.id} href={`/api/attachments/${f.id}`} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border bg-muted no-underline" title={f.name}>
+              <img src={`/api/attachments/${f.id}`} alt={f.name} className="block max-h-50 max-w-70 object-contain" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).classList.add("att-missing"); }} />
+            </a>
+          : <a key={f.id} href={`/api/attachments/${f.id}`} className="inline-flex max-w-60 items-center gap-1.5 rounded-lg border bg-muted px-2 py-1 text-xs text-foreground no-underline" title={`${f.name} · ${kb(f.size)}`}>
+              <FileText /><span className="truncate">{f.name}</span><span className="text-muted-foreground">{kb(f.size)}</span>
+            </a>)}
+      </div>
+      {notes.map((f) => <p key={`note-${f.id}`} className="max-w-sm text-right text-xs text-muted-foreground">{f.note}</p>)}
     </div>
   );
 }

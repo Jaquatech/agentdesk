@@ -53,7 +53,7 @@ export type Project = {
   process?: "free" | "scrum"; points_per_dev?: number; checks_env_file?: string; checks_env_target?: string;
 };
 export type Chat = { id: number; project_id: number; title: string; updated_at: string; active_tasks?: number; team_id?: number | null; planner_id?: number | null };
-export type AttachmentInfo = { id: number; name: string; mime: string; size: number };
+export type AttachmentInfo = { id: number; name: string; mime: string; size: number; /** Set when the file was not sent to the model. */ note?: string };
 export type Message = {
   id: number; chat_id: number; role: "user" | "assistant" | "event"; agent_id: number | null; content: string; plan: string | null;
   created_at: string; attachments?: AttachmentInfo[];

@@ -2,6 +2,18 @@ import type { Engine, EngineRequest, EngineResult, TranscriptEntry } from "./typ
 import { parseAllowedTools, DEFAULT_WORKER_TOOLS, READ_ONLY_TOOLS } from "./types.ts";
 import { runProgram, tail } from "../orchestrator/shell.ts";
 import { dirname } from "node:path";
+import { UNSENT_REPLY, type PromptAttachments } from "../attachments.ts";
+
+/** The "# Attached by the user" block. The CLI reads files itself, so sent files are paths and skipped files are named with the reason. */
+export function claudeAttachmentPrompt(att: PromptAttachments | undefined): string {
+  if (!att || (!att.paths.length && !att.skipped.length)) return "";
+  const read = att.readPaths ?? [];
+  const parts: string[] = [];
+  if (read.length) parts.push(`Read these with the Read tool (images too):\n${read.map((f) => `- ${f}`).join("\n")}`);
+  if (att.skipped.length) parts.push(`${att.skipped.map((s) => `- ${s}`).join("\n")}\n${UNSENT_REPLY}`);
+  if (!parts.length) return "";
+  return `\n\n# Attached by the user\n${parts.join("\n")}`;
+}
 
 /**
  * Claude Code has no write_wiki tool. A project call asks for the same `wiki` array the planner returns,
@@ -44,9 +56,7 @@ export class ClaudeCliEngine implements Engine {
 
     let prompt = `${req.system}\n\n${req.prompt}`;
     const files = req.attachments?.paths ?? [];
-    if (files.length) {
-      prompt += `\n\n# Attached by the user\nRead these with the Read tool (images too):\n${files.map((f) => `- ${f}`).join("\n")}`;
-    }
+    prompt += claudeAttachmentPrompt(req.attachments);
     if (req.output) {
       prompt += `\n\n# Output\nEnd your final message with one fenced \`\`\`json block that matches this JSON schema ` +
         `(${req.output.description}):\n\`\`\`json\n${JSON.stringify(req.output.input_schema, null, 2)}\n\`\`\``;
