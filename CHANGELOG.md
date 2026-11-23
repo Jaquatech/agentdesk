@@ -4,8 +4,10 @@
 
 ### Added
 - Attachment limits are settings per file type (Markdown copy on or off, characters sent with the message, spreadsheet rows and columns, image size).
+- Attachment handling page (sidebar group Platform settings): limits per file type.
 
 ### Changes
+- The sidebar group Team is now called Platform settings.
 - Files you attach to a chat are copied to Markdown as you upload them. The original file is left as it is. CSV and TSV gain a short header that names the columns and counts the rows. Excel becomes one table per sheet (a sheet that is cut short says how many rows and columns were left out). Word keeps headings, paragraphs, lists and tables. A PDF with a text layer is copied page by page. A scanned PDF is marked as needing a text scan, and nothing is guessed. The planner and the product manager see the first part, about 20 000 characters, and can ask for the next part by the file's name. The message shows whether the copy was made. A file that cannot be read is marked failed, and the message still sends. Files on earlier messages stay as names, with the size and how many parts there are.
 - **search_wiki** keeps words of two or more characters, so API, git, PI, SQL and CSS match, and it matches a whole word, so git does not match inside digit. Each result is a short snippet around the match. Pages are ranked by how many of the words match, a title or section match counts more than the body, and at most eight pages come back. A project page comes before a General page when the rank is the same.
 - A chat summary that fails is not tried again on the next message. It waits until the window has moved on by half, and it stops after three failures. The chat still answers. Those automatic notes are marked in the project journal, and a prompt keeps at most ten of them, so they do not crowd out notes you or the planner wrote. Settings → **Agent for chat summaries** (next to **Messages sent from a chat**) can hand that three-line note to a smaller model. Leave it empty and the planner writes it. A small model is enough.

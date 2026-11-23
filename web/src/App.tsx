@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
-import { BarChart3, BookOpen, Bot, Kanban, Users, Building2, FolderGit2, KeyRound, ListChecks, LogOut, MessageSquarePlus, Plus, Settings, ChevronDown, Info } from "lucide-react";
+import { BarChart3, BookOpen, Bot, Kanban, Users, Building2, FolderGit2, KeyRound, ListChecks, LogOut, MessageSquarePlus, Paperclip, Plus, Settings, ChevronDown, Info } from "lucide-react";
 import { get, post, closeLiveEvents, useLiveEvents, type Chat, type Project } from "./api.ts";
 import { LoginPage } from "./pages/LoginPage.tsx";
 import { HomePage } from "./pages/HomePage.tsx";
@@ -23,6 +23,7 @@ const TeamsPage = lazy(() => import("./pages/TeamsPage.tsx").then((m) => ({ defa
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage.tsx").then((m) => ({ default: m.DocumentsPage })));
 const ProvidersPage = lazy(() => import("./pages/ProvidersPage.tsx").then((m) => ({ default: m.ProvidersPage })));
 const ProjectsPage = lazy(() => import("./pages/ProjectsPage.tsx").then((m) => ({ default: m.ProjectsPage })));
+const AttachmentsPage = lazy(() => import("./pages/AttachmentsPage.tsx").then((m) => ({ default: m.AttachmentsPage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage.tsx").then((m) => ({ default: m.SettingsPage })));
 const TasksBoard = lazy(() => import("./pages/TasksBoard.tsx").then((m) => ({ default: m.TasksBoard })));
 const UsagePage = lazy(() => import("./pages/UsagePage.tsx").then((m) => ({ default: m.UsagePage })));
@@ -180,7 +181,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
             </SidebarGroupContent>
           </SidebarGroup>
           <SidebarGroup>
-            <SidebarGroupLabel>Team</SidebarGroupLabel>
+            <SidebarGroupLabel>Platform settings</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {nav("teams", "Teams", Users)}
@@ -189,6 +190,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
                 {nav("documents", "Documents", BookOpen)}
                 {nav("usage", "Usage & billing", BarChart3)}
                 {nav("projects", "Projects", FolderGit2)}
+                {nav("attachments", "Attachment handling", Paperclip)}
                 {nav("settings", "Settings", Settings)}
                 {nav("version", "Version", Info)}
               </SidebarMenu>
@@ -236,6 +238,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
             : route.page === "providers" ? <ProvidersPage />
             : route.page === "projects" ? <ProjectsPage openNew={route.id === undefined && location.hash.includes("new")} onChanged={reload} />
             : route.page === "usage" ? <UsagePage />
+            : route.page === "attachments" ? <AttachmentsPage />
             : route.page === "settings" ? <SettingsPage onChanged={reload} />
             : route.page === "version" ? <VersionPage />
             : <HomePage projects={projects} onNewChat={newChat} />}
