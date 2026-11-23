@@ -374,17 +374,101 @@ export function applyWikiWrites(db: DB, projectId: number, writes: WikiWrite[]):
   return results;
 }
 
-/** Project pages for an agent's prompt. General pages are not included. */
-export function projectWikiContext(db: DB, projectId: number) {
-  const rows = db.prepare("SELECT title, section, body FROM documents WHERE project_id = ? ORDER BY section, title").all(projectId) as { title: string; section: string; body: string }[];
-  if (!rows.length) return "";
-  let out = "# Project documents\nThese pages are the project's wiki. Keep them true when you learn something that belongs there.";
-  let used = out.length;
-  for (const r of rows) {
-    const chunk = `\n\n## ${r.title}${r.section ? ` (${r.section})` : ""}\n${r.body}`.slice(0, 1800);
-    if (used + chunk.length > 24_000) { out += "\n\n(further pages omitted)"; break; }
-    out += chunk;
-    used += chunk.length;
+/** One page returned by read_wiki. Longer pages are cut and the note says how much was left out. */
+export const WIKI_READ_CAP = 6_000;
+
+type WikiDoc = { title: string; section: string; slot: string; kind: string; project_id: number | null; body: string };
+
+/** index: titles only. job: index plus overview, architecture and setup. claude: index plus Overview (no read tool). */
+export type WikiDepth = "index" | "job" | "claude";
+
+function wikiDocs(db: DB, projectId: number): WikiDoc[] {
+  return db.prepare(`SELECT title, section, slot, kind, project_id, body FROM documents
+    WHERE project_id = ? OR project_id IS NULL
+    ORDER BY project_id IS NULL, section, title`).all(projectId) as WikiDoc[];
+}
+
+function wikiFirstLine(body: string): string {
+  const line = (body || "").split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? "";
+  return line.replace(/^#+\s*/, "").replace(/\s+/g, " ").slice(0, 140) || "(empty)";
+}
+
+function cappedBody(body: string): string {
+  if (body.length <= WIKI_READ_CAP) return body;
+  return `${body.slice(0, WIKI_READ_CAP)}\n\n(page cut; ${body.length - WIKI_READ_CAP} characters omitted)`;
+}
+
+function indexLines(pages: WikiDoc[]): string {
+  return pages.map((p) => {
+    const label = p.project_id == null ? "general" : (p.section || p.slot || p.kind || "project");
+    return `- ${p.title} (${label}, ${p.body.length} characters): ${wikiFirstLine(p.body)}`;
+  }).join("\n");
+}
+
+/**
+ * Wiki text for a system prompt. The default is an index (title, section, first line, length), including General pages
+ * so they can be looked up. `job` also writes out overview, architecture and setup. `claude` writes out Overview only.
+ */
+export function projectWikiContext(db: DB, projectId: number, depth: WikiDepth = "index") {
+  const docs = wikiDocs(db, projectId);
+  if (!docs.length) return "";
+  const project = docs.filter((d) => d.project_id != null);
+  const general = docs.filter((d) => d.project_id == null);
+  const lead = depth === "claude"
+    ? "# Project wiki\nIndex of titles. This engine has no read_wiki tool, so Overview is included below and the other pages are listed only."
+    : "# Project wiki\nIndex only: title, section, first line, length. Use read_wiki (section or title) or search_wiki (query) to open a page. General pages can be read and cannot be written. Keep project pages true when you learn something that belongs there.";
+  let out = `${lead}\n${indexLines(project) || "(no project pages)"}`;
+  if (general.length) out += `\n\n# General pages\n${indexLines(general)}`;
+  const slots = depth === "job" ? ["overview", "architecture", "setup"] : depth === "claude" ? ["overview"] : [];
+  if (slots.length) {
+    const blocks = slots.flatMap((slot) => {
+      const page = project.find((p) => p.slot === slot);
+      return page ? [`## ${page.title} (${slot})\n${cappedBody(page.body)}`] : [];
+    });
+    if (blocks.length) out += `\n\n# Written out\n${blocks.join("\n\n")}`;
   }
   return out;
+}
+
+function renderWikiPage(p: WikiDoc): string {
+  const where = p.project_id == null ? "General" : (p.section || p.kind || "project");
+  return `# ${p.title} (${where})\n${cappedBody(p.body)}`;
+}
+
+/** One page, by section (overview, decisions, …) or title. General pages are included. Several matches list titles instead of bodies. */
+export function readWikiPage(db: DB, projectId: number, q: { section?: string; title?: string }): string {
+  const section = String(q.section ?? "").trim();
+  const title = String(q.title ?? "").trim();
+  if (!section && !title) return "Pass a section or a title.";
+  const sec = section ? normalizeWikiKey(section) : "";
+  const tit = title ? normalizeWikiKey(title) : "";
+  let hits = wikiDocs(db, projectId).filter((p) => {
+    const secOk = !sec || [p.section, p.slot, p.title, p.kind].some((v) => normalizeWikiKey(v) === sec);
+    const titleOk = !tit || normalizeWikiKey(p.title) === tit;
+    return secOk && titleOk;
+  });
+  const own = hits.filter((p) => p.project_id != null);
+  if (own.length) hits = own;
+  if (!hits.length) return `No page matches ${title || section}.`;
+  if (hits.length > 1) return `Several pages match. Read one by title:\n${hits.map((p) => `- ${p.title} (${p.project_id == null ? "General" : p.section || p.kind})`).join("\n")}`;
+  return renderWikiPage(hits[0]);
+}
+
+const SEARCH_STOP = new Set(["what", "did", "about", "this", "that", "with", "from", "have", "your", "when", "where", "which", "look", "the", "and", "for", "please"]);
+
+/** Titles (and sections) that match the query, each with a short snippet. General pages are included. */
+export function searchWikiPages(db: DB, projectId: number, query: string): string {
+  const q = String(query ?? "").trim().toLowerCase();
+  if (!q) return "Pass a query.";
+  const words = q.split(/\s+/).map((w) => w.replace(/[^a-z0-9]+/g, "")).filter((w) => w.length > 3 && !SEARCH_STOP.has(w)).slice(0, 8);
+  const terms = words.length ? words : [q.slice(0, 40)];
+  const hits = wikiDocs(db, projectId).filter((p) => {
+    const hay = `${p.title}\n${p.section}\n${p.slot}\n${p.body}`.toLowerCase();
+    return terms.some((t) => hay.includes(t));
+  }).slice(0, 8);
+  if (!hits.length) return "(no matching pages)";
+  return hits.map((p) => {
+    const where = p.project_id == null ? "General" : (p.section || p.kind || "project");
+    return `- ${p.title} (${where}): ${wikiFirstLine(p.body).slice(0, 180)}`;
+  }).join("\n");
 }

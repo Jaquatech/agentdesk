@@ -20,7 +20,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-type ChatData = { chat: Chat; planner_id: number | null; planning: boolean; messages: Message[]; tasks: Task[] };
+type ChatUsage = { tokens: number; last_prompt_tokens: number; last_prompt_chars: number };
+type ChatData = { chat: Chat; planner_id: number | null; planning: boolean; messages: Message[]; tasks: Task[]; usage?: ChatUsage };
+
+function fmtTokens(n: number) {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(n >= 1e4 ? 0 : 1)}K`;
+  return String(Math.round(n));
+}
 
 // useLoad keeps nothing once this page unmounts, and it replaces the whole value. The route renders ChatPage only
 // while a chat is open, so the last payload lives here and the next visit merges it the same way live events do.
@@ -98,7 +105,10 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
 
   useLiveEvents((ev) => {
     if (ev.type === "message" && ev.chatId === chatId) {
-      if (ev.message.role !== "user") markPlanning(false);
+      if (ev.message.role !== "user") {
+        markPlanning(false);
+        get<ChatData>(`/api/chats/${chatId}`).then((fresh) => commit((d) => ({ ...d, usage: fresh.usage }))).catch(() => {});
+      }
       commit((d) => {
         const chat = d.chat.title === "New chat" && ev.message.role === "user"
           ? { ...d.chat, title: ev.message.content.split("\n")[0].slice(0, 60) } : d.chat;
@@ -168,6 +178,13 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
         <span className="truncate text-sm text-muted-foreground">{project?.name}</span>
         <span className="text-muted-foreground">/</span>
         <h1 className="truncate text-sm font-medium">{data.chat.title}</h1>
+        {!!data.usage?.tokens && (
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums" title={data.usage.last_prompt_chars > 0
+            ? "Tokens of every call in this chat. The last prompt size is a rough count (about 4 characters per token) of the instructions and prompt on the latest call."
+            : "Tokens of every call in this chat. The last prompt size is the input tokens of the latest call."}>
+            {fmtTokens(data.usage.tokens)} tokens · last prompt ~{fmtTokens(data.usage.last_prompt_chars > 0 ? Math.round(data.usage.last_prompt_chars / 4) : data.usage.last_prompt_tokens)}
+          </span>
+        )}
         <Button variant="ghost" size="icon-sm" title="Rename" onClick={rename}><Pencil /></Button>
         <Button variant="ghost" size="icon-sm" title="Delete chat" onClick={remove}><Trash2 /></Button>
         {teams.length > 0 && (

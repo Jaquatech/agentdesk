@@ -34,6 +34,7 @@ test("an unsent message stays when you leave the chat", async ({ page }) => {
   await expect(box(page)).toHaveValue(draft);
 
   await page.getByRole("button", { name: "New chat" }).click();
+  await page.getByRole("button", { name: "Start chat" }).click();
   await expect(box(page)).toHaveValue("");
   await box(page).fill("second chat only");
 

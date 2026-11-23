@@ -37,6 +37,10 @@ export type EngineRequest = {
   askApproval?: (q: { kind: "command"; command: string; cwd: string }) => Promise<{ allowed: boolean; by?: string }>;
   /** Any agent working on a project may update that project's wiki. Absent = the tool is not offered. General pages are not writable here. Wiki writes do not touch the worktree, so read mode still gets this. */
   writeWiki?: (page: { title?: string; section: string; body: string }) => string;
+  /** Read one wiki page (project or General). Offered with writeWiki. General pages stay read-only. */
+  readWiki?: (q: { section?: string; title?: string }) => string;
+  /** Find wiki pages by title, section or text. Offered with writeWiki. */
+  searchWiki?: (query: string) => string;
   /** Each run-log step as it happens (live Activity view). */
   onStep?: (entry: TranscriptEntry) => void;
 };

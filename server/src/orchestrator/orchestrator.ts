@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { DB } from "../db.ts";
-import { getSettings, json } from "../db.ts";
+import { getSettings, historyWindow, json } from "../db.ts";
 import { pickAgent, pickPlanner, teamAgents, teamOfChat, team } from "../teams.ts";
 import type { Scrum } from "../scrum.ts";
 import { overBudget } from "../budget.ts";
@@ -20,7 +20,8 @@ import { blockingTask, isStuck, waitKey } from "./overlap.ts";
 import { setupProblem } from "../verifyHelp.ts";
 import { DEFAULT_WORKER_TOOLS } from "../engines/types.ts";
 import { PLAN_TOOL, REVIEW_TOOL, NOTES_TOOL, ROLE_TEMPLATES, WIKI_LINE, buildWorkerPrompt, buildReviewPrompt } from "./prompts.ts";
-import { applyWikiWrites, projectWikiContext, syncTaskPage, type WikiWrite } from "../documents.ts";
+import { applyWikiWrites, projectWikiContext, readWikiPage, searchWikiPages, syncTaskPage, type WikiWrite } from "../documents.ts";
+import { clipRollup, formatJournal, journalLines, recentTurns, rollupBatch, rollupPrompt, type ChatTurn } from "../chatHistory.ts";
 
 export type TaskRow = {
   id: number; chat_id: number; project_id: number; message_id: number | null; slug: string; title: string;
@@ -197,6 +198,8 @@ export class Orchestrator {
     mode: "read" | "write"; output?: EngineRequest["output"]; signal?: AbortSignal; idleState?: AgentState; projectId?: number;
     sprintId?: number; itemId?: number;
     attachments?: EngineRequest["attachments"];
+    /** index: wiki titles only. job: also overview, architecture and setup. none: a cheap call with no wiki text. Claude CLI always gets the index plus Overview. */
+    wiki?: "index" | "job" | "none";
   }): Promise<EngineResult> {
     // Spending limits: refuse before anything is spent.
     const taskSprint = o.taskId ? (this.db.prepare("SELECT sprint_id FROM tasks WHERE id = ?").get(o.taskId) as { sprint_id: number | null } | undefined)?.sprint_id : undefined;
@@ -206,16 +209,19 @@ export class Orchestrator {
     const project = o.chatId
       ? this.db.prepare("SELECT p.* FROM projects p JOIN chats c ON c.project_id = p.id WHERE c.id = ?").get(o.chatId) as ProjectRow | undefined
       : o.projectId ? this.db.prepare("SELECT * FROM projects WHERE id = ?").get(o.projectId) as ProjectRow | undefined : undefined;
+    const offerWiki = !!project && o.wiki !== "none";
+    const depth = !offerWiki ? null : provider.kind === "claude-cli" ? "claude" as const : o.wiki === "job" ? "job" as const : "index" as const;
     const system = [
       o.agent.context || ROLE_TEMPLATES[o.agent.role],
       project?.context ? `# Project notes\n${project.context}` : "",
-      project ? projectWikiContext(this.db, project.id) : "",
+      depth && project ? projectWikiContext(this.db, project.id, depth) : "",
     ].filter(Boolean).join("\n\n");
     const runId = this.startRun({
       taskId: o.taskId, chatId: o.chatId, projectId: o.projectId ?? project?.id, sprintId: o.sprintId, itemId: o.itemId, agent: o.agent, kind: o.kind,
       round: o.round ?? 0, model: provider.model || (provider.kind === "claude-cli" ? "claude-cli default" : ""), engine: provider.kind,
     });
     const lines: string[] = [];
+    this.db.prepare("UPDATE runs SET prompt_chars = ? WHERE id = ?").run(system.length + o.prompt.length, runId);
     this.busyAgents.add(o.agent.id);
     this.activity(o.agent.id, o.kind === "review" ? "reviewing" : "thinking", o.kind, o.taskId, o.chatId);
     try {
@@ -228,10 +234,13 @@ export class Orchestrator {
         askApproval: o.agent.ask_approval === 0 ? undefined
           : (q) => this.askUser({ ...q, runId, taskId: o.taskId, chatId: o.chatId, agent: o.agent, signal: o.signal }),
         // Wiki writes never touch the worktree, so every project call gets them, including read-only roles.
-        writeWiki: project ? (page) => {
+        // read_wiki and search_wiki come with them. General pages can be read and cannot be written.
+        writeWiki: offerWiki && project ? (page) => {
           const [one] = applyWikiWrites(this.db, project.id, [page]);
           return one?.result ?? "empty body";
         } : undefined,
+        readWiki: offerWiki && project ? (q) => readWikiPage(this.db, project.id, q) : undefined,
+        searchWiki: offerWiki && project ? (q) => searchWikiPages(this.db, project.id, q) : undefined,
       });
       if (project && result.ok) noteWiki(this.db, project.id, result, lines);
       this.endRun(runId, result, lines);
@@ -251,6 +260,32 @@ export class Orchestrator {
   }
 
   // ---------- planning ----------
+
+  /**
+   * Last `chat_history_messages` of a chat. When older messages have fallen out, the planner writes one
+   * three-line journal note for that stretch (once per window, not on every message) before the window is read.
+   */
+  async prepareHistory(chatId: number, planner: AgentRow): Promise<ChatTurn[]> {
+    const chat = this.db.prepare("SELECT project_id FROM chats WHERE id = ?").get(chatId) as { project_id: number } | undefined;
+    if (!chat) return [];
+    const window = historyWindow(getSettings(this.db).chat_history_messages);
+    const dropped = rollupBatch(this.db, chatId, window);
+    if (dropped.length) {
+      const project = this.project(chat.project_id);
+      const taken = clipRollup(dropped);
+      const result = await this.callAgent({
+        agent: planner, kind: "rollup", chatId, projectId: project.id, cwd: project.path,
+        prompt: rollupPrompt(taken), mode: "read", wiki: "none",
+      });
+      const lines = (result.summary || "").split(/\r?\n/).map((s) => s.replace(/^[-*]\s*/, "").trim()).filter(Boolean).slice(0, 3);
+      if (result.ok && lines.length) {
+        const text = `Earlier in this chat:\n${lines.join("\n")}`.slice(0, 800);
+        this.db.prepare("INSERT INTO project_journal (project_id, chat_id, agent_id, text) VALUES (?, ?, ?, ?)").run(project.id, chatId, planner.id, text);
+        this.db.prepare("UPDATE chats SET history_rolled_to = ? WHERE id = ?").run(taken[taken.length - 1].id, chatId);
+      }
+    }
+    return recentTurns(this.db, chatId, window);
+  }
 
   isPlanning(chatId: number) {
     return this.planning.has(chatId);
@@ -279,10 +314,7 @@ export class Orchestrator {
     try {
       const project = this.project(chat.project_id);
       await ensureProjectCheckout(project);
-      const history = (this.db.prepare(`SELECT m.id, m.role, m.content,
-          (SELECT GROUP_CONCAT(a.name, ', ') FROM attachments a WHERE a.message_id = m.id) AS files
-        FROM messages m WHERE m.chat_id = ? AND m.role != 'event' ORDER BY m.id DESC LIMIT 20`)
-        .all(chatId) as { id: number; role: string; content: string; files: string | null }[]).reverse();
+      const history = await this.prepareHistory(chatId, planner);
       // The latest user message's files go to the model; earlier ones are only named.
       const latestUser = [...history].reverse().find((m) => m.role === "user");
       const attachments = await this.promptAttachments(chatId, planner, history);
@@ -293,8 +325,7 @@ export class Orchestrator {
         FROM tasks t JOIN chats c ON c.id = t.chat_id LEFT JOIN agents a ON a.id = t.worker_id
         WHERE t.project_id = ? ORDER BY t.id DESC LIMIT 30`).all(chat.project_id) as ProjectTask[]).reverse();
       const allSlugs = (this.db.prepare("SELECT slug FROM tasks WHERE project_id = ?").all(chat.project_id) as { slug: string }[]).map((t) => t.slug);
-      const journal = (this.db.prepare(`SELECT j.text, j.created_at FROM project_journal j WHERE j.project_id = ? ORDER BY j.id DESC LIMIT 40`)
-        .all(chat.project_id) as { text: string; created_at: string }[]).reverse();
+      const journal = journalLines(this.db, chat.project_id);
       const RETRYABLE = ["failed", "needs_attention", "interrupted", "cancelled"];
       const describe = (t: ProjectTask) => `- ${t.slug} [${t.status}] "${t.title}" (developer ${t.worker ?? "any"}${t.chat_id === chatId ? ", this chat" : `, chat "${t.chat}"`})` +
         (t.error && RETRYABLE.includes(t.status) ? ` — ${t.error.split("\n")[0].slice(0, 160)}` : "");
@@ -310,7 +341,7 @@ Verify commands run after every task: ${verify.join(" ; ") || "(none set)"}.
 ${tasks.map(describe).join("\n") || "none yet"}
 
 # Project journal (notes from earlier chats, oldest first)
-${journal.map((j) => `- ${j.created_at.slice(0, 10)}: ${j.text}`).join("\n") || "empty"}
+${formatJournal(journal)}
 Base branch: ${project.base_branch}. You are in the project folder (read-only for you).
 
 Answer the latest user message. If code must change, write the tasks; otherwise return an empty task list.
@@ -319,7 +350,7 @@ If the user asks to merge finished work, do not write tasks for it: put the slug
 If the user asks to run earlier tasks again, put them in \`retry\` (any chat of this project; set \`worker\` to hand one to another
 developer) instead of writing new tasks. Retryable: ${tasks.filter((t) => RETRYABLE.includes(t.status)).map((t) => t.slug).join(", ") || "none"}.
 Add to \`journal\` only what a later chat must know (a decision, a finding, why something failed); usually nothing.
-${WIKI_LINE} Put the pages in \`wiki\`: overview, architecture, roadmap and setup replace that one page (a title is optional). decisions and releases are one page per title.
+${WIKI_LINE} The wiki in your instructions is an index. Use read_wiki or search_wiki when you need a page that is not written out. Put the pages in \`wiki\`: overview, architecture, roadmap and setup replace that one page (a title is optional). decisions and releases are one page per title.
 Do not put this project's name, its data, or a customer name into General pages. You cannot edit those from here.`;
 
       const result = await this.callAgent({ agent: planner, kind: "plan", chatId, cwd: project.path, prompt, mode: "read", output: PLAN_TOOL, attachments });
@@ -507,7 +538,7 @@ Do not put this project's name, its data, or a customer name into General pages.
         say(round === 0 ? `${worker.name} started **${t.title}**` : `${worker.name} works on review round ${round + 1} of **${t.title}**`, worker.id);
 
         const prompt = buildWorkerPrompt({ title: t.title, spec: t.spec, branch, round, feedback, paths, verify, envForChecks: !!project.checks_env_file });
-        const built = await this.callAgent({ agent: worker, kind: "build", chatId: t.chat_id, taskId, round, cwd: wt, prompt, mode: "write", signal });
+        const built = await this.callAgent({ agent: worker, kind: "build", chatId: t.chat_id, taskId, round, cwd: wt, prompt, mode: "write", signal, wiki: "job" });
         if (signal.aborted) return;
         if (!built.ok) throw new Error(`${worker.name} did not finish: ${built.error ?? "unknown error"}`);
         this.updateTask(taskId, { summary: built.summary });

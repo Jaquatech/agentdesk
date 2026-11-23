@@ -4,6 +4,7 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 
 ## Settled
 
+- **Chat history window is 16 messages (setting `chat_history_messages`, allowed 6–40).** Both chat paths used a hard-coded 20. One setting is the only number, and 16 keeps the current request while sending less text on every call. Storage: `chats.history_rolled_to` is the last message id already folded into the journal. That fold is one `project_journal` row, written once per window slide, not on every message. `runs.prompt_chars` is the character length of the system text plus the prompt, so the chat header can show a rough size of the last call (about 4 characters per token).
 - **No automatic formatter for now.** The code uses semicolons, double quotes and long lines, one component per file. A formatter would rewrite most files and bury real changes in diffs. Revisit as its own single "format everything" commit if the style starts to drift.
 - **We do not use the UI SDK library.** Radix through shadcn already provides focus, keyboard, dismissal and ARIA. Revisit if a primitive we need is missing or wrong.
 - **The isometric office is outside the shadcn system.** It is canvas drawing; its chrome CSS stays hardcoded at the bottom of `styles.css`.

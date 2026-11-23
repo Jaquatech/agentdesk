@@ -1,6 +1,6 @@
 import type { Engine, EngineRequest, EngineResult, TranscriptEntry } from "./types.ts";
 import { parseAllowedTools, READ_ONLY_TOOLS, DEFAULT_WORKER_TOOLS } from "./types.ts";
-import { READ_TOOLS, WRITE_TOOLS, WIKI_TOOL, FINISH_TOOL, runTool } from "./tools.ts";
+import { READ_TOOLS, WRITE_TOOLS, READ_WIKI_TOOL, SEARCH_WIKI_TOOL, WIKI_TOOL, FINISH_TOOL, runTool } from "./tools.ts";
 import type { ChatMessage, Block, ToolDef } from "../providers/types.ts";
 import { textOf } from "../providers/types.ts";
 import { callCost } from "../pricing.ts";
@@ -23,12 +23,12 @@ export class ApiLoopEngine implements Engine {
     const { commandPrefixes } = parseAllowedTools(write ? allowedRaw : JSON.stringify(READ_ONLY_TOOLS));
 
     const finalTool: ToolDef = req.output ?? FINISH_TOOL;
-    const wiki = req.writeWiki ? [WIKI_TOOL] : [];
+    const wiki = req.writeWiki ? [READ_WIKI_TOOL, SEARCH_WIKI_TOOL, WIKI_TOOL] : [];
     const tools = [...READ_TOOLS, ...(write ? WRITE_TOOLS : []), ...wiki, finalTool];
     const system = `${req.system}
 
 # Tools
-You work inside one folder; paths are relative to it. Use list_files, read_file and search to look around${write ? ", write_file and edit_file to change files" : ""}${wiki.length ? ", and write_wiki to update this project's wiki (overview, architecture, roadmap, setup, decisions, releases; never a General page). Update Overview, Architecture, Road map and Setup when your work changes them" : ""}.
+You work inside one folder; paths are relative to it. Use list_files, read_file and search to look around${write ? ", write_file and edit_file to change files" : ""}${wiki.length ? ", read_wiki and search_wiki to look up a wiki page (this project or a General page), and write_wiki to update this project's wiki (overview, architecture, roadmap, setup, decisions, releases; never a General page). Update Overview, Architecture, Road map and Setup when your work changes them" : ""}.
 run_command accepts only commands that start with: ${commandPrefixes.join(", ") || "(none)"}. No pipes or redirects.
 When you are done, call ${finalTool.name} exactly once. Do not ask questions; take the most reasonable reading and say so.`;
 
@@ -117,7 +117,8 @@ When you are done, call ${finalTool.name} exactly once. Do not ask questions; ta
             return done(true, summary, call.input);
           }
           const outcome = await runTool(call.name, call.input, {
-            cwd: req.cwd, canWrite: write, commandPrefixes, signal: req.signal, writeWiki: req.writeWiki,
+            cwd: req.cwd, canWrite: write, commandPrefixes, signal: req.signal,
+            writeWiki: req.writeWiki, readWiki: req.readWiki, searchWiki: req.searchWiki,
             // Only developers may ask; planners and reviewers stay read-only (their list is fixed).
             ask: req.askApproval && write ? async (command) => {
               req.onActivity?.("waiting", "needs your OK");

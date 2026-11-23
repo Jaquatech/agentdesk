@@ -126,6 +126,8 @@ describe("wiki writes", () => {
     await ctx.orch.callAgent({ agent, kind: "review", projectId: id, cwd: repo, prompt: "review", mode: "read" });
     expect(seen[0].mode).toBe("read");
     expect(seen[0].writeWiki).toBeTypeOf("function");
+    expect(seen[0].readWiki).toBeTypeOf("function");
+    expect(seen[0].searchWiki).toBeTypeOf("function");
     expect(slot(id, "overview")).toBe("From a reviewer.");
     expect(slot(id, "setup")).toBe("Run from the project folder.");
     const run = ctx.db.prepare("SELECT log, transcript FROM runs WHERE kind = 'review'").get() as { log: string; transcript: string };
@@ -134,6 +136,8 @@ describe("wiki writes", () => {
 
     await ctx.orch.callAgent({ agent, kind: "notes", cwd: repo, prompt: "no project", mode: "read" });
     expect(seen[1].writeWiki).toBeUndefined();
+    expect(seen[1].readWiki).toBeUndefined();
+    expect(seen[1].searchWiki).toBeUndefined();
   });
 
   it("applies the planner wiki field in a normal chat and in Scrum chat", async () => {

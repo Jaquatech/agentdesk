@@ -118,7 +118,7 @@ ${o.spec}${round}
 - Do not commit, push or open a PR; leave changes in the working tree.
 - Your final message becomes the PR description: what changed (short bullets), tests run and results, anything left open.
   No diffs, no logs, no secrets. It is also copied onto this task's wiki page.
-- The project's wiki is in your instructions. Use write_wiki for overview, architecture, roadmap (Road map), setup, decisions and releases when your work changes them. Update Overview, Architecture, Road map and Setup when they are no longer true. A title is optional for those four; decisions and releases are one page per title. Do not write this project's name, its data, or a customer name into a General page.`;
+- The wiki in your instructions is an index. Overview, Architecture and Setup are written out for you, except on the Claude CLI, which includes Overview only. Use read_wiki or search_wiki when they are available. Use write_wiki for overview, architecture, roadmap (Road map), setup, decisions and releases when your work changes them. Update Overview, Architecture, Road map and Setup when they are no longer true. A title is optional for those four; decisions and releases are one page per title. Do not write this project's name, its data, or a customer name into a General page.`;
 }
 
 export function buildReviewPrompt(o: { title: string; specs: string; branch: string; base: string; diffStat: string; verify: string[] }) {

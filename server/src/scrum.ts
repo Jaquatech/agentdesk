@@ -7,6 +7,7 @@ import { getSettings, json } from "./db.ts";
 import { bus } from "./bus.ts";
 import type { Orchestrator, TaskRow } from "./orchestrator/orchestrator.ts";
 import { syncReleasePage } from "./documents.ts";
+import { formatJournal, journalLines } from "./chatHistory.ts";
 import { architectOf, securityOf, teamAgents, teamOfProject, pickPlanner } from "./teams.ts";
 import {
   ensureProjectCheckout, createSprintBranch, ensureSprintWorktree, diffAgainstBase, projectHasRemote, branchLog, releaseSprint,
@@ -125,10 +126,8 @@ export class Scrum {
     try {
       const project = this.project(chat.project_id);
       await ensureProjectCheckout(project);
-      const history = (this.db.prepare(`SELECT m.id, m.role, m.content,
-          (SELECT GROUP_CONCAT(a.name, ', ') FROM attachments a WHERE a.message_id = m.id) AS files
-        FROM messages m WHERE m.chat_id = ? AND m.role != 'event' ORDER BY m.id DESC LIMIT 20`)
-        .all(chatId) as { id: number; role: string; content: string; files: string | null }[]).reverse();
+      const history = await this.orch.prepareHistory(chatId, pm);
+      const journal = formatJournal(journalLines(this.db, project.id));
       // The latest message's files go to the model, the same way as a plain chat. Earlier ones are only named.
       const latestUser = [...history].reverse().find((m) => m.role === "user");
       const attachments = await this.orch.promptAttachments(chatId, pm, history);
@@ -136,6 +135,9 @@ export class Scrum {
 ${history.map((m) => `## ${m.role === "user" ? "Business owner" : "You (earlier)"}\n${m.content}${m.files && m.id !== latestUser?.id ? `\n(attached earlier: ${m.files})` : ""}`).join("\n\n")}
 
 ${this.stateText(project.id)}
+
+# Project journal (notes from earlier chats, oldest first)
+${journal}
 
 # Your job
 You are the product manager of a Scrum team. The people writing to you are the business owners.
@@ -146,7 +148,7 @@ You are the product manager of a Scrum team. The people writing to you are the b
 - Create a PI (program increment: a goal over several sprints) or a sprint only when asked, with a short name and goal.
 - Refinement (architect notes, developer estimate) starts by itself for every item you create. The Scrum master starts sprints from
   the Sprints page by priority and team capacity; tell the user to press Start there when they ask for it.
-${WIKI_LINE} Put page updates in \`wiki\`.
+${WIKI_LINE} The wiki in your instructions is an index. Use read_wiki or search_wiki when you need a page that is not written out. Put page updates in \`wiki\`.
 Answer briefly. Use the business owner's words.`;
       const r = await this.orch.callAgent({ agent: pm, kind: "backlog", chatId, cwd: project.path, prompt, mode: "read", output: SCRUM_TOOL, attachments });
       if (!r.ok || !r.output) {
@@ -266,8 +268,8 @@ ${items.map((i) => `- #${i.id} [${i.status}${i.points ? `, ${i.points} pts` : ""
       this.changed(project.id);
       item = this.item(itemId);
     };
-    const call = (agent: AgentRow, kind: string, prompt: string, output: ToolDef) =>
-      this.orch.callAgent({ agent, kind, chatId: item.chat_id && this.chatInProject(item.chat_id, project.id) ? item.chat_id : undefined, projectId: project.id, itemId, cwd: project.path, prompt, mode: "read", output });
+    const call = (agent: AgentRow, kind: string, prompt: string, output: ToolDef, wiki?: "job") =>
+      this.orch.callAgent({ agent, kind, chatId: item.chat_id && this.chatInProject(item.chat_id, project.id) ? item.chat_id : undefined, projectId: project.id, itemId, cwd: project.path, prompt, mode: "read", output, wiki });
     try {
       await ensureProjectCheckout(project);
       // 1. Product manager: the story and acceptance criteria, unless the item came with them.
@@ -307,7 +309,7 @@ You are in the project folder (read-only for you). Base branch: ${project.base_b
 
 Read the code you need, then write the technical notes: approach, files and functions to change, tests that prove it, risks, what is out of scope.
 The developer is a cheaper model: be exact. List the folders/files the work may change in \`paths\`. If the item is clearly too big for one task, say how to split it.
-You are read-only for files. ${WIKI_LINE} Put page updates in \`wiki\`.`, ARCHITECT_TOOL);
+You are read-only for files. Overview, Architecture and Setup are written out in your instructions. Use read_wiki for any other page. ${WIKI_LINE} Put page updates in \`wiki\`.`, ARCHITECT_TOOL, "job");
         if (!r.ok || !r.output) throw new Error(`Architect ${arch.name}: ${r.error ?? "no notes returned"}`);
         const named = devs.find((d) => d.name.toLowerCase() === String(r.output!.worker ?? "").toLowerCase());
         set({
@@ -333,7 +335,8 @@ ${item.tech_notes}
 
 Estimate the size in story points (relative effort for you, the developer): ${SIZES.join(", ")}. 1 = a trivial edit, 3 = a normal change,
 8 = a large one, 13 = too big for one task and must be split. Look at the code if you need to. Do not change files.
-${WIKI_LINE} Put page updates in \`wiki\`.`, ESTIMATE_TOOL);
+Overview, Architecture and Setup are written out in your instructions. Use read_wiki for any other page.
+${WIKI_LINE} Put page updates in \`wiki\`.`, ESTIMATE_TOOL, "job");
         const points = Number((r.output as { points?: unknown } | undefined)?.points);
         if (!r.ok || !SIZES.includes(points)) throw new Error(`${dev.name}: ${r.error ?? "no estimate returned"}`);
         set({ points, ...(points === 13 ? { error: `Estimated 13 points: too big for one task. Split it into smaller items. ${String((r.output as { reason?: unknown }).reason ?? "")}`.trim() } : {}) });

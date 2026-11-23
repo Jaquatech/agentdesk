@@ -5,6 +5,7 @@ import { LoginPage } from "./pages/LoginPage.tsx";
 import { HomePage } from "./pages/HomePage.tsx";
 import { ApprovalsBar } from "./components/Approvals.tsx";
 import { BudgetBar } from "./components/BudgetBar.tsx";
+import { Modal } from "./components/ui.tsx";
 import { ThemeToggle } from "./components/theme.tsx";
 import { LogoMark } from "./office/LogoMark.tsx";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [ver, setVer] = useState<{ version: string; commit: string } | null>(null);
+  const [newChatFor, setNewChatFor] = useState<number | null>(null);
   useEffect(() => { get<{ version: string; commit: string }>("/api/version").then(setVer).catch(() => {}); }, []);
 
   const reload = useCallback(() => {
@@ -82,7 +84,11 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
   useEffect(() => { reload(); }, [reload, route.page]);
   useLiveEvents((ev) => { if (ev.type === "message" || ev.type === "task") get<Chat[]>("/api/chats").then(setChats); });
 
-  const newChat = async (projectId: number) => {
+  const newChat = (projectId: number) => setNewChatFor(projectId);
+  const startChat = async () => {
+    if (newChatFor == null) return;
+    const projectId = newChatFor;
+    setNewChatFor(null);
     const chat = await post<Chat>("/api/chats", { project_id: projectId });
     await reload();
     go(`chat/${chat.id}`);
@@ -140,7 +146,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
                               <span className="truncate">{p.name}</span>
                             </SidebarMenuButton>
                           </CollapsibleTrigger>
-                          <Button variant="ghost" size="icon-sm" className="shrink-0 group-data-[collapsible=icon]:hidden" title="New chat" onClick={() => newChat(p.id)}>
+                          <Button variant="ghost" size="icon-sm" className="shrink-0 group-data-[collapsible=icon]:hidden" title="New chat" onClick={() => setNewChatFor(p.id)}>
                             <MessageSquarePlus />
                             <span className="sr-only">New chat</span>
                           </Button>
@@ -236,6 +242,16 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
           </Suspense>
         </div>
       </SidebarInset>
+      {newChatFor != null && (
+        <Modal title="New chat" onClose={() => setNewChatFor(null)} footer={
+          <>
+            <Button variant="outline" onClick={() => setNewChatFor(null)}>Cancel</Button>
+            <Button onClick={startChat}>Start chat</Button>
+          </>
+        }>
+          <p className="text-sm">This chat starts without earlier messages. It still has this project's journal, the wiki index, and the task list. Messages stay in the chat they were written in.</p>
+        </Modal>
+      )}
     </SidebarProvider>
   );
 }

@@ -51,6 +51,31 @@ test("the Scrum page shows the backlog, the active sprint and the release", asyn
   await expect(page.getByText("Sprint 1: Touchdown").first()).toBeVisible();
 });
 
+test("settings shows the chat history window", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/#/settings");
+  await expect(page.getByLabel("Messages sent from a chat")).toHaveValue("16");
+  await expect(page.getByText(/costs fewer tokens/)).toBeVisible();
+});
+
+test("a new chat says what carries over", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "New chat", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("journal");
+  await expect(dialog).toContainText("wiki index");
+  await expect(dialog).toContainText("task list");
+  await expect(dialog).toContainText("messages");
+  await page.getByRole("button", { name: "Start chat" }).click();
+  await expect(page.getByRole("heading", { name: "New chat" })).toBeVisible();
+});
+
+test("a chat shows its token total", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("link", { name: "Sprint planning" }).click();
+  await expect(page.getByText(/tokens · last prompt/)).toBeVisible();
+});
+
 test("documents list the release notes and a task page", async ({ page }) => {
   await signIn(page);
   await page.goto("/#/documents");

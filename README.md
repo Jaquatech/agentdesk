@@ -172,6 +172,11 @@ Then restart the server (Ctrl+C, `npm start`). The database updates itself on st
    Fix the project setting and press Retry.
 6. Start a chat in the project. The planner answers and proposes tasks; press **Run plan** (or turn on "Run plans
    right away" in Settings).
+   Each reply sends only the last **16** messages of that chat. Change it under Settings → **Messages sent from a chat**
+   (from 6 to 40). A smaller number costs fewer tokens. The project journal, the wiki index and the task list are included
+   every time, so a new chat starts without old messages and still knows the project. The New chat dialog says what carries
+   over before the chat is created. Messages that fall out of the window are summarized in three lines into the journal,
+   once per window, not on every message. The chat header shows the tokens used in that chat and a rough size of the last prompt.
 
 For a quick look without any keys, use `npm run demo`: no calls are made. The first demo start adds a fictional startup, Red Dust Gadgets (gadgets for a Mars mission): a team called Mission Control (Nova plans, Orbit and Comet build, Sentinel reviews), a small git project in `data-demo/` with a Scrum backlog, one released sprint and one active sprint (so every task tab, Releases, Documents and Usage have content), and a demo provider whose Test button always answers OK.
 
@@ -179,7 +184,7 @@ Development: `npm run dev` (server with reload on 4317, Vite on 5173 with `/api`
 
 The interface is a Vite + React app styled with [shadcn/ui](https://ui.shadcn.com) and Tailwind (stone surfaces, amber accents). Dark mode is the default; switch to the light theme from the sidebar. The office view is drawn on a canvas and is separate from that component system.
 
-**Documents** (sidebar) is a wiki in the local database. **General** holds the shared guides (coding guidelines, engineering standards, UI guidelines, the model guide, the development cycle) and stays free of any one project's name. Each project has Overview, Architecture, Decisions, a Road map, Release notes, Setup, and a page for every task. The task page and the task stay linked: the spec, the developer's summary, and the review match on both. Every agent working on that project can update those project pages (in chat, while planning a sprint, and during build, review, notes and security review) when its work changes them. General pages stay read-only. **New page** files a page under General or under a project section. Old `#/guides` and `#/models` addresses still open the matching guide.
+**Documents** (sidebar) is a wiki in the local database. **General** holds the shared guides (coding guidelines, engineering standards, UI guidelines, the model guide, the development cycle) and stays free of any one project's name. Each project has Overview, Architecture, Decisions, a Road map, Release notes, Setup, and a page for every task. The task page and the task stay linked: the spec, the developer's summary, and the review match on both. Agents see an index of those pages (title, section, first line, length) and open one with read_wiki or search_wiki. Overview, Architecture and Setup are also written out for the architect and the developer. Every agent working on that project can update the project pages (in chat, while planning a sprint, and during build, review, notes and security review) when its work changes them. General pages can be read and stay read-only. **New page** files a page under General or under a project section. Old `#/guides` and `#/models` addresses still open the matching guide.
 
 ## How a task runs
 
@@ -273,8 +278,8 @@ the limit is raised. Only finished calls count, so one running call can overshoo
 
 | Provider type | How the agent works |
 |---|---|
-| Claude Code CLI | `claude -p --output-format stream-json` in the worktree, with the agent's allowed tools (`Read`, `Edit`, `Bash(npm test:*)`, …). Uses the provider's key if set, else your Claude Code sign-in. Cost comes from the CLI. |
-| Anthropic / OpenAI-compatible / Ollama | Built-in tool loop: `list_files`, `read_file`, `search`, `write_file`, `edit_file`, `run_command`, then a final tool. See **Permissions** below. Cost = tokens × the model's price (Usage & billing → Model prices). |
+| Claude Code CLI | `claude -p --output-format stream-json` in the worktree, with the agent's allowed tools (`Read`, `Edit`, `Bash(npm test:*)`, …). Uses the provider's key if set, else your Claude Code sign-in. Cost comes from the CLI. The wiki in the prompt is the index plus the Overview page, because this engine has no read_wiki tool. |
+| Anthropic / OpenAI-compatible / Ollama | Built-in tool loop: `list_files`, `read_file`, `search`, `read_wiki`, `search_wiki`, `write_file`, `edit_file`, `write_wiki`, `run_command`, then a final tool. See **Permissions** below. Cost = tokens × the model's price (Usage & billing → Model prices). |
 
 Those API agents send **Max answer tokens** with each model call (the agent form, beside Thinking; default 32 000).
 That is the longest reply the model may write. A reasoning model spends it on thinking first. If thinking uses it all
