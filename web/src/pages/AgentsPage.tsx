@@ -146,6 +146,7 @@ function AgentForm({ agent, providers, teams, onClose, onSaved, onDuplicate }: {
     onSaved();
   };
 
+  const tokensInvalid = error === ANSWER_TOKENS_ERROR;
   const preview = lookFor(f.name || "new", look);
   return (
     <Modal title={agent.id ? `Edit ${agent.name}` : `New ${ROLE_INFO[f.role as Role].label.toLowerCase()}`} onClose={onClose} wide
@@ -169,7 +170,7 @@ function AgentForm({ agent, providers, teams, onClose, onSaved, onDuplicate }: {
           <Button variant="outline" size="sm" onClick={() => setLook({ ...look, hairStyle: ((preview.hairStyle ?? 0) + 1) % 4 })}>Change hairstyle</Button>
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
             <Field label="Name"><NoFillInput value={f.name ?? ""} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Aino" /></Field>
             <Field label="Type">
               <Choice value={String(f.role ?? "planner")} onValueChange={(v) => set("role", v)} options={(Object.keys(ROLE_INFO) as Role[]).map((r) => ({ value: r, label: ROLE_INFO[r].label }))} />
@@ -186,21 +187,20 @@ function AgentForm({ agent, providers, teams, onClose, onSaved, onDuplicate }: {
             <Field label="Thinking" hint={f.thinking === "off" ? "Answers right away: much faster on local models." : "Reasoning models (Qwen3, gpt-oss, DeepSeek-R1) think before each answer and can use up Max answer tokens before writing anything."}>
               <Choice value={f.thinking ?? ""} onValueChange={(v) => set("thinking", v)} options={[{ value: "", label: "Model default" }, { value: "off", label: "Off (or as little as the model allows)" }]} />
             </Field>
-            <Field label="Max answer tokens" invalid={error === ANSWER_TOKENS_ERROR} hint="Output limit for each model call, from 1024 to 128000. Reasoning models spend it on thinking before the answer.">
-              <Input
+            {/* Text, not a spinner: scrolling this dialog must not change the number. Not named like a secret, or password managers hide it. Same opt-out as the other free-text fields. */}
+            <Field label="Max answer tokens" className="min-w-0" invalid={tokensInvalid} hint={<>
+              Output limit for each model call, from {MIN_ANSWER_TOKENS} to {MAX_ANSWER_TOKENS}. Reasoning models spend it on thinking before the answer. It has no effect for Claude CLI agents.
+              {tokensInvalid && <span role="alert" className="mt-1 block text-destructive">{ANSWER_TOKENS_ERROR}</span>}
+            </>}>
+              <NoFillInput
                 ref={tokensRef}
-                type="number"
-                name="max_answer_tokens"
+                type="text"
                 inputMode="numeric"
-                autoComplete="off"
-                min={MIN_ANSWER_TOKENS}
-                max={MAX_ANSWER_TOKENS}
-                step={1}
-                aria-invalid={error === ANSWER_TOKENS_ERROR || undefined}
+                aria-invalid={tokensInvalid || undefined}
                 value={typeof f.max_answer_tokens === "number" && Number.isFinite(f.max_answer_tokens) ? f.max_answer_tokens : f.max_answer_tokens === undefined ? DEFAULT_ANSWER_TOKENS : ""}
                 onChange={(e) => {
-                  const raw = e.target.value;
-                  set("max_answer_tokens", raw === "" ? Number.NaN : Number(raw));
+                  const digits = e.target.value.replace(/\D/g, "");
+                  set("max_answer_tokens", digits === "" ? Number.NaN : Number(digits));
                   if (error === ANSWER_TOKENS_ERROR) setError("");
                 }}
               />
@@ -237,7 +237,7 @@ function AgentForm({ agent, providers, teams, onClose, onSaved, onDuplicate }: {
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={f.enabled !== 0} onCheckedChange={(v) => set("enabled", v === true ? 1 : 0)} /> Enabled (has a desk in the office and can take work)
           </label>
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && error !== ANSWER_TOKENS_ERROR && <p className="text-sm text-destructive" role="alert">{error}</p>}
         </div>
       </div>
     </Modal>
