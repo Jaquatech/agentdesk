@@ -227,6 +227,8 @@ The planner, and in a Scrum project the product manager, reads images when its m
 
 The limits above are the defaults. **Attachment handling** (sidebar, group **Platform settings**) sets them per file type: Markdown copy on or off, characters sent with the message, spreadsheet rows and columns, and image size. A change applies to files attached afterwards.
 
+Scanned PDFs and photos of documents have no text to copy. The **Reading scans** card on the same page stores which agent should read them and the page cap per file; reading scans is not switched on yet, so this only stores the choice.
+
 ## Scrum: backlog, sprints, release
 
 Set a project's **How work is run** to *Scrum* (Projects). The chat then talks to a product manager instead of a planner, and the

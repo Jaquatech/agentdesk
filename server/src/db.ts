@@ -466,6 +466,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   chat_history_messages: "16",
   // Agent that writes the three-line summary when a chat grows past the window. Empty = the planner.
   rollup_agent_id: "",
+  // Agent whose model should read scanned PDFs and photos. Empty = none. Reading is not built yet: only the choice is stored.
+  scan_reader_agent_id: "",
+  // Pages per scanned file that a future reader would take. Kept within 1–50 by PUT /api/settings.
+  scan_reader_max_pages: "10",
 };
 
 /** Last messages of a chat that go into a planner call. Empty or nonsense falls back to the default; outside 6–40 is clamped. */
