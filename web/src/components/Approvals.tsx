@@ -4,6 +4,7 @@ import { get, post, useLiveEvents, type Approval } from "../api.ts";
 import { go } from "../App.tsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { withoutApproval } from "../lib/approvalList.ts";
 
 /** Default rule for "Always allow": the command's first two words (e.g. "npm install"). */
 export function suggestPrefix(command: string) {
@@ -33,19 +34,22 @@ export function ApprovalsBar() {
   if (!pending.length) return null;
   return (
     <div className="flex max-h-[45vh] shrink-0 flex-col gap-px overflow-auto border-b bg-border">
-      {pending.map((a) => <ApprovalItem key={a.id} a={a} />)}
+      {pending.map((a) => <ApprovalItem key={a.id} a={a} onAnswered={(id) => setPending((list) => withoutApproval(list, id))} />)}
     </div>
   );
 }
 
-function ApprovalItem({ a }: { a: Approval }) {
+function ApprovalItem({ a, onAnswered }: { a: Approval; onAnswered: (id: Approval["id"]) => void }) {
   const [always, setAlways] = useState(false);
   const [prefix, setPrefix] = useState(suggestPrefix(a.request));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const answer = async (allow: boolean, keep = false) => {
     setBusy(true); setError("");
-    try { await post(`/api/approvals/${a.id}`, { allow, always: keep, prefix: keep ? prefix : undefined }); }
+    try {
+      await post(`/api/approvals/${a.id}`, { allow, always: keep, prefix: keep ? prefix : undefined });
+      onAnswered(a.id);
+    }
     catch (e) { setError((e as Error).message); setBusy(false); }
   };
   const onceOnly = hasShellOps(a.request);
@@ -64,7 +68,7 @@ function ApprovalItem({ a }: { a: Approval }) {
             <span className="text-xs text-muted-foreground">Always allow {a.agent} commands starting with</span>
             <Input className="w-64 font-mono" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
             <Button size="sm" disabled={busy || !prefix.trim()} onClick={() => answer(true, true)}>Save rule and run</Button>
-            <Button size="sm" variant="outline" onClick={() => setAlways(false)}>Cancel</Button>
+            <Button size="sm" variant="outline" onClick={() => { setAlways(false); setBusy(false); setError(""); }}>Cancel</Button>
           </div>
         )}
         {error && <div className="text-sm text-destructive">{error}</div>}
