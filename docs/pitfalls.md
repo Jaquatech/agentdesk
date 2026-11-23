@@ -34,6 +34,7 @@ Things that cost real debugging time. Read the ones that touch your change befor
 ## Forms
 
 - **A validation message at the bottom of a tall dialog is off screen.** Put it on the field. Focusing the input does not scroll a message at the end of the form into view.
+- **State that must survive navigation does not belong in component state of a page that `App.tsx` unmounts.** The shell renders a page only for the current route (`ChatPage` only while the route is a chat), so leaving the page drops `useState`. Keep that state in a module, and in `sessionStorage` when a refresh should keep it.
 
 ## Tests
 

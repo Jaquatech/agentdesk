@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- An unsent chat message stays in the box when you open another page, switch to Tasks or Office, or refresh the tab. Each chat keeps its own draft. Sending or clearing the box clears it. Coming back shows the messages straight away, and keeps your place in the list if you had scrolled up.
 - Each agent has a **Max answer tokens** setting next to Thinking (default 32 000, from 1024 to 128 000). Model calls use it instead of a fixed 8192. A model that rejects a higher limit is asked again with the limit it allows, and the task continues. When thinking uses the whole limit and there is no answer, the note names the agent's limit and suggests raising it or turning Thinking off. The hint under the field says the setting has no effect for Claude CLI agents. A value outside the range is explained under the field, including on a narrow window.
 - Every agent working on a project can update that project's wiki pages (Overview, Architecture, Road map, Setup, Decisions, Release notes), including the planner, product manager, architect, reviewer and security reviewer, and including Scrum chat, refinement, notes and security review. A section written as "Road map" or "Overview.md" still lands on the right page, and a write that does not is told back to the agent. General pages stay unchanged. The Claude CLI returns the same wiki list in its result. In the demo, the live sprint task updates the project's Overview page.
 

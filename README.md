@@ -197,6 +197,7 @@ chat message → planner (read-only) → tasks (proposed) → Run plan
   "Specialty: frontend"; otherwise the one with the fewest open tasks), and the team's reviewer reviews.
 - Who plans: the **Planner** selector in the chat header picks a planner for that chat (it applies to the next message).
   Without a pick, the project's planner (Projects form) answers, else the team's planner.
+- An unsent message stays in the box when you open another page, switch to Tasks or Office, or refresh the tab. Each chat keeps its own.
 - One task = one branch + one worktree under `data/worktrees/`; your own checkout is not touched while agents work.
 - One developer works on one task at a time; at most "Tasks running at the same time" run in parallel.
 - After the last fix round (Settings) a task stops as **needs attention**. **Retry**, **Stop** and **Discard
