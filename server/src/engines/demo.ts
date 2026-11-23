@@ -32,6 +32,11 @@ function attachedSentence(req: EngineRequest): string {
   return ` Attached: ${parts.join("; ")}.`;
 }
 
+/** One note per image listed in the prompt, as a model that was shown the images would write them. */
+function demoImageNotes(req: EngineRequest): { name: string; note: string }[] {
+  return [...req.prompt.matchAll(/^- (.+) \(image, shown below\)$/gm)].map((m) => ({ name: m[1], note: `Demo note: ${m[1]}` }));
+}
+
 /** The queued task of the active demo sprint. Other scripted tasks do not write the wiki. */
 export function demoLiveWiki(prompt: string): { title: string; section: string; body: string } | undefined {
   if (!prompt.startsWith("# Task:") || prompt.includes("# Round") || !prompt.includes("Dust Buddy: airlock dust alarm")) return undefined;
@@ -109,7 +114,7 @@ export class DemoEngine implements Engine {
         }
         const ask = ([...req.prompt.split("# Scrum state")[0].matchAll(/## Business owner\n([^\n]*)/g)].at(-1)?.[1] ?? "the request").trim();
         if (/\breview\b/i.test(ask)) return result("review", { reply: "Backlog review (demo): items look separable. Put the one that unblocks others first.", items: [] });
-        const out: Record<string, unknown> = { reply: `Noted (demo product manager): _${ask}_.${attachedSentence(req)} I added it to the backlog; the architect and a developer refine it next.`, items: [] };
+        const out: Record<string, unknown> = { reply: `Noted (demo product manager): _${ask}_.${attachedSentence(req)} I added it to the backlog; the architect and a developer refine it next.`, items: [], image_notes: demoImageNotes(req) };
         if (/\bpi\b/i.test(ask) && /create|new|start/i.test(ask)) out.pi = { name: "PI 1", goal: ask.slice(0, 120) };
         else if (/\bsprint\b/i.test(ask) && /create|new|plan/i.test(ask)) out.sprint = { name: "Sprint " + ask.slice(0, 30), goal: ask.slice(0, 120) };
         else out.items = [{ title: ask.slice(0, 60), story: `As a business owner I want: ${ask}`, acceptance: "- [ ] Works as described\n- [ ] Has a check" }];
@@ -164,6 +169,7 @@ export class DemoEngine implements Engine {
         const ask = /# Conversation[\s\S]*## User\n([^\n]*)/.exec(req.prompt)?.[1] ?? "the request";
         return result("plan", {
           reply: `Demo plan for: _${ask}_.${attachedSentence(req)} Two small tasks; each runs in its own branch and goes through checks and review.`,
+          image_notes: demoImageNotes(req),
           tasks: [
             { slug: "demo-notes", title: "Write the design notes", spec: "## Goal\nAdd `demo/notes.md` describing the change.\n## Tests\nFile exists.", paths: ["demo/"] },
             { slug: "demo-changelog", title: "Add a changelog entry", spec: "## Goal\nAdd `demo/changelog.md`.\n## Tests\nFile exists.", paths: ["demo/"] },

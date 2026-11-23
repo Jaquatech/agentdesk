@@ -155,6 +155,7 @@ Answer briefly. Use the business owner's words.`;
         this.orch.postMessage(chatId, "event", `Product manager ${pm.name} failed: ${r.error ?? "no answer returned"}`, pm.id);
         return;
       }
+      this.orch.recordImageNotes(chatId, (r.output as { image_notes?: unknown } | undefined)?.image_notes);
       const out = r.output as { reply?: unknown; items?: Record<string, unknown>[]; pi?: Record<string, unknown>; sprint?: Record<string, unknown> };
       const made: string[] = [];
       if (out.pi?.name) { const pi = this.createPi(project.id, String(out.pi.name), String(out.pi.goal ?? "")); made.push(`PI **${pi.name}**`); }

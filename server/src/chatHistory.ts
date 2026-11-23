@@ -12,9 +12,9 @@ export function recentTurns(db: DB, chatId: number, limit: number): ChatTurn[] {
     .all(chatId, limit) as { id: number; role: string; content: string }[]).reverse();
   if (!turns.length) return [];
   const ids = turns.map((t) => t.id);
-  const files = db.prepare(`SELECT id, message_id, name, size, path, status FROM attachments
+  const files = db.prepare(`SELECT id, message_id, name, size, path, status, image_note FROM attachments
     WHERE message_id IN (${ids.map(() => "?").join(",")}) ORDER BY id`)
-    .all(...ids) as { id: number; message_id: number; name: string; size: number; path: string; status: string }[];
+    .all(...ids) as { id: number; message_id: number; name: string; size: number; path: string; status: string; image_note: string }[];
   const byMessage = new Map<number, typeof files>();
   for (const f of files) {
     const list = byMessage.get(f.message_id) ?? [];

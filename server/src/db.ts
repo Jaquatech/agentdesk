@@ -416,6 +416,8 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE attachments ADD COLUMN status TEXT NOT NULL DEFAULT '';
   `,
+  // One line about an image, written by the agent that was shown it. Later prompts use it instead of the image.
+  `ALTER TABLE attachments ADD COLUMN image_note TEXT NOT NULL DEFAULT '';`,
 ];
 
 export function openDb(file: string): DB {
