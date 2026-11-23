@@ -163,7 +163,7 @@ export class DemoEngine implements Engine {
         await wait(1200);
         const ask = /# Conversation[\s\S]*## User\n([^\n]*)/.exec(req.prompt)?.[1] ?? "the request";
         return result("plan", {
-          reply: `Demo plan for: _${ask}_. Two small tasks; each runs in its own branch and goes through checks and review.`,
+          reply: `Demo plan for: _${ask}_.${attachedSentence(req)} Two small tasks; each runs in its own branch and goes through checks and review.`,
           tasks: [
             { slug: "demo-notes", title: "Write the design notes", spec: "## Goal\nAdd `demo/notes.md` describing the change.\n## Tests\nFile exists.", paths: ["demo/"] },
             { slug: "demo-changelog", title: "Add a changelog entry", spec: "## Goal\nAdd `demo/changelog.md`.\n## Tests\nFile exists.", paths: ["demo/"] },

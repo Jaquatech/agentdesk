@@ -1,11 +1,16 @@
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, extname, join } from "node:path";
+import mammoth from "mammoth";
+import { NodeHtmlMarkdown } from "node-html-markdown";
+import readXlsxFile from "read-excel-file/node";
+import { extractText, getDocumentProxy } from "unpdf";
 import type { DB } from "./db.ts";
 
 /**
  * A Markdown copy of a chat attachment, written once next to the original.
- * The original bytes are never changed. Excel, Word and PDF are not copied here:
- * that waits on a library the owner has not approved yet.
+ * The original bytes are never changed. Text is copied here. Excel, Word and PDF
+ * use the libraries pinned in the server package (read-excel-file, mammoth,
+ * node-html-markdown, unpdf). Old .xls and .doc files are left named only.
  */
 
 /** One part is about this many characters. A part ends on a newline when one sits near the end. */
@@ -14,12 +19,20 @@ export const PART_CHARS = 20_000;
 const TEXT_EXT = new Set([".txt", ".md", ".json", ".xml", ".xsl", ".xslt", ".csv", ".tsv", ".log", ".yaml", ".yml", ".ini", ".toml",
   ".html", ".htm", ".css", ".js", ".ts", ".tsx", ".jsx", ".py", ".cs", ".java", ".sql", ".ps1", ".sh", ".bat", ".cmd", ".config"]);
 
-export type TextKind = "csv" | "tsv" | "copy" | "";
+/** Rows kept per sheet, including the header. Further rows are counted in the cut line. */
+export const SHEET_ROW_CAP = 200;
+/** Columns kept per sheet. Further columns are counted in the cut line. */
+export const SHEET_COL_CAP = 20;
 
-/** csv and tsv get a column header. copy is the text as it is. Empty means this upload is not copied. */
+export type TextKind = "csv" | "tsv" | "copy" | "xlsx" | "docx" | "pdf" | "";
+
+/** csv and tsv get a column header. copy is the text as it is. xlsx, docx and pdf use a library. Empty means this upload is not copied. */
 export function textKind(name: string, mime: string): TextKind {
   const ext = extname(name).toLowerCase();
   const m = mime.toLowerCase();
+  if (ext === ".xlsx" || m === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") return "xlsx";
+  if (ext === ".docx" || m === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "docx";
+  if (ext === ".pdf" || m === "application/pdf") return "pdf";
   if (ext === ".csv" || m === "text/csv" || m === "application/csv") return "csv";
   if (ext === ".tsv" || m === "text/tab-separated-values" || m === "text/tsv") return "tsv";
   if (m.startsWith("text/") || m === "application/json" || m === "application/xml" || m === "text/xml" || TEXT_EXT.has(ext)) return "copy";
@@ -29,7 +42,7 @@ export function textKind(name: string, mime: string): TextKind {
 export type Conversion = { status: string; markdown: string | null };
 
 function failed(reason: string): Conversion {
-  const clean = reason.replace(/\s+/g, " ").trim().slice(0, 160) || "could not be read";
+  const clean = reason.replace(/\s+/g, " ").replace(/https?:\/\/\S+/g, "").replace(/^Error:\s*/, "").trim().replace(/[.:\s]+$/, "").slice(0, 160) || "could not be read";
   return { status: `failed: ${clean}`, markdown: null };
 }
 
@@ -74,19 +87,100 @@ function tableHeader(text: string, delimiter: string): string {
   return `Columns: ${columns.join(", ") || "(none)"}\nRows: ${dataRows} (not counting the header)\n\n`;
 }
 
-/**
- * Markdown for a text upload, or null when this type is not copied (images, PDF, Word, Excel).
- * status is `converted` or `failed: reason`. `truncated` is reserved for the capped spreadsheet copy.
- */
-export function convertUpload(name: string, mime: string, bytes: Buffer): Conversion | null {
-  const kind = textKind(name, mime);
-  if (!kind) return null;
+function convertText(kind: "csv" | "tsv" | "copy", bytes: Buffer): Conversion {
   let text: string;
   try { text = decodeUtf8(bytes); }
   catch { return failed("not valid UTF-8"); }
+  const header = kind === "csv" ? tableHeader(text, ",") : kind === "tsv" ? tableHeader(text, "\t") : "";
+  return { status: "converted", markdown: header + text };
+}
+
+type Cell = string | number | boolean | Date | null;
+export type SheetRows = { name: string; rows: Cell[][] };
+
+function cellText(value: Cell | undefined): string {
+  if (value == null) return "";
+  const raw = value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString().slice(0, 10) : String(value);
+  return raw.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim();
+}
+
+function cutLine(rows: number, cols: number): string {
+  const bits = [
+    rows ? `${rows} ${rows === 1 ? "row" : "rows"}` : "",
+    cols ? `${cols} ${cols === 1 ? "column" : "columns"}` : "",
+  ].filter(Boolean);
+  return bits.length ? `Cut ${bits.join(" and ")}.` : "";
+}
+
+/** One Markdown table per sheet. Rows and columns past the caps are counted, not included. */
+export function sheetsToMarkdown(sheets: SheetRows[]): Conversion {
+  if (!sheets.length) return { status: "converted", markdown: "(empty workbook)" };
+  let cut = false;
+  const parts = sheets.map((sheet) => {
+    const width = sheet.rows.reduce((max, row) => Math.max(max, row.length), 0);
+    const cutRows = Math.max(0, sheet.rows.length - SHEET_ROW_CAP);
+    const cutCols = Math.max(0, width - SHEET_COL_CAP);
+    if (cutRows || cutCols) cut = true;
+    const kept = sheet.rows.slice(0, SHEET_ROW_CAP).map((row) => row.slice(0, SHEET_COL_CAP));
+    const name = sheet.name.replace(/\s+/g, " ").trim() || "Sheet";
+    let body: string;
+    if (!kept.length) body = "(empty sheet)";
+    else {
+      const cols = Math.max(1, ...kept.map((row) => row.length));
+      const line = (row: Cell[]) => `| ${Array.from({ length: cols }, (_, i) => cellText(row[i])).join(" | ")} |`;
+      body = [line(kept[0]), `| ${Array.from({ length: cols }, () => "---").join(" | ")} |`, ...kept.slice(1).map(line)].join("\n");
+    }
+    const note = cutLine(cutRows, cutCols);
+    return `## ${name}\n\n${body}${note ? `\n\n${note}` : ""}`;
+  });
+  return { status: cut ? "truncated" : "converted", markdown: parts.join("\n\n") };
+}
+
+async function convertXlsx(bytes: Buffer): Promise<Conversion> {
+  const sheets = await readXlsxFile(bytes);
+  return sheetsToMarkdown(sheets.map((sheet) => ({ name: sheet.sheet, rows: sheet.data })));
+}
+
+const htmlToMarkdown = new NodeHtmlMarkdown();
+
+async function convertDocx(bytes: Buffer): Promise<Conversion> {
+  const html = await mammoth.convertToHtml({ buffer: bytes }, {
+    convertImage: mammoth.images.imgElement(() => Promise.resolve({ src: "" })),
+  });
+  const markdown = htmlToMarkdown.translate(html.value).trim();
+  return { status: "converted", markdown: markdown || "(empty document)" };
+}
+
+/** A page of only whitespace is not a text layer. An image-only file is needs_ocr, and nothing is guessed. */
+export function pdfPagesToMarkdown(pages: string[]): Conversion {
+  const hasText = pages.some((page) => page.replace(/\s+/g, "").length > 0);
+  if (!pages.length || !hasText) return { status: "needs_ocr", markdown: null };
+  const markdown = pages.map((page, i) => {
+    const text = page.trim();
+    return `## Page ${i + 1}\n\n${text || "(no text on this page)"}`;
+  }).join("\n\n");
+  return { status: "converted", markdown };
+}
+
+async function convertPdf(bytes: Buffer): Promise<Conversion> {
+  const pdf = await getDocumentProxy(new Uint8Array(bytes));
+  const { text } = await extractText(pdf, { mergePages: false });
+  const pages = Array.isArray(text) ? text : [text];
+  return pdfPagesToMarkdown(pages);
+}
+
+/**
+ * Markdown for an upload, or null when this type is not copied (images, old .xls, old .doc).
+ * status is `converted`, `truncated`, `failed: reason`, or `needs_ocr`.
+ */
+export async function convertUpload(name: string, mime: string, bytes: Buffer): Promise<Conversion | null> {
+  const kind = textKind(name, mime);
+  if (!kind) return null;
   try {
-    const header = kind === "csv" ? tableHeader(text, ",") : kind === "tsv" ? tableHeader(text, "\t") : "";
-    return { status: "converted", markdown: header + text };
+    if (kind === "csv" || kind === "tsv" || kind === "copy") return convertText(kind, bytes);
+    if (kind === "xlsx") return await convertXlsx(bytes);
+    if (kind === "docx") return await convertDocx(bytes);
+    return await convertPdf(bytes);
   } catch (err) {
     return failed(String((err as Error).message ?? err));
   }

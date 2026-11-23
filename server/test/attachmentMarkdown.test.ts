@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { buildApp } from "../src/index.ts";
 import { engineOverride } from "../src/providers/index.ts";
-import { convertUpload, formatPart, splitParts, PART_CHARS, readChatAttachment } from "../src/attachmentMarkdown.ts";
+import { convertUpload, formatPart, sheetsToMarkdown, splitParts, PART_CHARS, SHEET_COL_CAP, SHEET_ROW_CAP, readChatAttachment } from "../src/attachmentMarkdown.ts";
 import { runTool } from "../src/engines/tools.ts";
 import { DemoEngine } from "../src/engines/demo.ts";
 import type { EngineRequest, EngineResult } from "../src/engines/types.ts";
@@ -18,15 +18,15 @@ const ok = (summary: string, output?: Record<string, unknown>): EngineResult =>
   ({ ok: true, summary, output, turns: 1, costUsd: 0, tokensIn: 10, cacheRead: 0, cacheWrite: 0, tokensOut: 5, seconds: 0 });
 
 describe("text attachments become Markdown", () => {
-  it("copies each text type, and adds columns and a row count for CSV and TSV", () => {
-    const csv = convertUpload("sample.csv", "text/csv", fixture("sample.csv"));
+  it("copies each text type, and adds columns and a row count for CSV and TSV", async () => {
+    const csv = await convertUpload("sample.csv", "text/csv", fixture("sample.csv"));
     expect(csv?.status).toBe("converted");
     expect(csv?.markdown?.startsWith("Columns: name, qty, note\nRows: 2 (not counting the header)\n\n")).toBe(true);
     expect(csv?.markdown).toContain("hello, world");
     const csvBody = csv?.markdown?.slice(csv.markdown.indexOf("name,qty")) ?? "";
     expect(Buffer.from(csvBody).equals(fixture("sample.csv"))).toBe(true);
 
-    const tsv = convertUpload("sample.tsv", "text/tab-separated-values", fixture("sample.tsv"));
+    const tsv = await convertUpload("sample.tsv", "text/tab-separated-values", fixture("sample.tsv"));
     expect(tsv?.status).toBe("converted");
     expect(tsv?.markdown).toContain("Columns: name, qty");
     expect(tsv?.markdown).toContain("Rows: 2 (not counting the header)");
@@ -38,24 +38,72 @@ describe("text attachments become Markdown", () => {
       ["sample.json", "application/json"],
       ["sample.xml", "application/xml"],
     ] as const) {
-      const out = convertUpload(name, mime, fixture(name));
+      const out = await convertUpload(name, mime, fixture(name));
       expect(out?.status, name).toBe("converted");
       expect(out?.markdown, name).toBe(fixture(name).toString("utf8"));
       expect(out?.markdown, name).not.toContain("Columns:");
     }
     // *.log is gitignored, so this one is written in the test rather than stored as a fixture.
-    const log = convertUpload("app.log", "text/plain", Buffer.from("ERROR at line 3\n"));
+    const log = await convertUpload("app.log", "text/plain", Buffer.from("ERROR at line 3\n"));
     expect(log).toEqual({ status: "converted", markdown: "ERROR at line 3\n" });
 
     // Source files were already treated as text. They stay a plain copy, with no table header.
-    const py = convertUpload("main.py", "text/x-python", Buffer.from("print(1)\n"));
+    const py = await convertUpload("main.py", "text/x-python", Buffer.from("print(1)\n"));
     expect(py).toEqual({ status: "converted", markdown: "print(1)\n" });
-    expect(convertUpload("book.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Buffer.from("PK"))).toBeNull();
+    // Old binary Excel is not the xlsx reader. It stays unconverted.
+    expect(await convertUpload("legacy.xls", "application/vnd.ms-excel", Buffer.from("not xlsx"))).toBeNull();
   });
 
-  it("reports a broken file as failed and does not invent a copy", () => {
-    const broken = convertUpload("notes.txt", "text/plain", Buffer.from([0xff, 0xfe, 0xfd]));
+  it("turns a workbook into one table per sheet and says what was cut", async () => {
+    const book = await convertUpload("sample.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fixture("sample.xlsx"));
+    expect(book?.status).toBe("converted");
+    expect(book?.markdown).toContain("## Prices");
+    expect(book?.markdown).toContain("copper-wire");
+    expect(book?.markdown).toContain("17");
+    expect(book?.markdown).toContain("## Notes");
+    const wide = Array.from({ length: SHEET_COL_CAP + 2 }, (_, i) => `c${i}`);
+    const rows = [["h"], ...Array.from({ length: SHEET_ROW_CAP - 1 }, () => ["kept"]), ["CUT-ME"]];
+    const cut = sheetsToMarkdown([{ name: "Big", rows }, { name: "Wide", rows: [wide] }]);
+    expect(cut.status).toBe("truncated");
+    expect(cut.markdown).toContain("Cut 1 row.");
+    expect(cut.markdown).toContain("Cut 2 columns.");
+    expect(cut.markdown).not.toContain("CUT-ME");
+    expect(cut.markdown).not.toContain("c21");
+  });
+
+  it("turns a Word file into headings, paragraphs, lists and tables", async () => {
+    const doc = await convertUpload("sample.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fixture("sample.docx"));
+    expect(doc?.status).toBe("converted");
+    expect(doc?.markdown).toContain("# Gasket");
+    expect(doc?.markdown).toContain("The gasket code is K-19.");
+    expect(doc?.markdown).toMatch(/\* seal/);
+    expect(doc?.markdown).toContain("stock");
+    expect(doc?.markdown).toContain("K-19");
+  });
+
+  it("keeps PDF text per page, and marks a page with no text as needing a scan", async () => {
+    const pdf = await convertUpload("sample.pdf", "application/pdf", fixture("sample.pdf"));
+    expect(pdf?.status).toBe("converted");
+    expect(pdf?.markdown).toContain("## Page 1");
+    expect(pdf?.markdown).toContain("threshold 42");
+    expect(pdf?.markdown).toContain("## Page 2");
+    expect(pdf?.markdown).toContain("page two spare");
+    const scan = await convertUpload("scan.pdf", "application/pdf", fixture("scan.pdf"));
+    expect(scan).toEqual({ status: "needs_ocr", markdown: null });
+  });
+
+  it("reports a broken file as failed and does not invent a copy", async () => {
+    const broken = await convertUpload("notes.txt", "text/plain", Buffer.from([0xff, 0xfe, 0xfd]));
     expect(broken).toEqual({ status: "failed: not valid UTF-8", markdown: null });
+    const badXlsx = await convertUpload("bad.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Buffer.from("this is not a real file"));
+    const badDocx = await convertUpload("bad.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Buffer.from("this is not a real file"));
+    const badPdf = await convertUpload("bad.pdf", "application/pdf", Buffer.from("this is not a real file"));
+    for (const result of [badXlsx, badDocx, badPdf]) {
+      expect(result?.status.startsWith("failed: ")).toBe(true);
+      expect(result?.markdown).toBeNull();
+    }
+    expect(badXlsx?.status).not.toMatch(/https?:/);
+    expect(badDocx?.status).not.toMatch(/https?:/);
   });
 
   it("returns every part once", () => {
@@ -156,6 +204,37 @@ describe("attachment markdown in a chat", () => {
     expect(message.attachments.find((a: { name: string }) => a.name === "sample.csv").status).toBe("converted");
     expect(message.attachments.find((a: { name: string }) => a.name === "broken.txt").status).toBe("failed: not valid UTF-8");
     expect(message.attachments.find((a: { name: string }) => a.name === "broken.txt").note).toContain("not valid UTF-8");
+  });
+
+  it("still sends the message when an Excel, Word or PDF file cannot be read", async () => {
+    const project = await call("POST", "/api/projects", { name: "office", source: "local", path: repo });
+    const chat = await call("POST", "/api/chats", { project_id: project.id });
+    const xlsx = await upload(chat.id, "sample.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fixture("sample.xlsx"));
+    const docx = await upload(chat.id, "sample.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fixture("sample.docx"));
+    const pdf = await upload(chat.id, "sample.pdf", "application/pdf", fixture("sample.pdf"));
+    const scan = await upload(chat.id, "scan.pdf", "application/pdf", fixture("scan.pdf"));
+    const junk = await upload(chat.id, "broken.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Buffer.from("this is not a real file"));
+    expect(xlsx.status).toBe("converted");
+    expect(docx.status).toBe("converted");
+    expect(pdf.status).toBe("converted");
+    expect(scan.status).toBe("needs_ocr");
+    expect(junk.status.startsWith("failed: ")).toBe(true);
+    ctx.orch.start();
+    await call("POST", `/api/chats/${chat.id}/messages`, { content: "quote the files", attachment_ids: [xlsx.id, docx.id, pdf.id, scan.id, junk.id] });
+    const req = await waitFor(() => seen);
+    const quoted = req.attachments?.texts.map((t) => t.content).join("\n") ?? "";
+    expect(quoted).toContain("copper-wire");
+    expect(quoted).toContain("K-19");
+    expect(quoted).toContain("threshold 42");
+    expect(quoted).toContain("page two spare");
+    expect(req.attachments?.skipped.join("\n")).toContain("no text layer");
+    expect(req.attachments?.skipped.join("\n")).toContain("broken.xlsx");
+    const view = await call("GET", `/api/chats/${chat.id}`);
+    const message = view.messages.find((m: { role: string }) => m.role === "user");
+    expect(message.content).toBe("quote the files");
+    expect(message.attachments.find((a: { name: string }) => a.name === "scan.pdf").status).toBe("needs_ocr");
+    expect(message.attachments.find((a: { name: string }) => a.name === "scan.pdf").note).toBe("scan.pdf not sent: no text layer");
+    expect(message.attachments.find((a: { name: string }) => a.name === "broken.xlsx").status.startsWith("failed: ")).toBe(true);
   });
 
   it("pages a long copy, refuses another chat's file and a path, and clearing removes the copies", async () => {

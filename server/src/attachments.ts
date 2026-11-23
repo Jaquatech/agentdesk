@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import type { DB } from "./db.ts";
-import { convertUpload, markdownPath, splitParts, textKind } from "./attachmentMarkdown.ts";
+import { convertUpload, markdownPath, splitParts } from "./attachmentMarkdown.ts";
 
 /**
  * Files the user pastes or drops into a chat (screenshots, logs, specs). Stored on this machine under
@@ -74,11 +74,12 @@ const kindOf = (a: { mime: string; name: string }) => {
 };
 
 /** Short line under the chat message. The model gets the longer `skipped` string. */
-function unsentNote(a: AttachmentRow, why: "missing" | "vision" | "image-size" | "failed" | "type"): string {
+function unsentNote(a: AttachmentRow, why: "missing" | "vision" | "image-size" | "failed" | "ocr" | "type"): string {
   if (why === "missing") return `${a.name} not sent: removed from the cache`;
   if (why === "vision") return `${extname(a.name).replace(/^\./, "").toUpperCase() || "Image"} not sent: this model cannot read images`;
   if (why === "image-size") return `${a.name} not sent: larger than 5 MB`;
   if (why === "failed") return `${a.name} not sent: ${(a.status ?? "").replace(/^failed:\s*/, "") || "could not be read"}`;
+  if (why === "ocr") return `${a.name} not sent: no text layer`;
   const kind = kindOf(a);
   return kind ? `${a.name} not sent: ${kind} files are named only` : `${a.name} not sent: this file type is named only`;
 }
@@ -86,7 +87,7 @@ function unsentNote(a: AttachmentRow, why: "missing" | "vision" | "image-size" |
 /** `vision: false` = the model cannot read images: they are named, not sent. */
 export function loadForPrompt(rows: AttachmentRow[], opts: { vision?: boolean | null; model?: string } = {}): PromptAttachments {
   const out: PromptAttachments = { images: [], texts: [], skipped: [], paths: [], readPaths: [], notes: [] };
-  const skip = (a: AttachmentRow, line: string, why: "missing" | "vision" | "image-size" | "failed" | "type") => {
+  const skip = (a: AttachmentRow, line: string, why: "missing" | "vision" | "image-size" | "failed" | "ocr" | "type") => {
     out.skipped.push(line);
     out.notes.push({ id: a.id, text: unsentNote(a, why) });
   };
@@ -97,6 +98,8 @@ export function loadForPrompt(rows: AttachmentRow[], opts: { vision?: boolean | 
     const md = markdownPath(a);
     if (status.startsWith("failed:")) {
       skip(a, `${a.name} (${status.replace(/^failed:\s*/, "")}: not sent to the model)`, "failed");
+    } else if (status === "needs_ocr") {
+      skip(a, `${a.name} (no text layer: not sent to the model)`, "ocr");
     } else if ((status === "converted" || status === "truncated") && existsSync(md)) {
       const text = readFileSync(md, "utf8");
       const parts = splitParts(text);
@@ -158,8 +161,8 @@ export function registerAttachments(app: FastifyInstance, db: DB, dataDir: strin
     const id = Number(info.lastInsertRowid);
     const path = join(dir, `${id}-${name}`);
     writeFileSync(path, body);
-    // The original stays as uploaded. A text file also gets <id>.md; a failure is recorded and the message can still be sent.
-    const conv = textKind(name, mime) ? convertUpload(name, mime, body) : null;
+    // The original stays as uploaded. A copy is written beside it; a failure is recorded and the message can still be sent.
+    const conv = await convertUpload(name, mime, body);
     const status = conv?.status ?? "";
     if (conv?.markdown != null) writeFileSync(markdownPath({ id, path }), conv.markdown, "utf8");
     db.prepare("UPDATE attachments SET path = ?, status = ? WHERE id = ?").run(path, status, id);
