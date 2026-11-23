@@ -27,8 +27,8 @@ export function AttachmentsPage() {
 
   if (!payload || !rules) {
     return (
-      <Page title="Attachment handling">
-        {error ? <p className="text-sm text-destructive">{error}</p> : <Skeleton className="h-40 w-full" />}
+      <Page title="Attachment handling" width="wide">
+        {error ?<p className="text-sm text-destructive">{error}</p> : <Skeleton className="h-40 w-full" />}
       </Page>
     );
   }
@@ -65,12 +65,13 @@ export function AttachmentsPage() {
   };
 
   return (
-    <Page title="Attachment handling">
+    <Page title="Attachment handling" width="wide">
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <p className="text-sm text-muted-foreground">
         Limits for attached files, per file type. They apply to files you attach after saving; files already attached keep their copy. Smaller limits cost fewer tokens.
       </p>
 
+      <div className="grid items-start gap-4 lg:grid-cols-2">
       {KIND_ORDER.map((kind) => {
         const rule = rules[kind];
         return (
@@ -85,7 +86,7 @@ export function AttachmentsPage() {
                 {KIND_INFO[kind].enabledLabel}
               </label>
               {payload.fields[kind].length > 0 && (
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4">
                   {payload.fields[kind].map((field) => {
                     const key = `${kind}.${field}`;
                     return (
@@ -114,6 +115,7 @@ export function AttachmentsPage() {
           </Card>
         );
       })}
+      </div>
     </Page>
   );
 }
