@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
-import type { DB } from "./db.ts";
-import { convertUpload, markdownPath, splitParts } from "./attachmentMarkdown.ts";
+import { getSettings, type DB } from "./db.ts";
+import { convertUpload, markdownPath, partSizeFor, splitParts } from "./attachmentMarkdown.ts";
+import { DEFAULT_RULES, parseRules, type AttachmentRules } from "./attachmentRules.ts";
 
 /**
  * Files the user pastes or drops into a chat (screenshots, logs, specs). Stored on this machine under
@@ -12,8 +13,6 @@ import { convertUpload, markdownPath, splitParts } from "./attachmentMarkdown.ts
 
 export const MAX_BYTES = 15 * 1024 * 1024;
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
-/** Images up to this size go to the model (Anthropic's per-image limit is 5 MB). */
-const MAX_IMAGE_TO_MODEL = 5 * 1024 * 1024;
 
 export type AttachmentRow = {
   id: number; chat_id: number; message_id: number | null; name: string; mime: string; size: number; path: string; created_at: string;
@@ -74,22 +73,24 @@ const kindOf = (a: { mime: string; name: string }) => {
 };
 
 /** Short line under the chat message. The model gets the longer `skipped` string. */
-function unsentNote(a: AttachmentRow, why: "missing" | "vision" | "image-size" | "failed" | "ocr" | "type"): string {
+function unsentNote(a: AttachmentRow, why: "missing" | "vision" | "image-size" | "failed" | "ocr" | "type", maxMb = 5): string {
   if (why === "missing") return `${a.name} not sent: removed from the cache`;
   if (why === "vision") return `${extname(a.name).replace(/^\./, "").toUpperCase() || "Image"} not sent: this model cannot read images`;
-  if (why === "image-size") return `${a.name} not sent: larger than 5 MB`;
+  if (why === "image-size") return `${a.name} not sent: larger than ${maxMb} MB`;
   if (why === "failed") return `${a.name} not sent: ${(a.status ?? "").replace(/^failed:\s*/, "") || "could not be read"}`;
   if (why === "ocr") return `${a.name} not sent: no text layer`;
   const kind = kindOf(a);
   return kind ? `${a.name} not sent: ${kind} files are named only` : `${a.name} not sent: this file type is named only`;
 }
 
-/** `vision: false` = the model cannot read images: they are named, not sent. */
-export function loadForPrompt(rows: AttachmentRow[], opts: { vision?: boolean | null; model?: string } = {}): PromptAttachments {
+/** `vision: false` = the model cannot read images: they are named, not sent. `rules` default to the built-in limits. */
+export function loadForPrompt(rows: AttachmentRow[], opts: { vision?: boolean | null; model?: string; rules?: AttachmentRules } = {}): PromptAttachments {
+  const rules = opts.rules ?? DEFAULT_RULES;
+  const maxMb = rules.image.maxMb ?? 5;
   const out: PromptAttachments = { images: [], texts: [], skipped: [], paths: [], readPaths: [], notes: [] };
   const skip = (a: AttachmentRow, line: string, why: "missing" | "vision" | "image-size" | "failed" | "ocr" | "type") => {
     out.skipped.push(line);
-    out.notes.push({ id: a.id, text: unsentNote(a, why) });
+    out.notes.push({ id: a.id, text: unsentNote(a, why, maxMb) });
   };
   for (const a of rows) {
     if (!existsSync(a.path)) { skip(a, `${a.name} (removed from the cache)`, "missing"); continue; }
@@ -102,12 +103,14 @@ export function loadForPrompt(rows: AttachmentRow[], opts: { vision?: boolean | 
       skip(a, `${a.name} (no text layer: not sent to the model)`, "ocr");
     } else if ((status === "converted" || status === "truncated") && existsSync(md)) {
       const text = readFileSync(md, "utf8");
-      const parts = splitParts(text);
+      const parts = splitParts(text, partSizeFor(a.name, rules));
       out.texts.push({ name: a.name, content: parts[0] ?? "", part: 1, parts: parts.length });
       out.readPaths.push(md);
+    } else if (IMAGE_TYPES.has(a.mime) && !rules.image.enabled) {
+      skip(a, `${a.name} (images are turned off in Attachment handling: not sent to the model)`, "type");
     } else if (IMAGE_TYPES.has(a.mime) && opts.vision === false) {
       skip(a, `${a.name} (image: ${opts.model || "this model"} cannot read images, so it was not sent)`, "vision");
-    } else if (IMAGE_TYPES.has(a.mime) && a.size <= MAX_IMAGE_TO_MODEL) {
+    } else if (IMAGE_TYPES.has(a.mime) && a.size <= maxMb * 1024 * 1024) {
       out.images.push({ name: a.name, mime: a.mime, base64: readFileSync(a.path).toString("base64") });
       out.readPaths.push(a.path);
     } else if (IMAGE_TYPES.has(a.mime)) {
@@ -162,7 +165,7 @@ export function registerAttachments(app: FastifyInstance, db: DB, dataDir: strin
     const path = join(dir, `${id}-${name}`);
     writeFileSync(path, body);
     // The original stays as uploaded. A copy is written beside it; a failure is recorded and the message can still be sent.
-    const conv = await convertUpload(name, mime, body);
+    const conv = await convertUpload(name, mime, body, parseRules(getSettings(db).attachment_rules));
     const status = conv?.status ?? "";
     if (conv?.markdown != null) writeFileSync(markdownPath({ id, path }), conv.markdown, "utf8");
     db.prepare("UPDATE attachments SET path = ?, status = ? WHERE id = ?").run(path, status, id);

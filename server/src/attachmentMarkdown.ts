@@ -4,7 +4,8 @@ import mammoth from "mammoth";
 import { NodeHtmlMarkdown } from "node-html-markdown";
 import readXlsxFile from "read-excel-file/node";
 import { extractText, getDocumentProxy } from "unpdf";
-import type { DB } from "./db.ts";
+import { getSettings, type DB } from "./db.ts";
+import { DEFAULT_RULES, parseRules, ruleKindFor, type AttachmentRules } from "./attachmentRules.ts";
 
 /**
  * A Markdown copy of a chat attachment, written once next to the original.
@@ -113,15 +114,18 @@ function cutLine(rows: number, cols: number): string {
 }
 
 /** One Markdown table per sheet. Rows and columns past the caps are counted, not included. */
-export function sheetsToMarkdown(sheets: SheetRows[]): Conversion {
+export function sheetsToMarkdown(
+  sheets: SheetRows[],
+  caps: { maxRows: number; maxCols: number } = { maxRows: SHEET_ROW_CAP, maxCols: SHEET_COL_CAP },
+): Conversion {
   if (!sheets.length) return { status: "converted", markdown: "(empty workbook)" };
   let cut = false;
   const parts = sheets.map((sheet) => {
     const width = sheet.rows.reduce((max, row) => Math.max(max, row.length), 0);
-    const cutRows = Math.max(0, sheet.rows.length - SHEET_ROW_CAP);
-    const cutCols = Math.max(0, width - SHEET_COL_CAP);
+    const cutRows = Math.max(0, sheet.rows.length - caps.maxRows);
+    const cutCols = Math.max(0, width - caps.maxCols);
     if (cutRows || cutCols) cut = true;
-    const kept = sheet.rows.slice(0, SHEET_ROW_CAP).map((row) => row.slice(0, SHEET_COL_CAP));
+    const kept = sheet.rows.slice(0, caps.maxRows).map((row) => row.slice(0, caps.maxCols));
     const name = sheet.name.replace(/\s+/g, " ").trim() || "Sheet";
     let body: string;
     if (!kept.length) body = "(empty sheet)";
@@ -136,9 +140,9 @@ export function sheetsToMarkdown(sheets: SheetRows[]): Conversion {
   return { status: cut ? "truncated" : "converted", markdown: parts.join("\n\n") };
 }
 
-async function convertXlsx(bytes: Buffer): Promise<Conversion> {
+async function convertXlsx(bytes: Buffer, caps: { maxRows: number; maxCols: number }): Promise<Conversion> {
   const sheets = await readXlsxFile(bytes);
-  return sheetsToMarkdown(sheets.map((sheet) => ({ name: sheet.sheet, rows: sheet.data })));
+  return sheetsToMarkdown(sheets.map((sheet) => ({ name: sheet.sheet, rows: sheet.data })), caps);
 }
 
 const htmlToMarkdown = new NodeHtmlMarkdown();
@@ -170,15 +174,22 @@ async function convertPdf(bytes: Buffer): Promise<Conversion> {
 }
 
 /**
- * Markdown for an upload, or null when this type is not copied (images, old .xls, old .doc).
- * status is `converted`, `truncated`, `failed: reason`, or `needs_ocr`.
+ * Markdown for an upload, or null when this type is not copied (images, old .xls, old .doc,
+ * or a type whose rule is switched off). status is `converted`, `truncated`, `failed: reason`, or `needs_ocr`.
  */
-export async function convertUpload(name: string, mime: string, bytes: Buffer): Promise<Conversion | null> {
+export async function convertUpload(name: string, mime: string, bytes: Buffer, rules: AttachmentRules = DEFAULT_RULES): Promise<Conversion | null> {
   const kind = textKind(name, mime);
   if (!kind) return null;
+  const rk = ruleKindFor(kind);
+  if (!rk || !rules[rk].enabled) return null;
   try {
     if (kind === "csv" || kind === "tsv" || kind === "copy") return convertText(kind, bytes);
-    if (kind === "xlsx") return await convertXlsx(bytes);
+    if (kind === "xlsx") {
+      return await convertXlsx(bytes, {
+        maxRows: rules.xlsx.maxRows ?? SHEET_ROW_CAP,
+        maxCols: rules.xlsx.maxCols ?? SHEET_COL_CAP,
+      });
+    }
     if (kind === "docx") return await convertDocx(bytes);
     return await convertPdf(bytes);
   } catch (err) {
@@ -189,6 +200,13 @@ export async function convertUpload(name: string, mime: string, bytes: Buffer): 
 /** The copy sits beside the original: data/attachments/<chat id>/<id>.md */
 export function markdownPath(row: { id: number; path: string }): string {
   return join(dirname(row.path), `${row.id}.md`);
+}
+
+/** Characters per part for this file's type, from the rules. Files that are not copied use {@link PART_CHARS}. */
+export function partSizeFor(name: string, rules: AttachmentRules = DEFAULT_RULES): number {
+  const rk = ruleKindFor(textKind(name, ""));
+  if (!rk) return PART_CHARS;
+  return rules[rk].partChars ?? PART_CHARS;
 }
 
 /**
@@ -234,17 +252,17 @@ function partsPhrase(status: string, parts: number | null): string {
 }
 
 /** How many parts the copy has, or null when there is no copy on disk. */
-export function partsOnDisk(row: { id: number; path: string; status?: string }): number | null {
+export function partsOnDisk(row: { id: number; path: string; status?: string; name?: string }, rules?: AttachmentRules): number | null {
   const status = row.status ?? "";
   if (status !== "converted" && status !== "truncated") return null;
   const md = markdownPath(row);
   if (!row.path || !existsSync(md)) return null;
-  return splitParts(readFileSync(md, "utf8")).length;
+  return splitParts(readFileSync(md, "utf8"), partSizeFor(row.name ?? "", rules)).length;
 }
 
 /** One line for an older message: name, size, and how many parts the agent can ask for. */
-export function earlierFileSummary(rows: { id: number; name: string; size: number; path: string; status?: string }[]): string {
-  return rows.map((r) => `${r.name}, ${formatSize(r.size)}, ${partsPhrase(r.status ?? "", partsOnDisk(r))}`).join("; ");
+export function earlierFileSummary(rows: { id: number; name: string; size: number; path: string; status?: string }[], rules?: AttachmentRules): string {
+  return rows.map((r) => `${r.name}, ${formatSize(r.size)}, ${partsPhrase(r.status ?? "", partsOnDisk(r, rules))}`).join("; ");
 }
 
 /**
@@ -265,5 +283,6 @@ export function readChatAttachment(db: DB, chatId: number, name: string, part = 
   if ((row.status !== "converted" && row.status !== "truncated") || !row.path || !existsSync(md)) {
     throw new Error(`${which}No Markdown copy for ${clean}.`);
   }
-  return which + formatPart(readFileSync(md, "utf8"), part);
+  const rules = parseRules(getSettings(db).attachment_rules);
+  return which + formatPart(readFileSync(md, "utf8"), part, partSizeFor(row.name, rules));
 }

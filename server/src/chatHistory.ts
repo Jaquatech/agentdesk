@@ -1,5 +1,6 @@
-import type { DB } from "./db.ts";
+import { getSettings, type DB } from "./db.ts";
 import { earlierFileSummary } from "./attachmentMarkdown.ts";
+import { parseRules } from "./attachmentRules.ts";
 
 /** One non-event message, oldest-first once the window is applied. `files` is a size-and-parts line; the latest user message's bytes are loaded separately. */
 export type ChatTurn = { id: number; role: string; content: string; files: string | null };
@@ -20,8 +21,9 @@ export function recentTurns(db: DB, chatId: number, limit: number): ChatTurn[] {
     list.push(f);
     byMessage.set(f.message_id, list);
   }
+  const rules = parseRules(getSettings(db).attachment_rules);
   return turns.map((t) => {
-    const line = earlierFileSummary(byMessage.get(t.id) ?? []);
+    const line = earlierFileSummary(byMessage.get(t.id) ?? [], rules);
     return { ...t, files: line || null };
   });
 }

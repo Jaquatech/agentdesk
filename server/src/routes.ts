@@ -12,6 +12,7 @@ import { setAgentTeams } from "./teams.ts";
 import { galleryForUi } from "./gallery.ts";
 import { DEFAULT_WORKER_TOOLS } from "./engines/types.ts";
 import { deleteChatFiles } from "./attachments.ts";
+import { DEFAULT_RULES, FIELD_RANGE, RULE_FIELDS, parseRules } from "./attachmentRules.ts";
 import { getCapabilities } from "./providers/capabilities.ts";
 import type { Orchestrator } from "./orchestrator/orchestrator.ts";
 import { commandProblem, envFileCandidates, folderOnDisk, suggestSetup, suggestVerify, verifyWarnings } from "./verifyHelp.ts";
@@ -61,6 +62,20 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     }
     orch.tick();
     return getSettings(db);
+  });
+
+  // ---------- attachment limits, per file type (stored as one JSON setting) ----------
+  const attachmentRulesView = () => ({
+    rules: parseRules(getSettings(db).attachment_rules),
+    defaults: DEFAULT_RULES,
+    fields: RULE_FIELDS,
+    ranges: FIELD_RANGE,
+  });
+  app.get("/api/attachment-rules", async () => attachmentRulesView());
+  app.put("/api/attachment-rules", async (req) => {
+    const body = (req.body ?? {}) as Body;
+    setSetting(db, "attachment_rules", JSON.stringify(parseRules(body.rules)));
+    return attachmentRulesView();
   });
 
   // ---------- secrets (values never leave the server) ----------
