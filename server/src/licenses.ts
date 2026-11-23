@@ -13,7 +13,7 @@ const PREFIX = "node_modules/";
 /** Licences that may ship in the product. File-level and permissive only: GPL/AGPL would change what the owner can distribute. */
 export const ALLOWED_LICENSES: string[] = [
   "MIT", "ISC", "BSD", "BSD-2-Clause", "BSD-3-Clause", "0BSD", "Apache-2.0", "BlueOak-1.0.0", "MPL-2.0", "OFL-1.1",
-  "CC0-1.0", "CC-BY-4.0", "Unlicense", "Python-2.0",
+  "CC0-1.0", "CC-BY-4.0", "Unlicense", "Python-2.0", "Zlib",
 ];
 
 /** Dependencies only (dev and linked entries are left out) with name, version and licence, sorted by name then version. */
