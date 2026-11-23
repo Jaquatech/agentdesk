@@ -39,8 +39,17 @@ export function withRuleValue(rules: AttachmentRules, kind: RuleKind, key: "enab
   return { ...rules, [kind]: { ...rules[kind], [key]: value } };
 }
 
+/** True when one kind has the same enabled flag and the same field values in both. */
+export function kindSame(a: AttachmentRules, b: AttachmentRules, kind: RuleKind): boolean {
+  return a[kind].enabled === b[kind].enabled && FIELDS.every((f) => a[kind][f] === b[kind][f]);
+}
+
+/** Returns a new rules object whose `kind` is a copy of source's; the inputs are not modified. */
+export function withKindFrom(base: AttachmentRules, kind: RuleKind, source: AttachmentRules): AttachmentRules {
+  return { ...base, [kind]: { ...source[kind] } };
+}
+
 /** True when every kind has the same enabled flag and the same field values. */
 export function sameRules(a: AttachmentRules, b: AttachmentRules): boolean {
-  return KIND_ORDER.every((kind) =>
-    a[kind].enabled === b[kind].enabled && FIELDS.every((f) => a[kind][f] === b[kind][f]));
+  return KIND_ORDER.every((kind) => kindSame(a, b, kind));
 }
