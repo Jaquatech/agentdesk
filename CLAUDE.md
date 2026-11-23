@@ -38,6 +38,7 @@ Node >= 22.13 (uses the built-in `node:sqlite`). The UI is shadcn/ui on Tailwind
 | Usage and prices | `server/src/usage.ts`, `pricing.ts` |
 | Live events to the UI (SSE) | `server/src/bus.ts` |
 | UI pages | `web/src/pages/` (Documents, Scrum, Teams, Agents, Chat, Settings, ...) |
+| Chat drafts (unsent text and attachments, per chat) | `web/src/lib/chatDraft.ts` |
 | Documents (wiki: General guides, project sections, task pages) | `server/src/documents.ts`, `web/src/pages/DocumentsPage.tsx` |
 
 ## How the pieces fit

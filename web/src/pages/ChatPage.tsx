@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { Building2, GitMerge, NotebookPen, Paperclip, RotateCcw, ListChecks, MessageSquare, Play, Send, Trash2, Pencil } from "lucide-react";
-import { get, post, put, del, parseJson, uploadAttachment, useLiveEvents, useLoad, type Agent, type Chat, type Message, type Project, type Task, type Team } from "../api.ts";
+import { ApiError, get, post, put, del, parseJson, uploadAttachment, useLiveEvents, useLoad, type Agent, type Chat, type Message, type Project, type Task, type Team } from "../api.ts";
+import { clearDraft, getDraft, mergeById, setDraft } from "../lib/chatDraft.ts";
 import { StatusBadge, Avatar, Modal, Field, money } from "../components/ui.tsx";
 import { lookFor } from "../office/palette.ts";
 import { Office } from "../office/Office.tsx";
@@ -21,24 +22,87 @@ import { cn } from "@/lib/utils";
 
 type ChatData = { chat: Chat; planner_id: number | null; planning: boolean; messages: Message[]; tasks: Task[] };
 
+// useLoad keeps nothing once this page unmounts, and it replaces the whole value. The route renders ChatPage only
+// while a chat is open, so the last payload lives here and the next visit merges it the same way live events do.
+const chatCache = new Map<number, ChatData>();
+const scrollPlaces = new Map<number, { top: number; atBottom: boolean }>();
+let agentsCache: Agent[] = [];
+let teamsCache: Team[] = [];
+const NEAR_BOTTOM = 48;
+
+function mergeChat(prev: ChatData | null, next: ChatData): ChatData {
+  if (!prev) return next;
+  // Messages are only added, so a live message the refresh has not seen yet stays. A file note arrives
+  // on a message that is already on screen, so that field is copied from the fresh copy.
+  const messages = mergeById(prev.messages, next.messages, false).map((m) => {
+    const fresh = next.messages.find((n) => n.id === m.id);
+    if (!fresh?.attachments?.some((a) => a.note)) return m;
+    return { ...m, attachments: fresh.attachments };
+  });
+  return { ...next, messages, tasks: mergeById(prev.tasks, next.tasks, true) };
+}
+
+function forgetChat(chatId: number) {
+  chatCache.delete(chatId);
+  scrollPlaces.delete(chatId);
+  clearDraft(chatId);
+}
+
 export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId: number; tab?: string; projects: Project[]; onChanged: () => void }) {
-  const [data, setData] = useState<ChatData | null>(null);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [planning, setPlanning] = useState(false);
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [data, setData] = useState<ChatData | null>(() => chatCache.get(chatId) ?? null);
+  const [agents, setAgents] = useState<Agent[]>(() => agentsCache);
+  const [planning, setPlanning] = useState(() => chatCache.get(chatId)?.planning ?? false);
+  const [teams, setTeams] = useState<Team[]>(() => teamsCache);
+  const planningRef = useRef(planning);
+
+  const commit = (fn: (d: ChatData) => ChatData) => {
+    setData((d) => {
+      if (!d) return d;
+      const next = { ...fn(d), planning: planningRef.current };
+      chatCache.set(chatId, next);
+      return next;
+    });
+  };
+  const markPlanning = (b: boolean) => {
+    planningRef.current = b;
+    setPlanning(b);
+    const cur = chatCache.get(chatId);
+    if (cur) chatCache.set(chatId, { ...cur, planning: b });
+  };
 
   useEffect(() => {
-    get<ChatData>(`/api/chats/${chatId}`).then((d) => { setData(d); setPlanning(d.planning); }).catch(() => go(""));
-    get<Agent[]>("/api/agents").then(setAgents);
-    get<Team[]>("/api/teams").then(setTeams);
+    let cancelled = false;
+    get<ChatData>(`/api/chats/${chatId}`).then((d) => {
+      if (cancelled) return;
+      planningRef.current = d.planning;
+      setPlanning(d.planning);
+      setData((prev) => {
+        // planningRef may have moved since this snapshot was read (a live event); keep that.
+        const next = { ...mergeChat(prev ?? chatCache.get(chatId) ?? null, d), planning: planningRef.current };
+        chatCache.set(chatId, next);
+        return next;
+      });
+    }).catch((e: unknown) => {
+      // A chat that was deleted goes home and drops its draft. A failed refresh keeps the copy already on screen.
+      if (!(e instanceof ApiError) || e.status !== 404) {
+        if (!chatCache.get(chatId)) go("");
+        return;
+      }
+      forgetChat(chatId);
+      go("");
+    });
+    get<Agent[]>("/api/agents").then((rows) => { agentsCache = rows; if (!cancelled) setAgents(rows); });
+    get<Team[]>("/api/teams").then((rows) => { teamsCache = rows; if (!cancelled) setTeams(rows); });
+    return () => { cancelled = true; };
   }, [chatId]);
 
   useLiveEvents((ev) => {
     if (ev.type === "message" && ev.chatId === chatId) {
-      setData((d) => {
-        if (!d) return d;
+      if (ev.message.role !== "user") markPlanning(false);
+      commit((d) => {
         const chat = d.chat.title === "New chat" && ev.message.role === "user"
           ? { ...d.chat, title: ev.message.content.split("\n")[0].slice(0, 60) } : d.chat;
+        // The same message is published again when an attachment note is known. Replace it so the note shows.
         const i = d.messages.findIndex((m) => m.id === ev.message.id);
         if (i >= 0) {
           const messages = d.messages.slice();
@@ -47,17 +111,15 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
         }
         return { ...d, chat, messages: [...d.messages, ev.message] };
       });
-      if (ev.message.role !== "user") setPlanning(false);
     }
     if (ev.type === "task" && ev.chatId === chatId) {
-      setData((d) => {
-        if (!d) return d;
+      commit((d) => {
         const i = d.tasks.findIndex((t) => t.id === ev.task.id);
         const tasks = i < 0 ? [...d.tasks, ev.task] : d.tasks.map((t) => (t.id === ev.task.id ? ev.task : t));
         return { ...d, tasks };
       });
     }
-    if (ev.type === "agent" && ev.chatId === chatId && ev.state === "thinking" && ev.detail === "plan") setPlanning(true);
+    if (ev.type === "agent" && ev.chatId === chatId && ev.state === "thinking" && ev.detail === "plan") markPlanning(true);
   });
 
   if (!data) return null;
@@ -66,27 +128,35 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
   const setTab = (t: string) => go(`chat/${chatId}${t === "chat" ? "" : `?tab=${t}`}`);
 
   const team = teams.find((t) => t.id === (data.chat.team_id ?? project?.team_id));
+  const applyFresh = (fresh: ChatData) => {
+    planningRef.current = fresh.planning;
+    setPlanning(fresh.planning);
+    setData((d) => {
+      const next = { ...mergeChat(d, fresh), planning: fresh.planning };
+      chatCache.set(chatId, next);
+      return next;
+    });
+  };
   const setTeam = async (teamId: number | null) => {
     await put(`/api/chats/${chatId}`, { team_id: teamId });
-    const fresh = await get<ChatData>(`/api/chats/${chatId}`);
-    setData((d) => d && { ...d, chat: { ...d.chat, team_id: teamId }, planner_id: fresh.planner_id });
+    applyFresh(await get<ChatData>(`/api/chats/${chatId}`));
   };
   const planners = agents.filter((a) => a.role === "planner" && a.enabled);
   const setPlanner = async (plannerId: number | null) => {
     await put(`/api/chats/${chatId}`, { planner_id: plannerId });
-    const fresh = await get<ChatData>(`/api/chats/${chatId}`);
-    setData((d) => d && { ...d, chat: { ...d.chat, planner_id: plannerId }, planner_id: fresh.planner_id });
+    applyFresh(await get<ChatData>(`/api/chats/${chatId}`));
   };
   const rename = async () => {
     const title = prompt("Chat title", data.chat.title);
     if (!title) return;
     await put(`/api/chats/${chatId}`, { title });
-    setData({ ...data, chat: { ...data.chat, title } });
+    commit((d) => ({ ...d, chat: { ...d.chat, title } }));
     onChanged();
   };
   const remove = async () => {
     if (!confirm("Delete this chat and its task history? Branches and worktrees stay on disk.")) return;
     await del(`/api/chats/${chatId}`);
+    forgetChat(chatId);
     onChanged();
     go("");
   };
@@ -129,55 +199,125 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
         <div className="min-h-0 flex-1">
           {tab === "tasks" ? <TaskPanel chatId={chatId} agents={agents} />
             : tab === "office" ? <Office chatId={chatId} />
-            : <ChatView data={data} agents={agents} planning={planning} setPlanning={setPlanning} openTasks={() => setTab("tasks")} />}
+            : <ChatView data={data} agents={agents} planning={planning} setPlanning={markPlanning} openTasks={() => setTab("tasks")} />}
         </div>
       </div>
     </div>
   );
 }
 
+/** 404 means the upload is gone. Any other result (including a network miss) leaves the send to try. */
+async function attachmentStillThere(id: number): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/attachments/${id}`, { method: "HEAD", credentials: "same-origin" });
+    return res.status !== 404;
+  } catch {
+    return true;
+  }
+}
+
+function placeOf(el: HTMLElement) {
+  return { top: el.scrollTop, atBottom: el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM };
+}
+
 function ChatView({ data, agents, planning, setPlanning, openTasks }: {
   data: ChatData; agents: Agent[]; planning: boolean; setPlanning: (b: boolean) => void; openTasks: () => void;
 }) {
-  const [text, setText] = useState("");
+  const chatId = data.chat.id;
+  const [text, setText] = useState(() => getDraft(chatId).text);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<Task | null>(null);
-  const [files, setFiles] = useState<Pending[]>([]);
+  const [files, setFiles] = useState<Pending[]>(() => getDraft(chatId).files);
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // The draft store is updated outside setState so an upload that finishes after a page change is not dropped.
+  const writeFiles = (next: Pending[]) => {
+    setFiles(next);
+    setDraft(chatId, { text: getDraft(chatId).text, files: next });
+  };
+  const writeText = (value: string) => {
+    setText(value);
+    setDraft(chatId, { text: value, files: getDraft(chatId).files });
+  };
+
   const addFiles = (list: FileList | File[]) => {
+    const added: Pending[] = [];
     for (const file of Array.from(list)) {
       const key = `${Date.now()}-${Math.random()}`;
       const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
-      setFiles((f) => [...f, { key, name: file.name || "pasted image", mime: file.type, size: file.size, preview }]);
-      uploadAttachment(data.chat.id, file)
-        .then((a) => setFiles((f) => f.map((x) => (x.key === key ? { ...x, id: a.id, name: a.name } : x))))
-        .catch((e) => setFiles((f) => f.map((x) => (x.key === key ? { ...x, error: (e as Error).message } : x))));
+      added.push({ key, name: file.name || "pasted image", mime: file.type, size: file.size, preview });
+      uploadAttachment(chatId, file)
+        .then((a) => writeFiles(getDraft(chatId).files.map((x) => (x.key === key ? { ...x, id: a.id, name: a.name } : x))))
+        .catch((e) => writeFiles(getDraft(chatId).files.map((x) => (x.key === key ? { ...x, error: (e as Error).message } : x))));
     }
+    writeFiles([...getDraft(chatId).files, ...added]);
   };
-  const removeFile = (key: string) => setFiles((f) => {
-    const x = f.find((y) => y.key === key);
-    if (x?.id) del(`/api/attachments/${x.id}`).catch(() => {});
-    if (x?.preview) URL.revokeObjectURL(x.preview);
-    return f.filter((y) => y.key !== key);
-  });
+  const removeFile = (key: string) => {
+    const cur = getDraft(chatId);
+    const gone = cur.files.find((y) => y.key === key);
+    if (gone?.id) del(`/api/attachments/${gone.id}`).catch(() => {});
+    // Revoke on remove or after a successful send. Not on unmount: the same preview is shown when the chat is opened again.
+    if (gone?.preview) URL.revokeObjectURL(gone.preview);
+    writeFiles(cur.files.filter((y) => y.key !== key));
+  };
   const uploading = files.some((f) => !f.id && !f.error);
-  const caps = useCapabilities(`/api/chats/${data.chat.id}/planner-capabilities?team=${data.chat.team_id ?? ""}&planner=${data.planner_id ?? ""}`);
+  const caps = useCapabilities(`/api/chats/${chatId}/planner-capabilities?team=${data.chat.team_id ?? ""}&planner=${data.planner_id ?? ""}`);
   const hasImages = files.some((f) => f.mime.startsWith("image/"));
-  const ready = files.filter((f) => f.id);
+  const ready = files.filter((f) => f.id && !f.error);
   const scrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { scrollRef.current?.scrollTo({ top: 1e9, behavior: "smooth" }); }, [data.messages.length, planning]);
+  const stickToBottom = useRef(scrollPlaces.get(chatId)?.atBottom !== false);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const saved = scrollPlaces.get(chatId);
+    if (saved && !saved.atBottom) el.scrollTop = Math.min(saved.top, el.scrollHeight);
+    else el.scrollTop = el.scrollHeight;
+  }, [chatId]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const save = () => {
+      // A collapsed pane looks like the bottom. Only a real scroll, on a list tall enough to move, is stored.
+      if (!el.isConnected || el.clientHeight < 40 || el.scrollHeight <= el.clientHeight) return;
+      const place = placeOf(el);
+      stickToBottom.current = place.atBottom;
+      scrollPlaces.set(chatId, place);
+    };
+    // Our own scrollTo is untrusted. A reader moving the list is trusted, and that is what decides whether to follow the bottom.
+    const onScroll = (ev: Event) => { if (ev.isTrusted) save(); };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => { el.removeEventListener("scroll", onScroll); };
+  }, [chatId]);
+  // The first paint is placed by the layout effect. Later messages follow the bottom only when the reader was already there.
+  const followBottom = useRef(false);
+  useEffect(() => {
+    if (!followBottom.current) { followBottom.current = true; return; }
+    const el = scrollRef.current;
+    if (!el || !stickToBottom.current) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [data.messages.length, planning]);
 
   const send = async () => {
     const content = text.trim();
-    if ((!content && !ready.length) || planning || uploading) return;
+    const pending = getDraft(chatId).files.filter((f) => f.id && !f.error);
+    if ((!content && !pending.length) || planning || getDraft(chatId).files.some((f) => !f.id && !f.error)) return;
     setError("");
+    const missing = new Set<string>();
+    for (const f of pending) {
+      if (f.id !== undefined && !(await attachmentStillThere(f.id))) missing.add(f.key);
+    }
+    if (missing.size) writeFiles(getDraft(chatId).files.map((f) => (missing.has(f.key) ? { ...f, error: "Not in the cache any more" } : f)));
+    const ids = getDraft(chatId).files.flatMap((f) => (f.id !== undefined && !f.error ? [f.id] : []));
+    if (!content && !ids.length) return;
     try {
-      await post(`/api/chats/${data.chat.id}/messages`, { content, attachment_ids: ready.map((f) => f.id) });
+      await post(`/api/chats/${chatId}/messages`, { content, attachment_ids: ids });
+      const sent = new Set(ids);
+      for (const f of getDraft(chatId).files) if (f.id !== undefined && sent.has(f.id) && f.preview) URL.revokeObjectURL(f.preview);
+      const keep = getDraft(chatId).files.filter((f) => f.id === undefined || !sent.has(f.id));
       setText("");
-      files.forEach((f) => f.preview && URL.revokeObjectURL(f.preview));
-      setFiles([]);
+      setFiles(keep);
+      setDraft(chatId, { text: "", files: keep });
       setPlanning(true);
     } catch (e) { setError((e as Error).message); }
   };
@@ -256,7 +396,7 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
             className="min-h-11 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
             placeholder={planning ? "The planner is working on it…" : "What should the team do? Paste or drop screenshots and files. (Enter to send, Shift+Enter for a new line)"}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => writeText(e.target.value)}
             onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); addFiles(e.clipboardData.files); } }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
           />

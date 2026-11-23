@@ -9,6 +9,7 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 - **The isometric office is outside the shadcn system.** It is canvas drawing; its chrome CSS stays hardcoded at the bottom of `styles.css`.
 - **Models, agents and tool output are untrusted.** They are shown as text or sanitized Markdown and never as raw HTML.
 - **The server sends a strict CSP and related headers** (`server/src/securityHeaders.ts`). The UI loads only from its own origin, so images in Markdown that point to other sites are not shown. That is intended: it stops tracking pixels and data leaving through a model's output. The page has no inline scripts (the theme script is `web/public/theme-init.js`).
+- **Chat drafts live in memory and `sessionStorage`, not `localStorage`.** The unsent text can be private. `sessionStorage` drops it when the tab closes; `localStorage` would leave it on disk. The stored value is the text plus attachment ids and names (the bytes stay on the server). Preview URLs stay in memory only, because they die on a refresh.
 
 - **Lint is a ratchet.** ESLint (typescript-eslint, react-hooks, jsx-a11y) runs with `--max-warnings` set to today's count, so existing issues are warnings and any new one fails CI. When you fix warnings, lower the number in the root `package.json` `lint` script. Generated shadcn files in `web/src/components/ui/` are not linted.
 
