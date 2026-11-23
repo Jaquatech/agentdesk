@@ -111,7 +111,8 @@ describe("documents", () => {
       { title: "Ship on Fridays", section: "decisions", body: "Friday is the release day." },
       { title: "Coding guidelines", section: "generic", body: "LEAK the project name Demo" },
     ]);
-    expect(wrote).toBe(2);
+    expect(wrote.filter((w) => w.result === "updated")).toHaveLength(2);
+    expect(wrote.map((w) => w.result)).toContain('general page "Coding guidelines"');
     const overviewBody = ctx.db.prepare("SELECT body FROM documents WHERE id = ?").get(overview.id) as { body: string };
     expect(overviewBody.body).toBe("A small tool for local work.");
     const guideAfter = ctx.db.prepare("SELECT body FROM documents WHERE builtin = 'guidelines'").get() as { body: string };

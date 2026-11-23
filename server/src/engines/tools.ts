@@ -16,8 +16,8 @@ export type ToolContext = {
   signal?: AbortSignal;
   /** Asks the user about a command outside the allowed list; without it such commands are refused. */
   ask?: (command: string) => Promise<{ allowed: boolean; by?: string }>;
-  /** Updates one project wiki page. Absent = write_wiki is refused. */
-  writeWiki?: (page: { title: string; section: string; body: string }) => string;
+  /** Updates one project wiki page. Absent = write_wiki is refused. File writes stay behind canWrite. */
+  writeWiki?: (page: { title?: string; section: string; body: string }) => string;
 };
 
 export type ToolOutcome = { content: string; isError?: boolean; activity: AgentState; detail: string };
@@ -69,12 +69,12 @@ export const WRITE_TOOLS: ToolDef[] = [
 
 export const WIKI_TOOL: ToolDef = {
   name: "write_wiki",
-  description: "Create or update a page in this project's wiki. overview, architecture, roadmap and setup replace that one page. decisions and releases are one page per title. General pages cannot be changed.",
+  description: "Update a page in this project's wiki. Sections: overview, architecture, roadmap (also Road map or road-map), setup, decisions, releases. Update Overview, Architecture, Road map and Setup when your work changes them. Those four replace that one page and a title is optional. decisions and releases are one page per title. General pages cannot be changed. The result is \"updated\" or the reason the page was left unchanged.",
   input_schema: {
-    type: "object", required: ["title", "section", "body"],
+    type: "object", required: ["section", "body"],
     properties: {
-      title: { type: "string" },
-      section: { type: "string", description: "overview, architecture, roadmap, setup, decisions, or releases" },
+      title: { type: "string", description: "Optional for overview, architecture, roadmap and setup. Required for decisions and releases." },
+      section: { type: "string", description: "overview, architecture, roadmap, setup, decisions, or releases. Road map, road-map and Overview.md are accepted." },
       body: { type: "string", description: "Markdown for the whole page" },
     },
   },
@@ -181,9 +181,11 @@ export async function runTool(name: string, input: Record<string, any>, ctx: Too
         return { content: `Edited ${input.path}`, activity: "typing", detail: `edit ${input.path}` };
       }
       case "write_wiki": {
-        if (!ctx.canWrite || !ctx.writeWiki) throw new Error("This agent cannot edit the wiki");
-        const content = ctx.writeWiki({ title: String(input.title ?? ""), section: String(input.section ?? ""), body: String(input.body ?? "") });
-        return { content, activity: "typing", detail: `wiki ${String(input.title ?? "").slice(0, 40)}` };
+        if (!ctx.writeWiki) throw new Error("This agent cannot edit the wiki");
+        const title = String(input.title ?? "");
+        const section = String(input.section ?? "");
+        const content = ctx.writeWiki({ title, section, body: String(input.body ?? "") });
+        return { content, activity: "typing", detail: `wiki ${String(section || title).slice(0, 40)}` };
       }
       case "run_command": {
         const command = String(input.command ?? "");

@@ -13,7 +13,7 @@ import {
   removeWorktree, deleteBranch, type ProjectRow,
 } from "./orchestrator/git.ts";
 import {
-  SCRUM_TOOL, ARCHITECT_TOOL, ESTIMATE_TOOL, SECURITY_TOOL, NOTES_TOOL, buildSecurityPrompt,
+  SCRUM_TOOL, ARCHITECT_TOOL, ESTIMATE_TOOL, SECURITY_TOOL, NOTES_TOOL, WIKI_LINE, buildSecurityPrompt,
 } from "./orchestrator/prompts.ts";
 
 /**
@@ -143,6 +143,7 @@ You are the product manager of a Scrum team. The people writing to you are the b
 - Create a PI (program increment: a goal over several sprints) or a sprint only when asked, with a short name and goal.
 - Refinement (architect notes, developer estimate) starts by itself for every item you create. The Scrum master starts sprints from
   the Sprints page by priority and team capacity; tell the user to press Start there when they ask for it.
+${WIKI_LINE} Put page updates in \`wiki\`.
 Answer briefly. Use the business owner's words.`;
       const r = await this.orch.callAgent({ agent: pm, kind: "backlog", chatId, cwd: project.path, prompt, mode: "read", output: SCRUM_TOOL });
       if (!r.ok || !r.output) {
@@ -267,7 +268,8 @@ Business owner's request:
 ${item.request || item.title}
 
 Title so far: ${item.title}
-Write the user story and testable acceptance criteria for this one item in \`items\` (exactly one entry). No technical solution. Leave \`reply\` short.`, SCRUM_TOOL);
+Write the user story and testable acceptance criteria for this one item in \`items\` (exactly one entry). No technical solution. Leave \`reply\` short.
+${WIKI_LINE} Put page updates in \`wiki\`.`, SCRUM_TOOL);
         const draft = (r.output as { items?: Record<string, unknown>[] } | undefined)?.items?.[0];
         if (!r.ok || !draft?.story) throw new Error(`Product manager ${pm.name}: ${r.error ?? "no story returned"}`);
         set({ story: String(draft.story).slice(0, 4000), acceptance: String(draft.acceptance ?? "").slice(0, 4000) });
@@ -292,7 +294,8 @@ Verify commands run after every task: ${verify.join(" ; ") || "(none set)"}.
 You are in the project folder (read-only for you). Base branch: ${project.base_branch}.
 
 Read the code you need, then write the technical notes: approach, files and functions to change, tests that prove it, risks, what is out of scope.
-The developer is a cheaper model: be exact. List the folders/files the work may change in \`paths\`. If the item is clearly too big for one task, say how to split it.`, ARCHITECT_TOOL);
+The developer is a cheaper model: be exact. List the folders/files the work may change in \`paths\`. If the item is clearly too big for one task, say how to split it.
+You are read-only for files. ${WIKI_LINE} Put page updates in \`wiki\`.`, ARCHITECT_TOOL);
         if (!r.ok || !r.output) throw new Error(`Architect ${arch.name}: ${r.error ?? "no notes returned"}`);
         const named = devs.find((d) => d.name.toLowerCase() === String(r.output!.worker ?? "").toLowerCase());
         set({
@@ -317,7 +320,8 @@ ${item.acceptance || "(none written)"}
 ${item.tech_notes}
 
 Estimate the size in story points (relative effort for you, the developer): ${SIZES.join(", ")}. 1 = a trivial edit, 3 = a normal change,
-8 = a large one, 13 = too big for one task and must be split. Look at the code if you need to. Do not change anything.`, ESTIMATE_TOOL);
+8 = a large one, 13 = too big for one task and must be split. Look at the code if you need to. Do not change files.
+${WIKI_LINE} Put page updates in \`wiki\`.`, ESTIMATE_TOOL);
         const points = Number((r.output as { points?: unknown } | undefined)?.points);
         if (!r.ok || !SIZES.includes(points)) throw new Error(`${dev.name}: ${r.error ?? "no estimate returned"}`);
         set({ points, ...(points === 13 ? { error: `Estimated 13 points: too big for one task. Split it into smaller items. ${String((r.output as { reason?: unknown }).reason ?? "")}`.trim() } : {}) });
@@ -545,7 +549,8 @@ Commits on the sprint branch:
 ${log || "(none)"}
 
 Markdown, under 40 lines: a one-sentence summary, what is new or changed in plain words (grouped if there are many), known limits, what is not finished.
-Only state what the items and commits support.`,
+Only state what the items and commits support.
+${WIKI_LINE} Put page updates in \`wiki\`.`,
       });
       if (r.ok && r.output?.notes) notes = String(r.output.notes);
     }

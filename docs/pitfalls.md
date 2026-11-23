@@ -22,7 +22,8 @@ Things that cost real debugging time. Read the ones that touch your change befor
 ## Documents
 
 - **Saving a task page copies its sections back onto the task without calling `updateTask`.** Calling it would sync the page again and loop.
-- **`applyWikiWrites` never updates a General page.** Planner and developer writes go through it.
+- **`applyWikiWrites` never updates a General page.** Every project agent writes through it. A section is normalized (`Road map`, `Overview.md`); a write that does not match is reported back instead of dropped.
+- **Read-only agents also need wiki access.** Planner, reviewer, architect and security run in read mode, and wiki writes do not touch the worktree. `callAgent` passes `writeWiki` whenever a project is known.
 
 ## Secrets and local access
 

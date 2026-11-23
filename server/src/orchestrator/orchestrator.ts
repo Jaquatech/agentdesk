@@ -19,8 +19,8 @@ import { placeEnvFile, type EnvFileHandle } from "./envFile.ts";
 import { blockingTask, isStuck, waitKey } from "./overlap.ts";
 import { setupProblem } from "../verifyHelp.ts";
 import { DEFAULT_WORKER_TOOLS } from "../engines/types.ts";
-import { PLAN_TOOL, REVIEW_TOOL, NOTES_TOOL, ROLE_TEMPLATES, buildWorkerPrompt, buildReviewPrompt } from "./prompts.ts";
-import { applyWikiWrites, projectWikiContext, syncTaskPage } from "../documents.ts";
+import { PLAN_TOOL, REVIEW_TOOL, NOTES_TOOL, ROLE_TEMPLATES, WIKI_LINE, buildWorkerPrompt, buildReviewPrompt } from "./prompts.ts";
+import { applyWikiWrites, projectWikiContext, syncTaskPage, type WikiWrite } from "../documents.ts";
 
 export type TaskRow = {
   id: number; chat_id: number; project_id: number; message_id: number | null; slug: string; title: string;
@@ -199,11 +199,13 @@ export class Orchestrator {
         onStep: (entry) => this.step(runId, o.taskId, entry),
         askApproval: o.agent.ask_approval === 0 ? undefined
           : (q) => this.askUser({ ...q, runId, taskId: o.taskId, chatId: o.chatId, agent: o.agent, signal: o.signal }),
-        writeWiki: project && o.mode === "write" ? (page) => {
-          const n = applyWikiWrites(this.db, project.id, [page]);
-          return n ? `Updated ${page.section || "page"} “${page.title}”.` : "No project page was changed. Use a project section, not a General page.";
+        // Wiki writes never touch the worktree, so every project call gets them, including read-only roles.
+        writeWiki: project ? (page) => {
+          const [one] = applyWikiWrites(this.db, project.id, [page]);
+          return one?.result ?? "empty body";
         } : undefined,
       });
+      if (project && result.ok) noteWiki(this.db, project.id, result, lines);
       this.endRun(runId, result, lines);
       if (o.taskId) {
         this.db.prepare("UPDATE tasks SET cost_usd = cost_usd + ?, tokens = tokens + ? WHERE id = ?")
@@ -296,8 +298,7 @@ If the user asks to merge finished work, do not write tasks for it: put the slug
 If the user asks to run earlier tasks again, put them in \`retry\` (any chat of this project; set \`worker\` to hand one to another
 developer) instead of writing new tasks. Retryable: ${tasks.filter((t) => RETRYABLE.includes(t.status)).map((t) => t.slug).join(", ") || "none"}.
 Add to \`journal\` only what a later chat must know (a decision, a finding, why something failed); usually nothing.
-You may update this project's wiki with \`wiki\`: each item has a title, a section (overview, architecture, roadmap, setup, decisions, releases) and a markdown body.
-overview, architecture, roadmap and setup replace that one page. decisions and releases add a page, or replace the one with the same title.
+${WIKI_LINE} Put the pages in \`wiki\`: overview, architecture, roadmap and setup replace that one page (a title is optional). decisions and releases are one page per title.
 Do not put this project's name, its data, or a customer name into General pages. You cannot edit those from here.`;
 
       const result = await this.callAgent({ agent: planner, kind: "plan", chatId, cwd: project.path, prompt, mode: "read", output: PLAN_TOOL, attachments });
@@ -322,8 +323,6 @@ Do not put this project's name, its data, or a customer name into General pages.
       for (const n of notes) {
         this.db.prepare("INSERT INTO project_journal (project_id, chat_id, agent_id, text) VALUES (?, ?, ?, ?)").run(chat.project_id, chatId, planner.id, n);
       }
-      const wiki = Array.isArray(result.output.wiki) ? result.output.wiki as { title?: string; section?: string; body?: string }[] : [];
-      if (wiki.length) applyWikiWrites(this.db, chat.project_id, wiki);
       const msg = this.postMessage(chatId, "assistant", plan.reply, planner.id,
         plan.tasks.length || merge.length || retry.length || notes.length ? { ...plan, merge_ids: merge, retry, journal: notes } : undefined);
       for (const t of plan.tasks) {
@@ -753,7 +752,8 @@ Do not put this project's name, its data, or a customer name into General pages.
       prompt: `Read this repository and write short project notes for AI developer agents that will work in it.
 Cover, in Markdown, under 60 lines: what the project is (2 lines), a code map (folder/file → what lives there),
 how to build, run and test it (exact commands), conventions to follow, and things not to touch (secrets, generated files).
-Only state what you saw in the files; say "unknown" where you could not find something.`,
+Only state what you saw in the files; say "unknown" where you could not find something.
+${WIKI_LINE}`,
     });
     if (!r.ok || !r.output) throw new Error(r.error ?? "No notes returned");
     return String(r.output.notes ?? "");
@@ -762,6 +762,16 @@ Only state what you saw in the files; say "unknown" where you could not find som
   activeTaskIds() {
     return [...this.running.keys()];
   }
+}
+
+/** Applies a structured `wiki` field (planner, Scrum, review, notes, security, Claude CLI) and records each result on the run. */
+function noteWiki(db: DB, projectId: number, result: EngineResult, lines: string[]) {
+  const wiki = result.output?.wiki;
+  if (!Array.isArray(wiki) || !wiki.length) return;
+  const outcomes = applyWikiWrites(db, projectId, wiki as WikiWrite[]);
+  for (const o of outcomes) lines.push(`wiki: ${o.result}`);
+  const entry: TranscriptEntry = { t: result.transcript?.at(-1)?.t ?? 0, kind: "note", tool: "wiki", text: outcomes.map((o) => o.result).join("\n") };
+  result.transcript = [...(result.transcript ?? []), entry];
 }
 
 function firstLine(text: string) {

@@ -22,12 +22,12 @@ export class ApiLoopEngine implements Engine {
     const { commandPrefixes } = parseAllowedTools(write ? allowedRaw : JSON.stringify(READ_ONLY_TOOLS));
 
     const finalTool: ToolDef = req.output ?? FINISH_TOOL;
-    const wiki = write && req.writeWiki ? [WIKI_TOOL] : [];
+    const wiki = req.writeWiki ? [WIKI_TOOL] : [];
     const tools = [...READ_TOOLS, ...(write ? WRITE_TOOLS : []), ...wiki, finalTool];
     const system = `${req.system}
 
 # Tools
-You work inside one folder; paths are relative to it. Use list_files, read_file and search to look around${write ? ", write_file and edit_file to change files" : ""}${wiki.length ? ", and write_wiki to update this project's wiki pages (never a General page)" : ""}.
+You work inside one folder; paths are relative to it. Use list_files, read_file and search to look around${write ? ", write_file and edit_file to change files" : ""}${wiki.length ? ", and write_wiki to update this project's wiki (overview, architecture, roadmap, setup, decisions, releases; never a General page). Update Overview, Architecture, Road map and Setup when your work changes them" : ""}.
 run_command accepts only commands that start with: ${commandPrefixes.join(", ") || "(none)"}. No pipes or redirects.
 When you are done, call ${finalTool.name} exactly once. Do not ask questions; take the most reasonable reading and say so.`;
 

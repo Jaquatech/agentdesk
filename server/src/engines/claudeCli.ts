@@ -4,6 +4,21 @@ import { runProgram, tail } from "../orchestrator/shell.ts";
 import { dirname } from "node:path";
 
 /**
+ * Claude Code has no write_wiki tool. A project call asks for the same `wiki` array the planner returns,
+ * and the orchestrator applies it after the run. No extra program and no network call.
+ */
+export const CLAUDE_WIKI_INSTRUCTIONS = `
+# Project wiki
+You may update this project's pages. Do not call a write_wiki tool; it is not available here.
+After your summary, end with one fenced json block and nothing after it:
+\`\`\`json
+{ "wiki": [ { "title": "", "section": "overview", "body": "markdown for the whole page" } ] }
+\`\`\`
+section is overview, architecture, roadmap (Road map), setup, decisions, or releases.
+Update Overview, Architecture, Road map and Setup when your work changes them. A title is optional for those four; decisions and releases need a title.
+Use "wiki": [] when nothing should change. Never a General page. The text before the json block is your summary.`;
+
+/**
  * Runs Claude Code headless (`claude -p`) in the worktree, as the original dispatcher did.
  * Uses the provider's API key when one is set; otherwise the user's own Claude Code sign-in.
  */
@@ -35,6 +50,8 @@ export class ClaudeCliEngine implements Engine {
     if (req.output) {
       prompt += `\n\n# Output\nEnd your final message with one fenced \`\`\`json block that matches this JSON schema ` +
         `(${req.output.description}):\n\`\`\`json\n${JSON.stringify(req.output.input_schema, null, 2)}\n\`\`\``;
+    } else if (req.writeWiki) {
+      prompt += CLAUDE_WIKI_INSTRUCTIONS;
     }
 
     const args = ["-p", "--model", req.provider.model || "sonnet", "--max-turns", String(req.agent.max_turns || 60),
@@ -116,9 +133,30 @@ export class ClaudeCliEngine implements Engine {
       const parsed = lastJsonBlock(summary);
       if (parsed) out.output = parsed;
       else { out.ok = false; out.error = "The agent did not end with the requested JSON block"; }
+    } else if (req.writeWiki && out.ok) {
+      const taken = takeWikiFromSummary(summary);
+      if (taken.wiki) {
+        out.summary = taken.summary;
+        out.output = { wiki: taken.wiki };
+      }
     }
     return out;
   }
+}
+
+/** Pull a trailing wiki array out of a Claude CLI final message. The text before it stays the summary. */
+export function takeWikiFromSummary(summary: string): { summary: string; wiki?: unknown[] } {
+  const parsed = lastJsonBlock(summary);
+  if (!parsed || !Array.isArray(parsed.wiki)) return { summary };
+  const blocks = [...summary.matchAll(/```json\s*[\s\S]*?```/g)];
+  if (blocks.length) {
+    const last = blocks[blocks.length - 1];
+    const at = last.index ?? 0;
+    return { summary: (summary.slice(0, at) + summary.slice(at + last[0].length)).trim(), wiki: parsed.wiki };
+  }
+  const brace = summary.lastIndexOf("\n{");
+  if (brace >= 0) return { summary: summary.slice(0, brace).trim(), wiki: parsed.wiki };
+  return { summary: summary.trim(), wiki: parsed.wiki };
 }
 
 export function lastJsonBlock(text: string): Record<string, unknown> | undefined {

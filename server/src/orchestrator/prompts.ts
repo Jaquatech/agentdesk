@@ -26,6 +26,25 @@ logs), does it match the surrounding code. Ignore style nits a formatter would f
 to merge; ask for changes only for real problems, as concrete fix instructions.`,
 };
 
+/** One sentence every role sees: which project wiki pages it may change. General pages stay out. */
+export const WIKI_LINE = "You may update this project's wiki pages: overview, architecture, roadmap (Road map), setup, decisions and releases. Update Overview, Architecture, Road map and Setup when your work changes them. Never a General page.";
+
+const WIKI_ITEM = {
+  type: "object",
+  required: ["section", "body"],
+  properties: {
+    title: { type: "string", description: "Optional for overview, architecture, roadmap and setup. Required for decisions and releases." },
+    section: { type: "string", description: "overview, architecture, roadmap, setup, decisions, or releases. Road map, road-map and Overview.md are accepted." },
+    body: { type: "string", description: "Markdown for the whole page." },
+  },
+};
+
+export const WIKI_FIELD = {
+  type: "array",
+  description: "Project wiki pages to update when this work changes them. Sections: overview, architecture, roadmap (Road map), setup, decisions, releases. Update Overview, Architecture, Road map and Setup when they are no longer true. Those four replace that one page; decisions and releases are one page per title. Never a General page, and never a project name, dataset, or customer name that would belong on a General page.",
+  items: WIKI_ITEM,
+};
+
 export const PLAN_TOOL: ToolDef = {
   name: "submit_plan",
   description: "your answer to the user and the tasks to run (tasks may be empty when no code change is needed)",
@@ -58,19 +77,7 @@ export const PLAN_TOOL: ToolDef = {
         type: "array", items: { type: "string" },
         description: "0-3 short notes for later chats in this project: decisions, findings, state (not a summary of this reply)",
       },
-      wiki: {
-        type: "array",
-        description: "Project wiki pages to write. Never a General page, and never a project name, dataset, or customer name that would belong on a General page.",
-        items: {
-          type: "object",
-          required: ["title", "section", "body"],
-          properties: {
-            title: { type: "string" },
-            section: { type: "string", enum: ["overview", "architecture", "roadmap", "setup", "decisions", "releases"] },
-            body: { type: "string", description: "Markdown. overview, architecture, roadmap and setup replace that page. decisions and releases are one page each, matched by title." },
-          },
-        },
-      },
+      wiki: WIKI_FIELD,
     },
   },
 };
@@ -85,6 +92,7 @@ export const REVIEW_TOOL: ToolDef = {
       verdict: { type: "string", enum: ["approve", "changes"] },
       review: { type: "string", description: "Markdown, under ~60 lines: findings and accepted trade-offs" },
       fixes: { type: "array", items: { type: "string" }, description: "concrete fix instructions when verdict is changes" },
+      wiki: WIKI_FIELD,
     },
   },
 };
@@ -110,7 +118,7 @@ ${o.spec}${round}
 - Do not commit, push or open a PR; leave changes in the working tree.
 - Your final message becomes the PR description: what changed (short bullets), tests run and results, anything left open.
   No diffs, no logs, no secrets. It is also copied onto this task's wiki page.
-- The project's wiki is in your instructions. Use write_wiki when you learn something that belongs on a project page. Do not write this project's name, its data, or a customer name into a General page.`;
+- The project's wiki is in your instructions. Use write_wiki for overview, architecture, roadmap (Road map), setup, decisions and releases when your work changes them. Update Overview, Architecture, Road map and Setup when they are no longer true. A title is optional for those four; decisions and releases are one page per title. Do not write this project's name, its data, or a customer name into a General page.`;
 }
 
 export function buildReviewPrompt(o: { title: string; specs: string; branch: string; base: string; diffStat: string; verify: string[] }) {
@@ -127,13 +135,14 @@ ${o.diffStat}
 Read the diff with \`git diff ${o.base}...HEAD\` (per file if large) and open files for context.
 ${o.verify.length ? `The verify commands passed: ${o.verify.join(" ; ")}.` : ""}
 
-Finish with your verdict: approve, or changes with concrete fix instructions.`;
+Finish with your verdict: approve, or changes with concrete fix instructions.
+${WIKI_LINE} Call write_wiki, or include the pages in \`wiki\`.`;
 }
 
 export const NOTES_TOOL: ToolDef = {
   name: "submit_notes",
   description: "the project notes",
-  input_schema: { type: "object", required: ["notes"], properties: { notes: { type: "string", description: "Markdown" } } },
+  input_schema: { type: "object", required: ["notes"], properties: { notes: { type: "string", description: "Markdown" }, wiki: WIKI_FIELD } },
 };
 
 // ---------- Scrum ----------
@@ -167,6 +176,7 @@ export const SCRUM_TOOL: ToolDef = {
         type: "object", description: "Only when asked to create a sprint (it is planned, not started).",
         properties: { name: { type: "string" }, goal: { type: "string" } },
       },
+      wiki: WIKI_FIELD,
     },
   },
 };
@@ -181,6 +191,7 @@ export const ARCHITECT_TOOL: ToolDef = {
       tech_notes: { type: "string", description: "Markdown: approach, files and functions to touch, tests that prove it, risks, what is out of scope. Precise enough for a cheaper developer model." },
       paths: { type: "array", items: { type: "string" }, description: "folders/files the work may change; folders end with /" },
       worker: { type: "string", description: "name of the best-suited developer in the team (optional)" },
+      wiki: WIKI_FIELD,
     },
   },
 };
@@ -194,6 +205,7 @@ export const ESTIMATE_TOOL: ToolDef = {
     properties: {
       points: { type: "integer", enum: [1, 2, 3, 5, 8, 13], description: "relative size: 1 = trivial edit, 3 = a normal change, 8 = a large one, 13 = too big, must be split" },
       reason: { type: "string", description: "one or two sentences" },
+      wiki: WIKI_FIELD,
     },
   },
 };
@@ -207,6 +219,7 @@ export const SECURITY_TOOL: ToolDef = {
     properties: {
       verdict: { type: "string", enum: ["pass", "issues"] },
       report: { type: "string", description: "Markdown, under ~60 lines: what you checked, findings by severity with file and line, what is fine" },
+      wiki: WIKI_FIELD,
     },
   },
 };
@@ -225,5 +238,6 @@ ${o.items.map((i) => `- ${i}`).join("\n") || "- (none)"}
 
 Look for: secrets or personal data in code or logs, injection (SQL, command, path, HTML), missing authorization or input checks,
 unsafe file or network access, dependencies added or loosened, error messages that leak internals, disabled security checks.
-Single-task reviews already covered style and correctness; focus on what is dangerous. Verdict "issues" only for real findings.`;
+Single-task reviews already covered style and correctness; focus on what is dangerous. Verdict "issues" only for real findings.
+${WIKI_LINE} Call write_wiki, or include the pages in \`wiki\`.`;
 }
