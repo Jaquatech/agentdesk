@@ -6,6 +6,7 @@ import { textOf } from "../providers/types.ts";
 import { callCost } from "../pricing.ts";
 import { LoopGuard, loopWarning } from "./loopGuard.ts";
 import { answerLimit, emptyAnswerNote } from "../answerLimit.ts";
+import { attachmentPrompt } from "../attachments.ts";
 
 /**
  * Built-in agent loop for any API provider (Anthropic, OpenAI-compatible, Ollama).
@@ -32,11 +33,7 @@ run_command accepts only commands that start with: ${commandPrefixes.join(", ") 
 When you are done, call ${finalTool.name} exactly once. Do not ask questions; take the most reasonable reading and say so.`;
 
     const att = req.attachments;
-    const attText = att && (att.texts.length || att.images.length || att.skipped.length)
-      ? "\n\n# Attached by the user\n" +
-        att.images.map((i) => `- ${i.name} (image, shown below)`).concat(att.skipped.map((s) => `- ${s}`)).join("\n") +
-        att.texts.map((t) => `\n\n## ${t.name}\n\`\`\`\n${t.content}\n\`\`\``).join("")
-      : "";
+    const attText = att ? attachmentPrompt(att) : "";
     const first: Block[] = [{ type: "text", text: req.prompt + attText }];
     for (const img of att?.images ?? []) first.push({ type: "image", mediaType: img.mime, data: img.base64 });
     const messages: ChatMessage[] = [{ role: "user", content: first }];

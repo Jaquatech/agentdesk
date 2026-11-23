@@ -63,6 +63,8 @@ describe("model capabilities", () => {
     const blind = loadForPrompt(rows, { vision: false, model: "qwen3:4b" });
     expect(blind.images).toHaveLength(0);
     expect(blind.skipped[0]).toContain("qwen3:4b cannot read images");
+    expect(blind.notes[0].text).toBe("PNG not sent: this model cannot read images");
+    expect(blind.readPaths).toHaveLength(0);
     expect(loadForPrompt(rows, { vision: null }).images).toHaveLength(1); // unknown: try
   });
 });

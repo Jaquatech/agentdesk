@@ -19,6 +19,18 @@ export const DEMO_OVERVIEW = `Red Dust Gadgets builds small gadgets for a Mars c
 The airlock dust alarm is in the current sprint: a threshold you can set, and a note on how to test it.
 `;
 
+/** Names and text the product manager was given, so a demo reply can quote an attached file. */
+function attachedSentence(req: EngineRequest): string {
+  const att = req.attachments;
+  if (!att || (!att.texts.length && !att.images.length && !att.skipped.length)) return "";
+  const parts = [
+    ...att.texts.map((t) => `${t.name}: ${t.content.replace(/\s+/g, " ").trim().slice(0, 180)}`),
+    ...att.images.map((i) => i.name),
+    ...att.skipped,
+  ];
+  return ` Attached: ${parts.join("; ")}.`;
+}
+
 /** The queued task of the active demo sprint. Other scripted tasks do not write the wiki. */
 export function demoLiveWiki(prompt: string): { title: string; section: string; body: string } | undefined {
   if (!prompt.startsWith("# Task:") || prompt.includes("# Round") || !prompt.includes("Dust Buddy: airlock dust alarm")) return undefined;
@@ -52,7 +64,7 @@ export class DemoEngine implements Engine {
         }
         const ask = ([...req.prompt.split("# Scrum state")[0].matchAll(/## Business owner\n([^\n]*)/g)].at(-1)?.[1] ?? "the request").trim();
         if (/\breview\b/i.test(ask)) return result("review", { reply: "Backlog review (demo): items look separable. Put the one that unblocks others first.", items: [] });
-        const out: Record<string, unknown> = { reply: `Noted (demo product manager): _${ask}_. I added it to the backlog; the architect and a developer refine it next.`, items: [] };
+        const out: Record<string, unknown> = { reply: `Noted (demo product manager): _${ask}_.${attachedSentence(req)} I added it to the backlog; the architect and a developer refine it next.`, items: [] };
         if (/\bpi\b/i.test(ask) && /create|new|start/i.test(ask)) out.pi = { name: "PI 1", goal: ask.slice(0, 120) };
         else if (/\bsprint\b/i.test(ask) && /create|new|plan/i.test(ask)) out.sprint = { name: "Sprint " + ask.slice(0, 30), goal: ask.slice(0, 120) };
         else out.items = [{ title: ask.slice(0, 60), story: `As a business owner I want: ${ask}`, acceptance: "- [ ] Works as described\n- [ ] Has a check" }];

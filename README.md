@@ -206,6 +206,10 @@ chat message → planner (read-only) → tasks (proposed) → Run plan
   clean and on the base branch); Azure DevOps = complete the PR there.
 - Every agent call is recorded (model, turns, tokens, cost, log). Settings shows usage per agent.
 
+## Attachments
+
+Paste, drop or attach files on a chat message. The planner, and in a Scrum project the product manager, reads images when its model can read images, and text files up to 200 KB (plain text, Markdown, JSON, CSV, source files and the like). PDF, Word and Excel are named only: the reply says the file was not sent and why, and the message shows the same note. Files on earlier messages stay as names. Reading PDF, Word and Excel needs a follow-up that extracts the text, and likely a new dependency; this version does not add one.
+
 ## Scrum: backlog, sprints, release
 
 Set a project's **How work is run** to *Scrum* (Projects). The chat then talks to a product manager instead of a planner, and the

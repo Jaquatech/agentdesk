@@ -36,9 +36,15 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
   useLiveEvents((ev) => {
     if (ev.type === "message" && ev.chatId === chatId) {
       setData((d) => {
-        if (!d || d.messages.some((m) => m.id === ev.message.id)) return d;
+        if (!d) return d;
         const chat = d.chat.title === "New chat" && ev.message.role === "user"
           ? { ...d.chat, title: ev.message.content.split("\n")[0].slice(0, 60) } : d.chat;
+        const i = d.messages.findIndex((m) => m.id === ev.message.id);
+        if (i >= 0) {
+          const messages = d.messages.slice();
+          messages[i] = ev.message;
+          return { ...d, chat, messages };
+        }
         return { ...d, chat, messages: [...d.messages, ev.message] };
       });
       if (ev.message.role !== "user") setPlanning(false);

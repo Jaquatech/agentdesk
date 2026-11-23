@@ -129,8 +129,11 @@ export class Scrum {
           (SELECT GROUP_CONCAT(a.name, ', ') FROM attachments a WHERE a.message_id = m.id) AS files
         FROM messages m WHERE m.chat_id = ? AND m.role != 'event' ORDER BY m.id DESC LIMIT 20`)
         .all(chatId) as { id: number; role: string; content: string; files: string | null }[]).reverse();
+      // The latest message's files go to the model, the same way as a plain chat. Earlier ones are only named.
+      const latestUser = [...history].reverse().find((m) => m.role === "user");
+      const attachments = await this.orch.promptAttachments(chatId, pm, history);
       const prompt = `# Conversation
-${history.map((m) => `## ${m.role === "user" ? "Business owner" : "You (earlier)"}\n${m.content}${m.files ? `\n(attached: ${m.files})` : ""}`).join("\n\n")}
+${history.map((m) => `## ${m.role === "user" ? "Business owner" : "You (earlier)"}\n${m.content}${m.files && m.id !== latestUser?.id ? `\n(attached earlier: ${m.files})` : ""}`).join("\n\n")}
 
 ${this.stateText(project.id)}
 
@@ -145,7 +148,7 @@ You are the product manager of a Scrum team. The people writing to you are the b
   the Sprints page by priority and team capacity; tell the user to press Start there when they ask for it.
 ${WIKI_LINE} Put page updates in \`wiki\`.
 Answer briefly. Use the business owner's words.`;
-      const r = await this.orch.callAgent({ agent: pm, kind: "backlog", chatId, cwd: project.path, prompt, mode: "read", output: SCRUM_TOOL });
+      const r = await this.orch.callAgent({ agent: pm, kind: "backlog", chatId, cwd: project.path, prompt, mode: "read", output: SCRUM_TOOL, attachments });
       if (!r.ok || !r.output) {
         this.orch.postMessage(chatId, "event", `Product manager ${pm.name} failed: ${r.error ?? "no answer returned"}`, pm.id);
         return;
@@ -154,7 +157,16 @@ Answer briefly. Use the business owner's words.`;
       const made: string[] = [];
       if (out.pi?.name) { const pi = this.createPi(project.id, String(out.pi.name), String(out.pi.goal ?? "")); made.push(`PI **${pi.name}**`); }
       if (out.sprint?.name) { const s = this.createSprint(project.id, String(out.sprint.name), String(out.sprint.goal ?? "")); made.push(`sprint ${s.number} **${s.name}**`); }
-      const created = this.addItems(project.id, Array.isArray(out.items) ? out.items : [], chatId);
+      const rawItems = Array.isArray(out.items) ? out.items.map((item) => ({ ...item })) : [];
+      // Names only: the architect reads the request and is not given the files.
+      if (latestUser?.files) {
+        const line = `Attached files: ${latestUser.files}.`;
+        for (const item of rawItems) {
+          const request = String(item.request ?? "");
+          if (!request.includes(latestUser.files)) item.request = `${request}\n\n${line}`.trim();
+        }
+      }
+      const created = this.addItems(project.id, rawItems, chatId);
       for (const i of created) made.push(`item **${i.title}**`);
       this.orch.postMessage(chatId, "assistant", String(out.reply ?? "").trim() || (made.length ? "Done." : "Noted."), pm.id);
       if (made.length) this.orch.postMessage(chatId, "event", `Created ${made.join(", ")}.${created.length ? " The architect and a developer refine the new items next." : ""}`);
@@ -283,7 +295,7 @@ ${WIKI_LINE} Put page updates in \`wiki\`.`, SCRUM_TOOL);
         const verify = json.parse<string[]>(project.verify, []);
         const r = await call(arch, "refine", `# Technical notes for a backlog item
 ## ${item.title}
-${item.story}
+${item.request.trim() ? `### Request\n${item.request.trim()}\n\n` : ""}${item.story}
 
 ### Acceptance criteria
 ${item.acceptance || "(none written)"}

@@ -13,7 +13,7 @@ import {
   pushAndOpenPr, prComment, mergeTask, removeWorktree, syncBranch, squashInto, ensureSprintWorktree, type ProjectRow,
 } from "./git.ts";
 import { runCommandLine, tail, type ShellKind } from "./shell.ts";
-import { loadForPrompt, type AttachmentRow } from "../attachments.ts";
+import { loadForPrompt, type AttachmentRow, type PromptAttachments } from "../attachments.ts";
 import { getCapabilities } from "../providers/capabilities.ts";
 import { placeEnvFile, type EnvFileHandle } from "./envFile.ts";
 import { blockingTask, isStuck, waitKey } from "./overlap.ts";
@@ -123,12 +123,16 @@ export class Orchestrator {
       .run(chatId, role, agentId ?? null, content, plan ? JSON.stringify(plan) : null);
     this.db.prepare("UPDATE chats SET updated_at = datetime('now') WHERE id = ?").run(chatId);
     beforePublish?.(Number(info.lastInsertRowid));
-    const message = {
-      ...(this.db.prepare("SELECT * FROM messages WHERE id = ?").get(info.lastInsertRowid) as { id: number }),
-      attachments: this.db.prepare("SELECT id, name, mime, size FROM attachments WHERE message_id = ? ORDER BY id").all(info.lastInsertRowid),
-    };
+    const message = this.messagePayload(info.lastInsertRowid);
     bus.publish({ type: "message", chatId, message });
     return message as { id: number };
+  }
+
+  private messagePayload(messageId: number | bigint) {
+    return {
+      ...(this.db.prepare("SELECT * FROM messages WHERE id = ?").get(messageId) as { id: number }),
+      attachments: this.db.prepare("SELECT id, name, mime, size, note FROM attachments WHERE message_id = ? ORDER BY id").all(messageId),
+    };
   }
 
   private log(taskId: number, line: string) {
@@ -142,6 +146,30 @@ export class Orchestrator {
   /** The planner that answers a chat: the one picked for the chat or project, else its team's planner (or the default one when no team is set). */
   plannerFor(chatId: number) {
     return pickPlanner(this.db, { chatId });
+  }
+
+  /**
+   * Files on the latest user message, ready for the model. Images go through when the model can read them,
+   * text is inlined, and anything else is named with the reason. One loader for a plain chat and a Scrum chat.
+   * Notes for files that were not sent are stored on the attachment and published so the chat can show them.
+   */
+  async promptAttachments(chatId: number, agent: AgentRow, history: { id: number; role: string }[]): Promise<PromptAttachments | undefined> {
+    const latest = [...history].reverse().find((m) => m.role === "user");
+    if (!latest) return undefined;
+    const files = this.db.prepare("SELECT * FROM attachments WHERE message_id = ? AND chat_id = ? ORDER BY id").all(latest.id, chatId) as AttachmentRow[];
+    if (!files.length) return undefined;
+    const p = resolveProvider(this.db, this.vault, agent);
+    const caps = await getCapabilities(p.kind, p.baseUrl, p.model, p.apiKey);
+    const attachments = loadForPrompt(files, { vision: caps.vision, model: p.model });
+    const noted = new Map(attachments.notes.map((n) => [n.id, n.text]));
+    const upd = this.db.prepare("UPDATE attachments SET note = ? WHERE id = ?");
+    let changed = false;
+    for (const f of files) {
+      const text = noted.get(f.id) ?? "";
+      if ((f.note ?? "") !== text) { upd.run(text, f.id); changed = true; }
+    }
+    if (changed) bus.publish({ type: "message", chatId, message: this.messagePayload(latest.id) });
+    return attachments;
   }
 
   private startRun(o: { taskId?: number; chatId?: number; projectId?: number; sprintId?: number; itemId?: number; agent: AgentRow; kind: string; round: number; model: string; engine: string }) {
@@ -257,14 +285,7 @@ export class Orchestrator {
         .all(chatId) as { id: number; role: string; content: string; files: string | null }[]).reverse();
       // The latest user message's files go to the model; earlier ones are only named.
       const latestUser = [...history].reverse().find((m) => m.role === "user");
-      const files = latestUser ? this.db.prepare("SELECT * FROM attachments WHERE message_id = ? ORDER BY id").all(latestUser.id) as AttachmentRow[] : [];
-      let attachments;
-      if (files.length) {
-        // Images only go to a model that can read them; otherwise the planner is told their names.
-        const p = resolveProvider(this.db, this.vault, planner);
-        const caps = await getCapabilities(p.kind, p.baseUrl, p.model, p.apiKey);
-        attachments = loadForPrompt(files, { vision: caps.vision, model: p.model });
-      }
+      const attachments = await this.promptAttachments(chatId, planner, history);
       const workers = teamAgents(this.db, teamId, "worker"); // only this team's developers get work
       // Every chat of the project shares the task list and the journal, so a new chat picks up where the last left off.
       type ProjectTask = { id: number; slug: string; title: string; status: string; error: string; chat_id: number; chat: string; worker: string | null };
