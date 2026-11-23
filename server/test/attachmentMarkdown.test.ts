@@ -37,13 +37,15 @@ describe("text attachments become Markdown", () => {
       ["sample.md", "text/markdown"],
       ["sample.json", "application/json"],
       ["sample.xml", "application/xml"],
-      ["sample.log", "text/plain"],
     ] as const) {
       const out = convertUpload(name, mime, fixture(name));
       expect(out?.status, name).toBe("converted");
       expect(out?.markdown, name).toBe(fixture(name).toString("utf8"));
       expect(out?.markdown, name).not.toContain("Columns:");
     }
+    // *.log is gitignored, so this one is written in the test rather than stored as a fixture.
+    const log = convertUpload("app.log", "text/plain", Buffer.from("ERROR at line 3\n"));
+    expect(log).toEqual({ status: "converted", markdown: "ERROR at line 3\n" });
 
     // Source files were already treated as text. They stay a plain copy, with no table header.
     const py = convertUpload("main.py", "text/x-python", Buffer.from("print(1)\n"));
