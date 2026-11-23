@@ -1,0 +1,4 @@
+# npm writes this file with LF. Check it out as LF too, so a Windows checkout
+# with core.autocrlf (which would turn it into CRLF) still matches npm's output
+# and Git does not show the whole lockfile as modified.
+package-lock.json text eol=lf

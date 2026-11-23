@@ -3,7 +3,10 @@
 ## Unreleased
 
 ### Changes
-- Each agent has a **Max answer tokens** setting next to Thinking (default 32 000, from 1024 to 128 000). Model calls use it instead of a fixed 8192. A model that rejects a higher limit is asked again with the limit it allows, and the task continues. When thinking uses the whole limit and there is no answer, the note names the agent's limit and suggests raising it or turning Thinking off.
+- Each agent has a **Max answer tokens** setting next to Thinking (default 32 000, from 1024 to 128 000). Model calls use it instead of a fixed 8192. A model that rejects a higher limit is asked again with the limit it allows, and the task continues. When thinking uses the whole limit and there is no answer, the note names the agent's limit and suggests raising it or turning Thinking off. The hint under the field says the setting has no effect for Claude CLI agents. A value outside the range is explained under the field, including on a narrow window.
+
+### Maintenance
+- `package-lock.json` is checked out with LF line endings, so a Windows checkout that converts text files to CRLF no longer shows the lockfile as modified after npm writes it.
 
 ## 1.5.0 (2026-11-14)
 
