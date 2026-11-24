@@ -76,6 +76,7 @@ Full text in `docs/standards.md`; decisions (Settled / Known and open) in `docs/
 - **Ask first** before a new dependency, a new migration shape, or anything touching secrets, host checks, git safety or the vault.
 - **Gates:** 0 start, 1 works (`npm run lint`, `npm test`, `npm run build` exit 0; UI checked in demo mode by keyboard), 2 clean (cold read of the diff, remove generated-looking code, docs and `## Unreleased` updated), 3 release ready (usability, security, platform, project rules; run when a release is asked for). A finding is fixed with a test, or recorded in `docs/decisions.md`.
 - **Pass means exit code 0,** not a reading of the output.
+- **Token efficiency:** lean by default. A change that adds text to a prompt states how many tokens or characters it adds and why; anything an agent can look up (wiki pages, old messages, files) is fetched with a tool, not sent in every call. The user must be able to see prompt size and cost per call, chat and sprint; a design is adopted because it was measured here (recorded in `docs/decisions.md`). Full text in `docs/standards.md`.
 
 ## Rules
 
@@ -86,5 +87,5 @@ Full text in `docs/standards.md`; decisions (Settled / Known and open) in `docs/
 - **Tests that call the API** need a `host: localhost` header and a session cookie from `POST /api/auth/setup` (username of 3+ characters). Replace the engine with `engineOverride.engine`. See `test/pipeline.test.ts` and `test/scrum.test.ts`.
 - **UI changes:** check with a real browser (Playwright is fine) in demo mode; type checks do not show layout problems.
 - **Keep the repo generic:** no customer, employer or other-product names in code, docs, tests or commit messages.
-- Update README.md (user manual) and this file in the same change when a concept moves.
+- Update README.md (user manual, including the Design choices section) and this file in the same change when a concept moves.
 - Commits: small, imperative subject, a body that says why.

@@ -58,6 +58,16 @@ The rules in `CLAUDE.md` stay: local only, vault-encrypted secrets, worktree-onl
 - **A new dependency is a security decision.** Prefer the platform. Packages are pinned through the lockfile.
 - **Data leaves the machine only to the model provider the user chose,** and the UI says so where that happens.
 
+## Token efficiency
+
+AgentDesk exists to show good, token-efficient ways to use AI. A rule nobody wrote down gets undone without anyone noticing, so this one is written here.
+
+1. **Lean by default.** Every change that adds text to a prompt states how many tokens or characters it adds and why. Anything an agent can look up on demand (wiki pages, old messages, files) is looked up with a tool, not carried in every call. Today the chat sends the last 16 messages (`chat_history_messages`), the wiki gives an index and pages are read with `read_wiki` and `search_wiki`, attachments are read in parts with `read_attachment`, and an image is described once in a note (`image_notes`).
+2. **Measure and show.** The user must be able to see prompt size and cost per call, chat and sprint. The chat header shows the tokens used and a rough size of the last prompt (`runs.prompt_chars`); a task shows its cost, and each sprint shows its spend. A feature that spends tokens and cannot be seen is not finished.
+3. **Evidence, not imitation.** A design is adopted because it was measured here, not because another tool does it. Record the measurement, or that none was possible, in `docs/decisions.md`.
+4. **Say why in the product.** Each setting that trades quality for cost explains the trade in its hint and in the README.
+5. **Defaults are cheap.** A new default must not raise the cost of an unchanged workflow. If it must, the CHANGELOG says so.
+
 ## Stage gates
 
 A gate is a short checklist. Pass it by exit codes and by looking.
@@ -73,6 +83,7 @@ A gate is a short checklist. Pass it by exit codes and by looking.
 - Read the whole diff cold, as a strict reviewer and as a newcomer.
 - Remove generated-looking code: comments that restate code, banners, hedge words, checks the types rule out, one-caller helpers, vague names (`data`, `result`, `temp`), options nobody passes, logs. Behavior and public names do not change, and the same tests pass before and after.
 - README, `CLAUDE.md` and `## Unreleased` in `CHANGELOG.md` are updated in the same change when a concept moved.
+- Prompt size change stated for any change that touches a prompt (see Token efficiency).
 - No customer, employer or other-product names anywhere.
 
 **Gate 3, release ready (when a release is asked for).**
