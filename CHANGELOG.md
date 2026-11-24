@@ -8,6 +8,7 @@
 - Data factory files are read in their real encoding: UTF-8 (with or without BOM), UTF-16, or Windows ANSI, so Nordic letters survive. The page says which one was used.
 
 ### Changed
+- The Datasets page is a list on the left and the cases on the right, uses the whole width, and opens the first dataset by itself.
 - The Datasets page has the import form and the list on the right and the cases on the left, clears the form and old messages after an import, and shows times in local time.
 - Picking a second file after typing a dataset name renames the dataset from the new file name, unless the name was typed again since the last pick.
 
