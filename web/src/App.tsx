@@ -240,7 +240,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
           <Suspense fallback={<div className="flex flex-1 items-center justify-center"><Spinner /></div>}>
           {route.page === "chat" && route.id ? <ChatPage key={route.id} chatId={route.id} tab={route.tab} projects={projects} onChanged={reload} />
             : route.page === "scrum" && route.id ? <ScrumPage key={`${route.id}-${route.tab}-${route.sprint}-${route.task}`} projectId={route.id} initial={{ tab: route.tab, sprint: route.sprint, task: route.task }} />
-            : route.page === "data-factory" && route.id ? <DataFactoryPage projectId={route.id} />
+            : route.page === "data-factory" && route.id ? <DataFactoryPage projectId={route.id} tab={route.tab} />
             : route.page === "tasks" ? <TasksBoard key={`${route.group}-${route.task}`} group={route.group} task={route.task} />
             : route.page === "office" ? <OfficePage />
             : route.page === "teams" ? <TeamsPage />
