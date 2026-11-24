@@ -1,5 +1,10 @@
 # Release notes
 
+## Unreleased
+
+### Added
+- Projects have a Data factory switch. When it is on, the project shows a Data factory page in the sidebar.
+
 ## 1.6.0 (2026-11-24)
 
 ### Added

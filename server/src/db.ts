@@ -418,6 +418,8 @@ const MIGRATIONS: string[] = [
   `,
   // One line about an image, written by the agent that was shown it. Later prompts use it instead of the image.
   `ALTER TABLE attachments ADD COLUMN image_note TEXT NOT NULL DEFAULT '';`,
+  // The Data factory page of a project is shown in the sidebar when this is 1.
+  `ALTER TABLE projects ADD COLUMN data_factory INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export function openDb(file: string): DB {
