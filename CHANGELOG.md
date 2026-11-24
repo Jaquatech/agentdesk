@@ -6,10 +6,12 @@
 - Projects have a Data factory switch. When it is on, the project shows a Data factory page in the sidebar.
 - Data factory: import a dataset (JSONL, JSON or CSV), see problems and warnings, and keep each import as an immutable version.
 - Data factory files are read in their real encoding: UTF-8 (with or without BOM), UTF-16, or Windows ANSI, so Nordic letters survive. The page says which one was used.
+- Each dataset version remembers the name of the file it was imported from.
 
 ### Changed
 - The Data factory sections are tabs in the page header like Scrum, with a narrow list on the left and a wide view. Replaces the side menu. Only Datasets is built; the other tabs are placeholders.
 - The Datasets page opens the first dataset by itself, clears the form and old messages after an import, and shows times in local time.
+- Import is its own tab in the Data factory; after an import the page opens the dataset in the Datasets tab.
 - Picking a second file after typing a dataset name renames the dataset from the new file name, unless the name was typed again since the last pick.
 
 ### Changed

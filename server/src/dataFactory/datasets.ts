@@ -12,6 +12,7 @@ export type DatasetVersion = {
   sha256: string;
   case_count: number;
   note: string;
+  source_name: string;
   created_at: string;
 };
 
@@ -27,7 +28,7 @@ export function datasetDir(dataDir: string, datasetId: number): string {
 export function importDataset(
   db: DB,
   dataDir: string,
-  input: { projectId: number; name: string; format: DatasetFormat; text: string; note?: string },
+  input: { projectId: number; name: string; format: DatasetFormat; text: string; note?: string; sourceName?: string },
 ): ImportResult {
   const { cases, problems } = parseDataset(input.text, input.format);
   const warnings = datasetWarnings(cases);
@@ -55,8 +56,8 @@ export function importDataset(
       version = (max.v ?? 0) + 1;
     }
     const info = db
-      .prepare("INSERT INTO eval_dataset_versions (dataset_id, version, format, sha256, case_count, note) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(datasetId, version, input.format, hash, cases.length, input.note ?? "");
+      .prepare("INSERT INTO eval_dataset_versions (dataset_id, version, format, sha256, case_count, note, source_name) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(datasetId, version, input.format, hash, cases.length, input.note ?? "", input.sourceName ?? "");
     const versionId = Number(info.lastInsertRowid);
     const ins = db.prepare(
       "INSERT INTO eval_cases (version_id, case_key, input, expected, tags, meta, position) VALUES (?, ?, ?, ?, ?, ?, ?)",

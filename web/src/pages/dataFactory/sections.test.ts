@@ -13,6 +13,6 @@ describe("data factory sections", () => {
     expect(sectionFromTab("nope")).toBe("datasets");
   });
   it("keeps the planned order", () => {
-    expect(SECTIONS.map((s) => s.id)).toEqual(["datasets", "models", "judge", "runs", "review", "reports"]);
+    expect(SECTIONS.map((s) => s.id)).toEqual(["import", "datasets", "models", "judge", "runs", "review", "reports"]);
   });
 });
