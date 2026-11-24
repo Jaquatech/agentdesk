@@ -1,7 +1,7 @@
 {
   "own": "Copyright (c) 2026 Jan Romppanen",
   "licenses": {
-    "MIT": 335,
+    "MIT": 336,
     "OFL-1.1": 1,
     "BlueOak-1.0.0": 6,
     "ISC": 11,
@@ -254,6 +254,11 @@
       "name": "@fontsource-variable/roboto",
       "version": "5.3.0",
       "license": "OFL-1.1"
+    },
+    {
+      "name": "@hyzyla/pdfium",
+      "version": "3.0.0",
+      "license": "MIT"
     },
     {
       "name": "@isaacs/nonrecursive-glob-match",

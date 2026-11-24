@@ -25,6 +25,7 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 
 - **Token efficiency is a written rule (`standards.md`, one bullet in `CLAUDE.md`).** AgentDesk exists to show good, token-efficient ways to use AI, so every prompt change states its size and lookups use tools. The reason for writing it down: a principle that is only remembered gets undone without anyone noticing. No measurement was made for the rule itself; the measured cases are the chat window (above) and the attachment limits.
 - **The README states the design choices, and is updated in the same change as any choice it names.** The "Design choices" section is what a new user reads first, so a choice that moves without it misleads them. `server/test/readmeDesign.test.ts` checks that the section exists and stays short; it does not check its wording.
+- **PDF pages are rendered with `@hyzyla/pdfium`.** MIT, one package without dependencies, about 14 MB, no audit findings, Node 22 supported; it renders a page in a few milliseconds. Chosen over `mupdf` (AGPL), `@napi-rs/canvas` (73 MB) and `tesseract.js` (large core and language downloads). Approved by the owner.
 
 ## Known and open
 
