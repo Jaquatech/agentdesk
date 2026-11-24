@@ -27,6 +27,7 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 - **The README states the design choices, and is updated in the same change as any choice it names.** The "Design choices" section is what a new user reads first, so a choice that moves without it misleads them. `server/test/readmeDesign.test.ts` checks that the section exists and stays short; it does not check its wording.
 - **Scans are read once at upload by the agent the owner chooses, not by a bundled OCR engine: no extra download, the cost shows in Usage, and the page limit bounds it.** Measured: none yet; the page limit (default 10) caps the images per file.
 - **PDF pages are rendered with `@hyzyla/pdfium`.** MIT, one package without dependencies, about 14 MB, no audit findings, Node 22 supported; it renders a page in a few milliseconds. Chosen over `mupdf` (AGPL), `@napi-rs/canvas` (73 MB) and `tesseract.js` (large core and language downloads). Approved by the owner.
+- **Array copies with `[...x].sort()` and `.reverse()` stay.** The web guidance scan for 1.6.0 suggested `toSorted`, `toReversed` and `findLast` in six places (`Activity.tsx`, `office/layout.ts` twice, `TaskPanel.tsx`, `UsagePage.tsx`). Each is a plain array copy that works as it is; changing them adds churn and no behaviour. Revisit when those lines are touched anyway.
 
 ## Known and open
 
