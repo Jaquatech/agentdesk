@@ -18,7 +18,7 @@ export const KIND_INFO: Record<RuleKind, { label: string; files: string; enabled
   csv: { label: "CSV and TSV tables", files: ".csv, .tsv", enabledLabel: "Make a Markdown copy" },
   xlsx: { label: "Excel workbooks", files: ".xlsx (older .xls files are only named)", enabledLabel: "Make a Markdown copy" },
   docx: { label: "Word documents", files: ".docx (older .doc files are only named)", enabledLabel: "Make a Markdown copy" },
-  pdf: { label: "PDF files", files: "PDFs with a text layer (scanned pages are not read yet)", enabledLabel: "Make a Markdown copy" },
+  pdf: { label: "PDF files", files: "PDFs: the text layer is copied; scanned pages are read by the agent chosen under Reading scans", enabledLabel: "Make a Markdown copy" },
   image: { label: "Images", files: "PNG, JPG, GIF, WebP", enabledLabel: "Send images to models that can read them" },
 };
 

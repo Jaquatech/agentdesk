@@ -29,6 +29,7 @@
 ### Fixed
 - The approval banner clears right after you answer, and Cancel in the Always allow form works.
 - Claude CLI agents are asked for `image_notes` when they are shown an image, as the API agents are, so a note is stored for later messages.
+- The PDF card on Attachment handling no longer says scanned pages are not read.
 
 ### Maintenance
 - `package-lock.json` is checked out with LF line endings, so a Windows checkout that converts text files to CRLF no longer shows the lockfile as modified after npm writes it.
