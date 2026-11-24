@@ -24,6 +24,27 @@ shows who is working, reviewing or taking a break (coffee, sofa, arcade, slot ma
 | ![Office settings and logo](docs/screenshots/settings.png)<br>**Office settings.** Style, features and company logo. | ![Chat with the planner](docs/screenshots/chat.png)<br>**Chat.** Ask the planner for work; it splits it into tasks per branch. |
 | ![Project settings](docs/screenshots/project_settings.png)<br>**Project settings.** Project settings include all commands that are run for each action. | ![Documents](docs/screenshots/document_wiki.png)<br>**Documents.** Documents includes all markups from projects and planning agents and developers can access their own project and the general section of the documents. |
 
+## Design choices
+
+Each choice below has a reason; the file or doc with the detail is linked.
+
+- **Local only.** The server listens on 127.0.0.1, refuses other host names and cross-site writes, and the page loads only from this server (a strict Content-Security-Policy). Why: nothing else on the network can reach your projects or keys ([index.ts](server/src/index.ts), [securityHeaders.ts](server/src/securityHeaders.ts)).
+- **Keys in an encrypted vault.** API keys are stored encrypted (AES-256-GCM) and are never sent to the browser or written to logs ([crypto.ts](server/src/crypto.ts)).
+- **One branch and worktree per task.** Agents work in their own git worktree, never in your checkout. Outside a sprint, a person presses Merge; sprint work reaches the base branch only when the sprint is released ([CLAUDE.md](CLAUDE.md)).
+- **Split roles and a gate.** A planner splits the work, developers build, and a reviewer approves or sends fix rounds (their number is a setting). A commit is made only if the changes stay inside the task's allowed paths, and the project's verify commands must pass. Why: no single agent both writes and judges its own work.
+- **Allowed paths and a command allow-list.** A task may change only its own paths. Commands outside the agent's allow-list need your approval; an agent set not to ask has them refused ([tools.ts](server/src/engines/tools.ts)).
+- **Spending limits.** A daily limit and a per-sprint limit stop new calls once reached. Only finished calls count, so one call in progress can go a little over ([budget.ts](server/src/budget.ts)).
+- **Lean context.** A chat reply sends only the last 16 messages (6 to 40 in Settings). In a project, the project journal and an index of wiki pages go in each call; pages are read on demand with `read_wiki` and `search_wiki` ([chatHistory.ts](server/src/chatHistory.ts), [documents.ts](server/src/documents.ts)).
+- **Attachments read once and in parts.** An uploaded file is converted once to a Markdown copy, the first part goes into the prompt, and `read_attachment` reads the rest on request. An image is described once in a note, and later messages use the note instead of the image ([attachmentMarkdown.ts](server/src/attachmentMarkdown.ts)).
+- **Max answer tokens per agent.** Each agent has its own limit on how long one reply may be (default 32 000) ([apiLoop.ts](server/src/engines/apiLoop.ts)).
+- **Costs shown.** Each task shows its cost, the chat header shows tokens used and a rough size of the last prompt, Usage breaks cost down by day, agent, model and project, and each sprint shows its spend. Why: you can see what a choice costs before you change it ([usage.ts](server/src/usage.ts)).
+- **A loop guard.** An agent that repeats the same failing call, or fails file edits again and again, is warned and then stopped, so it cannot quietly spend tokens on a loop ([loopGuard.ts](server/src/engines/loopGuard.ts)).
+- **A model guide with honest ratings.** A rating says "seen" only when it was observed in real runs here; otherwise it is an expectation ([modelGuide.ts](server/src/modelGuide.ts)).
+- **Demo mode.** `npm run demo` runs scripted agents with no key and no cost, in its own data folder, so you can learn the flow first ([demoSeed.ts](server/src/demoSeed.ts)).
+- **Plain, inspectable data.** One SQLite file (`data/agentdesk.db`), attachment copies as Markdown files in `data/attachments/`, and each task exports as Markdown from the Export button. Wiki pages are rows in the same database. Why: you can back up, read and move your work without the app ([db.ts](server/src/db.ts)).
+
+The token efficiency rule for contributors is in [docs/standards.md](docs/standards.md).
+
 ## Installation
 
 You need **Node.js 22.13 or newer** (the current LTS is fine) and **git**. Nothing is compiled during install:

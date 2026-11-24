@@ -23,6 +23,9 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 - **Licences are checked against an allow-list from the lockfile.** `server/src/licenses.ts` allows only permissive and file-level licences. A GPL or AGPL package would change what the owner can distribute, so `licenses:check` in CI fails on it, on a missing licence, or on a stale `THIRD_PARTY_NOTICES.md`. The check reads `package-lock.json` and needs no dependency.
 - **Zlib is on the licence allow-list.** It is a permissive licence (like MIT), and the package pako is licensed MIT AND Zlib. Approved by the owner's architect role when the licence check was added.
 
+- **Token efficiency is a written rule (`standards.md`, one bullet in `CLAUDE.md`).** AgentDesk exists to show good, token-efficient ways to use AI, so every prompt change states its size and lookups use tools. The reason for writing it down: a principle that is only remembered gets undone without anyone noticing. No measurement was made for the rule itself; the measured cases are the chat window (above) and the attachment limits.
+- **The README states the design choices, and is updated in the same change as any choice it names.** The "Design choices" section is what a new user reads first, so a choice that moves without it misleads them. `server/test/readmeDesign.test.ts` checks that the section exists and stays short; it does not check its wording.
+
 ## Known and open
 
 - Lint has no warnings left and the cap in `package.json` is 0, so a new warning fails CI. `any` is allowed in test files only (parsed JSON and loose fixtures). In `src` three places keep `any` on purpose, each with a comment saying why: the database rows (`db.ts`), request bodies (`Body` in routes, teams and Scrum) and the tool input from the model (`runTool`). Hook rules: effects keyed on a computed string or a caller's list carry a comment saying why.

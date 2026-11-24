@@ -10,6 +10,7 @@
 - Attachment handling page (sidebar group Platform settings): limits per file type.
 
 ### Changes
+- The token efficiency rule is written down (`CLAUDE.md`, `docs/standards.md`), and the README has a Design choices section. No prompt or behaviour changed.
 - Attachment handling: each box has its own Save button, and number fields can be cleared while typing.
 - Attachment handling shows the boxes in two columns on wide screens.
 - The sidebar group Team is now called Platform settings.
