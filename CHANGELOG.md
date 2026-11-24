@@ -9,6 +9,7 @@
 
 ### Changed
 - The Datasets page has the import form and the list on the right and the cases on the left, clears the form and old messages after an import, and shows times in local time.
+- Picking a second file after typing a dataset name renames the dataset from the new file name, unless the name was typed again since the last pick.
 
 ## 1.6.0 (2026-11-24)
 

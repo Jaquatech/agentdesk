@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Choice } from "../../components/inputs.tsx";
 import { decodeText, type TextEncodingName } from "../../lib/decodeText.ts";
 import { localTime } from "./localTime.ts";
+import { nextName } from "./datasetName.ts";
 
 const ENCODING_LABELS: Record<TextEncodingName, string> = {
   "utf-8": "UTF-8",
@@ -81,7 +82,9 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
     const guessed = guessFormat(file.name);
     if (guessed) setFormat(guessed);
     setFormatGuessed(guessed !== "");
-    if (!nameTyped) setName(file.name.replace(/\.[^.]+$/, ""));
+    setName(nextName(nameTyped, name, file.name));
+    // A pick counts as the name now: the next file renames the dataset again unless the user types.
+    setNameTyped(false);
   };
 
   const doImport = async () => {
