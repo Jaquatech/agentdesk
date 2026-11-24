@@ -61,7 +61,7 @@ export function attachmentPrompt(att: PromptAttachments): string {
 }
 
 /** Asked of the agent that is shown an image, so later messages can use its note instead of the image. */
-const IMAGE_NOTE_LINE = "Put one short line per image in `image_notes` (name and what matters in it). It is stored, so later messages can use it without the image.";
+export const IMAGE_NOTE_LINE ="Put one short line per image in `image_notes` (name and what matters in it). It is stored, so later messages can use it without the image.";
 const MAX_IMAGE_NOTES = 10;
 const MAX_IMAGE_NOTE_CHARS = 300;
 

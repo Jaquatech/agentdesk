@@ -2,14 +2,15 @@ import type { Engine, EngineRequest, EngineResult, TranscriptEntry } from "./typ
 import { parseAllowedTools, DEFAULT_WORKER_TOOLS, READ_ONLY_TOOLS } from "./types.ts";
 import { runProgram, tail } from "../orchestrator/shell.ts";
 import { dirname } from "node:path";
-import { UNSENT_REPLY, type PromptAttachments } from "../attachments.ts";
+import { IMAGE_NOTE_LINE, UNSENT_REPLY, type PromptAttachments } from "../attachments.ts";
 
 /** The "# Attached by the user" block. The CLI reads files itself, so sent files are paths and skipped files are named with the reason. */
 export function claudeAttachmentPrompt(att: PromptAttachments | undefined): string {
-  if (!att || (!att.paths.length && !att.skipped.length && !att.texts.length)) return "";
+  if (!att || (!att.paths.length && !att.skipped.length && !att.texts.length && !att.images.length)) return "";
   const read = att.readPaths ?? [];
   const parts: string[] = [];
   if (read.length) parts.push(`Read these with the Read tool (images too):\n${read.map((f) => `- ${f}`).join("\n")}`);
+  if (att.images.length) parts.push(`${att.images.map((i) => `- ${i.name} (image)`).join("\n")}\n${IMAGE_NOTE_LINE}`);
   if (att.skipped.length) parts.push(`${att.skipped.map((s) => `- ${s}`).join("\n")}\n${UNSENT_REPLY}`);
   for (const t of att.texts) {
     const left = t.parts - t.part;
