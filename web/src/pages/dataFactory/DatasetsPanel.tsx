@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { del, useLoad } from "../../api.ts";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import { Choice } from "../../components/inputs.tsx";
 type DatasetRow = { id: number; name: string; version: number; version_id: number; format: string; case_count: number; note: string };
 type Version = { id: number; version: number; format: string; case_count: number; note: string; created_at: string };
 type DatasetDetail = { id: number; name: string; versions: Version[] };
-type CaseRow = { case_key: string; input: string; expected: string | null; tags: string[] };
+type CaseRow = { position: number; case_key: string; input: string; expected: string | null; tags: string[] };
 type Problem = { line: number; message: string };
 
 const FORMATS = [
@@ -46,6 +47,7 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
   const [problems, setProblems] = useState<Problem[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [message, setMessage] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<DatasetRow | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const detail = useLoad<DatasetDetail>(openId === null ? null : `/api/datasets/${openId}`);
@@ -173,7 +175,7 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
                     <TableCell>{d.format}</TableCell>
                     <TableCell className="flex justify-end gap-2">
                       <Button size="sm" variant="outline" aria-pressed={openId === d.id} onClick={() => { setOpenId(d.id); setVersionId(null); }}>Versions</Button>
-                      <Button size="sm" variant="outline" aria-label={`Delete ${d.name}`} onClick={() => { if (window.confirm(`Delete "${d.name}" with all its versions?`)) void remove(d.id); }}>Delete</Button>
+                      <Button size="sm" variant="outline" aria-label={`Delete ${d.name}`} onClick={() => setPendingDelete(d)}>Delete</Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -182,6 +184,21 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete dataset?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete ? `"${pendingDelete.name}" and all its versions are removed.` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => { const id = pendingDelete?.id; setPendingDelete(null); if (id !== undefined) void remove(id); }}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {detail.data && detail.data.id === openId && (
         <Card>
@@ -205,7 +222,7 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
                 </TableHeader>
                 <TableBody>
                   {cases.data.map((c) => (
-                    <TableRow key={c.case_key}>
+                    <TableRow key={`${c.position}`}>
                       <TableCell className="whitespace-nowrap">{c.case_key}</TableCell>
                       <TableCell className="max-w-md whitespace-pre-wrap break-words">{c.input.length > 300 ? `${c.input.slice(0, 300)}…` : c.input}</TableCell>
                       <TableCell className="max-w-xs whitespace-pre-wrap break-words">{c.expected ?? ""}</TableCell>
