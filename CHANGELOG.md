@@ -4,6 +4,7 @@
 
 ### Added
 - Projects have a Data factory switch. When it is on, the project shows a Data factory page in the sidebar.
+- Data factory: import a dataset (JSONL, JSON or CSV), see problems and warnings, and keep each import as an immutable version.
 
 ## 1.6.0 (2026-11-24)
 
