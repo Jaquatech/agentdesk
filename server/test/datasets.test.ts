@@ -86,6 +86,29 @@ describe("datasets", () => {
     expect(existsSync(join(data, "evals", "datasets", String(v1.dataset_id)))).toBe(false);
   });
 
+  it("imports a CSV with a quoted comma and semicolon tags", async () => {
+    const csv = 'input,expected,tags\n"hello, world",greeting,a;b\nbye,farewell,\n';
+    const v = await call("POST", `/api/projects/${projectId}/datasets`, { name: "csv", format: "csv", text: csv });
+    expect(v.version.case_count).toBe(2);
+    const detail = await call("GET", `/api/datasets/${v.dataset_id}`);
+    expect(detail.versions).toHaveLength(1);
+    const cases = await call("GET", `/api/dataset-versions/${v.version.id}/cases`);
+    expect(cases).toHaveLength(2);
+    expect(cases[0].input).toBe("hello, world");
+    expect(cases[0].tags).toEqual(["a", "b"]);
+    expect(cases[0].case_key).toBe("case-1");
+    expect(cases[1].tags).toEqual([]);
+    expect(cases[1].case_key).toBe("case-2");
+  });
+
+  it("keeps ä ö å in a JSONL import", async () => {
+    const text = JSON.stringify({ input: "Käyttäjä äöå", expected: "Ääkköset" });
+    const v = await call("POST", `/api/projects/${projectId}/datasets`, { name: "nordic", format: "jsonl", text });
+    const cases = await call("GET", `/api/dataset-versions/${v.version.id}/cases`);
+    expect(cases[0].input).toBe("Käyttäjä äöå");
+    expect(cases[0].expected).toBe("Ääkköset");
+  });
+
   it("cases paging respects offset and the limit of 200", async () => {
     const v = await call("POST", `/api/projects/${projectId}/datasets`, { name: "big", format: "jsonl", text: jsonl(250) });
     const page = await call("GET", `/api/dataset-versions/${v.version.id}/cases?offset=10&limit=5`);
