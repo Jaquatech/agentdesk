@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 
 const SOURCES = {
   local: "Local folder",
@@ -137,6 +138,9 @@ function ProjectForm({ p, teams, agents, onClose, onSaved }: { p: Partial<Projec
           </Field>
         )}
       </div>
+      <Field label="Data factory" hint="Adds a Data factory page to this project: datasets, model runs and reports.">
+        <Switch checked={(f as { data_factory?: number }).data_factory === 1} onCheckedChange={(v) => set("data_factory", v ? 1 : 0)} />
+      </Field>
       {f.source !== "local" && (
         <Field label="Repository URL" hint={f.source === "github" ? "Pull requests are opened with the GitHub CLI (gh) when it is installed and signed in." : "Pull requests are opened with the Azure CLI (az repos) when it is installed and signed in."}>
           <NoFillInput className="font-mono" value={f.repo_url ?? ""} onChange={(e) => set("repo_url", e.target.value)}
