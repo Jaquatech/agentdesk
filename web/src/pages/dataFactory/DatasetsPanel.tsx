@@ -6,6 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -128,8 +129,24 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(22rem,28rem)_minmax(0,1fr)] lg:items-start">
-      <div className="flex min-w-0 flex-col gap-4">
+    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(16rem,20%)_minmax(0,1fr)] lg:grid-rows-1">
+      {rows.length > 0 && (
+        <nav aria-label="Datasets" className="max-h-60 min-h-0 overflow-auto border-b lg:max-h-none lg:border-b-0 lg:border-r">
+          <ul className="flex flex-col">
+            {rows.map((d) => (
+              <li key={d.id} className={cn("flex items-center gap-2 border-b pr-2 hover:bg-accent/50", current === d.id && "bg-accent")} aria-current={current === d.id ? "true" : undefined}>
+                <button type="button" className="flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset" onClick={() => { setOpenId(d.id); setVersionId(null); }}>
+                  <span className="truncate text-sm font-medium" title={d.name}>{d.name}</span>
+                  <span className="text-xs text-muted-foreground">v{d.version} · {d.case_count} cases</span>
+                </button>
+                <Button size="icon-sm" variant="ghost" aria-label={`Delete ${d.name}`} onClick={() => setPendingDelete(d)}><Trash2 /></Button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+      <div className={cn("flex min-h-0 min-w-0 flex-col gap-4 overflow-auto p-6", rows.length === 0 && "lg:col-span-2")}>
+      {list.error && <p className="text-sm text-destructive">{list.error}</p>}
       <Card>
         <CardHeader><CardTitle>Import a dataset</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -137,7 +154,7 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
             One case per line (JSON Lines), a JSON array, or a CSV with a header. Each case needs an <code>input</code>; <code>id</code>, <code>expected</code> and <code>tags</code> are optional.
             Importing a name that exists adds a new version; old versions never change.
           </p>
-          <div className="flex flex-col gap-3">
+          <div className="grid gap-3 md:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ds-name">Name</Label>
               <Input id="ds-name" value={name} onChange={(e) => { setName(e.target.value); setNameTyped(true); clearMessages(); }} maxLength={120} autoComplete="off" />
@@ -185,37 +202,42 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>Datasets</CardTitle></CardHeader>
+      {shown && (
+      <Card className="min-w-0">
+        <CardHeader><CardTitle>{shown.name}: versions</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
-          {list.error && <p className="text-sm text-destructive">{list.error}</p>}
-          {list.data && rows.length === 0 && <p className="text-sm text-muted-foreground">No datasets yet.</p>}
-          {rows.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {shown.versions.map((v) => (
+              <Button key={v.id} size="sm" variant={v.id === versionId ? "default" : "outline"} aria-pressed={v.id === versionId} onClick={() => setVersionId(v.id)}>
+                v{v.version} <Badge variant="secondary">{v.case_count}</Badge>
+              </Button>
+            ))}
+          </div>
+          {(() => {
+            const v = shown.versions.find((x) => x.id === versionId);
+            return v ? <p className="text-sm text-muted-foreground">Imported {localTime(v.created_at)} as {v.format}.{v.note ? ` ${v.note}` : ""}</p> : null;
+          })()}
+          {cases.data && (
             <Table>
               <TableHeader>
-                <TableRow><TableHead>Name</TableHead><TableHead>Latest</TableHead><TableHead>Cases</TableHead><TableHead className="w-10"><span className="sr-only">Actions</span></TableHead></TableRow>
+                <TableRow><TableHead>Id</TableHead><TableHead>Input</TableHead><TableHead>Expected</TableHead><TableHead>Tags</TableHead></TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((d) => {
-                  const open = () => { setOpenId(d.id); setVersionId(null); };
-                  return (
-                    <TableRow key={d.id} className="cursor-pointer" data-state={current === d.id ? "selected" : undefined} aria-current={current === d.id ? "true" : undefined} onClick={open}>
-                      <TableCell className="max-w-0 w-full">
-                        <button type="button" className="block max-w-full truncate text-left font-medium hover:underline" title={d.name} onClick={(e) => { e.stopPropagation(); open(); }}>{d.name}</button>
-                      </TableCell>
-                      <TableCell>v{d.version}</TableCell>
-                      <TableCell>{d.case_count}</TableCell>
-                      <TableCell>
-                        <Button size="icon-sm" variant="ghost" aria-label={`Delete ${d.name}`} onClick={(e) => { e.stopPropagation(); setPendingDelete(d); }}><Trash2 /></Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {cases.data.map((c) => (
+                  <TableRow key={`${c.position}`}>
+                    <TableCell className="whitespace-nowrap">{c.case_key}</TableCell>
+                    <TableCell className="whitespace-pre-wrap break-words">{c.input.length > 300 ? `${c.input.slice(0, 300)}…` : c.input}</TableCell>
+                    <TableCell className="whitespace-pre-wrap break-words">{c.expected ?? ""}</TableCell>
+                    <TableCell>{c.tags.join(", ")}</TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           )}
+          {cases.data && <p className="text-xs text-muted-foreground">First {cases.data.length} cases.</p>}
         </CardContent>
       </Card>
+      )}
       </div>
 
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
@@ -233,43 +255,6 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card className="min-w-0">
-        <CardHeader><CardTitle>{shown ? `${shown.name}: versions` : "Cases"}</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {!shown && list.data && rows.length === 0 && <p className="text-sm text-muted-foreground">Pick a dataset to see its cases.</p>}
-          {shown && (<>
-            <div className="flex flex-wrap gap-2">
-              {shown.versions.map((v) => (
-                <Button key={v.id} size="sm" variant={v.id === versionId ? "default" : "outline"} aria-pressed={v.id === versionId} onClick={() => setVersionId(v.id)}>
-                  v{v.version} <Badge variant="secondary">{v.case_count}</Badge>
-                </Button>
-              ))}
-            </div>
-            {(() => {
-              const v = shown.versions.find((x) => x.id === versionId);
-              return v ? <p className="text-sm text-muted-foreground">Imported {localTime(v.created_at)} as {v.format}.{v.note ? ` ${v.note}` : ""}</p> : null;
-            })()}
-            {cases.data && (
-              <Table>
-                <TableHeader>
-                  <TableRow><TableHead>Id</TableHead><TableHead>Input</TableHead><TableHead>Expected</TableHead><TableHead>Tags</TableHead></TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cases.data.map((c) => (
-                    <TableRow key={`${c.position}`}>
-                      <TableCell className="whitespace-nowrap">{c.case_key}</TableCell>
-                      <TableCell className="whitespace-pre-wrap break-words">{c.input.length > 300 ? `${c.input.slice(0, 300)}…` : c.input}</TableCell>
-                      <TableCell className="whitespace-pre-wrap break-words">{c.expected ?? ""}</TableCell>
-                      <TableCell>{c.tags.join(", ")}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-            {cases.data && <p className="text-xs text-muted-foreground">First {cases.data.length} cases.</p>}
-          </>)}
-        </CardContent>
-      </Card>
     </div>
   );
 }
