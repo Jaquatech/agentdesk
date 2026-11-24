@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { get, type Project } from "../api.ts";
 import { Page } from "../components/page.tsx";
+import { DatasetsPanel } from "./dataFactory/DatasetsPanel.tsx";
 
 /** The Data factory of one project. Empty for now: datasets, model runs and reports come later. */
 export function DataFactoryPage({ projectId }: { projectId: number }) {
@@ -14,7 +15,9 @@ export function DataFactoryPage({ projectId }: { projectId: number }) {
   if (project === null) return <Page title="Data factory"><p className="text-sm text-muted-foreground">No such project.</p></Page>;
   return (
     <Page title={project.name}>
-      <p className="text-sm text-muted-foreground">No datasets yet.</p>
+      {(project as Project & { data_factory?: number }).data_factory === 1
+        ? <DatasetsPanel projectId={project.id} />
+        : <p className="text-sm text-muted-foreground">The Data factory is off for this project.</p>}
     </Page>
   );
 }

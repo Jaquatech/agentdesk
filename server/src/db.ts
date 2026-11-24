@@ -420,6 +420,38 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE attachments ADD COLUMN image_note TEXT NOT NULL DEFAULT '';`,
   // The Data factory page of a project is shown in the sidebar when this is 1.
   `ALTER TABLE projects ADD COLUMN data_factory INTEGER NOT NULL DEFAULT 0;`,
+  // Data factory datasets: a named dataset per project, immutable numbered versions, and the cases of each version.
+  `
+  CREATE TABLE eval_datasets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (project_id, name)
+  );
+  CREATE TABLE eval_dataset_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dataset_id INTEGER NOT NULL REFERENCES eval_datasets(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    format TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    case_count INTEGER NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (dataset_id, version)
+  );
+  CREATE TABLE eval_cases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    version_id INTEGER NOT NULL REFERENCES eval_dataset_versions(id) ON DELETE CASCADE,
+    case_key TEXT NOT NULL,
+    input TEXT NOT NULL,
+    expected TEXT,
+    tags TEXT NOT NULL DEFAULT '[]',
+    meta TEXT NOT NULL DEFAULT '{}',
+    position INTEGER NOT NULL
+  );
+  CREATE INDEX idx_eval_cases_version ON eval_cases(version_id, position);
+  `,
 ];
 
 export function openDb(file: string): DB {

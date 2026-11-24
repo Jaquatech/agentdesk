@@ -9,6 +9,7 @@ import { openDb } from "./db.ts";
 import { Vault } from "./crypto.ts";
 import { registerAuth } from "./auth.ts";
 import { registerRoutes } from "./routes.ts";
+import { registerDataFactory } from "./dataFactory/routes.ts";
 import { registerUsage } from "./usage.ts";
 import { registerAttachments } from "./attachments.ts";
 import { registerTeams } from "./teams.ts";
@@ -46,6 +47,7 @@ export async function buildApp(opts: AppOptions) {
 
   registerAuth(app, db);
   registerRoutes(app, db, vault, orch, opts.dataDir);
+  registerDataFactory(app, db, opts.dataDir);
   registerUsage(app, db);
   registerAttachments(app, db, opts.dataDir, (chatId, name, bytes) => orch.readScan(chatId, name, bytes));
   registerTeams(app, db);
