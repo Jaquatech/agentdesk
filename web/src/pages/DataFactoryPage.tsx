@@ -14,7 +14,7 @@ export function DataFactoryPage({ projectId }: { projectId: number }) {
   if (project === undefined) return null;
   if (project === null) return <Page title="Data factory"><p className="text-sm text-muted-foreground">No such project.</p></Page>;
   return (
-    <Page title={project.name}>
+    <Page title={project.name} width="full">
       {(project as Project & { data_factory?: number }).data_factory === 1
         ? <DatasetsPanel projectId={project.id} />
         : <p className="text-sm text-muted-foreground">The Data factory is off for this project.</p>}

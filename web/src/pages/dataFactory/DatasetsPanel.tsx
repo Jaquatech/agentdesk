@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { del, useLoad } from "../../api.ts";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -64,9 +65,12 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
   const [encoding, setEncoding] = useState<TextEncodingName>("utf-8");
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const detail = useLoad<DatasetDetail>(openId === null ? null : `/api/datasets/${openId}`);
+  const rows = list.data ?? [];
+  // The chosen dataset, or the first one when none is chosen (or the chosen one is gone).
+  const current = rows.some((d) => d.id === openId) ? openId : (rows[0]?.id ?? null);
+  const detail = useLoad<DatasetDetail>(current === null ? null : `/api/datasets/${current}`);
   // The chosen version, or the newest one of the open dataset until the user picks another.
-  const shown = detail.data && detail.data.id === openId ? detail.data : null;
+  const shown = detail.data && detail.data.id === current ? detail.data : null;
   const versionId = shown ? (shown.versions.some((v) => v.id === pickedVersion) ? pickedVersion : (shown.versions[0]?.id ?? null)) : null;
   const cases = useLoad<CaseRow[]>(versionId === null ? null : `/api/dataset-versions/${versionId}/cases?limit=20`);
 
@@ -123,10 +127,9 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
     list.reload();
   };
 
-  const rows = list.data ?? [];
   return (
-    <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-      <div className="flex flex-col gap-4 lg:order-2">
+    <div className="grid gap-4 lg:grid-cols-[minmax(22rem,28rem)_minmax(0,1fr)] lg:items-start">
+      <div className="flex min-w-0 flex-col gap-4">
       <Card>
         <CardHeader><CardTitle>Import a dataset</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -134,7 +137,7 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
             One case per line (JSON Lines), a JSON array, or a CSV with a header. Each case needs an <code>input</code>; <code>id</code>, <code>expected</code> and <code>tags</code> are optional.
             Importing a name that exists adds a new version; old versions never change.
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ds-name">Name</Label>
               <Input id="ds-name" value={name} onChange={(e) => { setName(e.target.value); setNameTyped(true); clearMessages(); }} maxLength={120} autoComplete="off" />
@@ -145,7 +148,7 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
               {formatGuessed && <p className="text-xs text-muted-foreground">Guessed from the file name. Change it if the import fails.</p>}
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ds-file">File{fileName ? `: ${fileName}` : ""}</Label>
+              <Label htmlFor="ds-file" className="break-all">File{fileName ? `: ${fileName}` : ""}</Label>
               <Input id="ds-file" ref={fileInput} type="file" accept=".jsonl,.ndjson,.json,.csv,text/plain" onChange={(e) => void pickFile(e.target.files?.[0])} />
               {text !== null && encoding !== "utf-8" && <p className="text-xs text-muted-foreground">Read as {ENCODING_LABELS[encoding]}.</p>}
             </div>
@@ -190,21 +193,24 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
           {rows.length > 0 && (
             <Table>
               <TableHeader>
-                <TableRow><TableHead>Name</TableHead><TableHead>Latest</TableHead><TableHead>Cases</TableHead><TableHead>Format</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow>
+                <TableRow><TableHead>Name</TableHead><TableHead>Latest</TableHead><TableHead>Cases</TableHead><TableHead className="w-10"><span className="sr-only">Actions</span></TableHead></TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((d) => (
-                  <TableRow key={d.id}>
-                    <TableCell>{d.name}</TableCell>
-                    <TableCell>v{d.version}</TableCell>
-                    <TableCell>{d.case_count}</TableCell>
-                    <TableCell>{d.format}</TableCell>
-                    <TableCell className="flex justify-end gap-2">
-                      <Button size="sm" variant="outline" aria-pressed={openId === d.id} onClick={() => { setOpenId(d.id); setVersionId(null); }}>Versions</Button>
-                      <Button size="sm" variant="outline" aria-label={`Delete ${d.name}`} onClick={() => setPendingDelete(d)}>Delete</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {rows.map((d) => {
+                  const open = () => { setOpenId(d.id); setVersionId(null); };
+                  return (
+                    <TableRow key={d.id} className="cursor-pointer" data-state={current === d.id ? "selected" : undefined} aria-current={current === d.id ? "true" : undefined} onClick={open}>
+                      <TableCell className="max-w-0 w-full">
+                        <button type="button" className="block max-w-full truncate text-left font-medium hover:underline" title={d.name} onClick={(e) => { e.stopPropagation(); open(); }}>{d.name}</button>
+                      </TableCell>
+                      <TableCell>v{d.version}</TableCell>
+                      <TableCell>{d.case_count}</TableCell>
+                      <TableCell>
+                        <Button size="icon-sm" variant="ghost" aria-label={`Delete ${d.name}`} onClick={(e) => { e.stopPropagation(); setPendingDelete(d); }}><Trash2 /></Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -227,10 +233,10 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card className="lg:order-1">
+      <Card className="min-w-0">
         <CardHeader><CardTitle>{shown ? `${shown.name}: versions` : "Cases"}</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
-          {!shown && <p className="text-sm text-muted-foreground">Pick a dataset to see its cases.</p>}
+          {!shown && list.data && rows.length === 0 && <p className="text-sm text-muted-foreground">Pick a dataset to see its cases.</p>}
           {shown && (<>
             <div className="flex flex-wrap gap-2">
               {shown.versions.map((v) => (
@@ -252,8 +258,8 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
                   {cases.data.map((c) => (
                     <TableRow key={`${c.position}`}>
                       <TableCell className="whitespace-nowrap">{c.case_key}</TableCell>
-                      <TableCell className="max-w-md whitespace-pre-wrap break-words">{c.input.length > 300 ? `${c.input.slice(0, 300)}…` : c.input}</TableCell>
-                      <TableCell className="max-w-xs whitespace-pre-wrap break-words">{c.expected ?? ""}</TableCell>
+                      <TableCell className="whitespace-pre-wrap break-words">{c.input.length > 300 ? `${c.input.slice(0, 300)}…` : c.input}</TableCell>
+                      <TableCell className="whitespace-pre-wrap break-words">{c.expected ?? ""}</TableCell>
                       <TableCell>{c.tags.join(", ")}</TableCell>
                     </TableRow>
                   ))}
