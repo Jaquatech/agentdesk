@@ -1,6 +1,6 @@
 # Release notes
 
-## Unreleased
+## 1.6.0 (2026-11-24)
 
 ### Added
 - Attachment handling has a "Reading scans" card: the agent that should read scanned PDFs and photos, and a page cap per file.
