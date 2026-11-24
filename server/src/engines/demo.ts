@@ -100,6 +100,9 @@ export class DemoEngine implements Engine {
       ok: true, summary, output, turns: 6, costUsd: 0, tokensIn: 4_000, cacheRead: 36_000, cacheWrite: 2_000, tokensOut: 1_800, seconds: Math.round((Date.now() - t0) / 1000),
     });
     try {
+      if (req.attachments?.images.length && req.prompt.startsWith("Transcribe the attached scanned pages")) {
+        return result(req.attachments.images.map((img, i) => `## Page ${i + 1}\n\nDemo scan text for ${img.name}.`).join("\n\n"));
+      }
       if (req.prompt.startsWith(ROLLUP_MARKER)) {
         return result("Kept the decisions from the messages that left the window.\nNames and outcomes are in this note.\nThe recent messages stay in the chat.");
       }

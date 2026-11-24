@@ -150,7 +150,7 @@ export function AttachmentsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Reading scans</CardTitle>
-          <CardDescription>Scanned PDFs and photos of documents have no text to copy. Choose the agent whose model should read them (a model that sees images, or an OCR server added as an OpenAI-compatible provider). Reading scans is not switched on yet: this only stores the choice.</CardDescription>
+          <CardDescription>Scanned PDFs and photos of documents have no text to copy. Choose the agent whose model should read them (a model that sees images, or an OCR server added as an OpenAI-compatible provider). When you attach a scanned PDF, this agent reads its pages once and the text is kept as the file's copy. Each read is one agent call, so it costs tokens; pick a cheap model that sees images.</CardDescription>
         </CardHeader>
         {scan && (
           <CardContent className="flex flex-col gap-4">
@@ -166,7 +166,7 @@ export function AttachmentsPage() {
                   ]}
                 />
               </Field>
-              <Field label="Max pages per file" hint="1–50. Used once scan reading is switched on.">
+              <Field label="Max pages per file" hint="1–50. Pages after this limit are not read.">
                 <Input type="number" min={1} max={50} step={1} value={scan.pages} onChange={(e) => setScan({ ...scan, pages: e.target.value })} />
               </Field>
             </div>

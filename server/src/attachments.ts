@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { getSettings, type DB } from "./db.ts";
-import { convertUpload, markdownPath, partSizeFor, splitParts } from "./attachmentMarkdown.ts";
+import { convertUpload, markdownPath, partSizeFor, splitParts, type Conversion } from "./attachmentMarkdown.ts";
 import { DEFAULT_RULES, parseRules, type AttachmentRules } from "./attachmentRules.ts";
 
 /**
@@ -172,7 +172,9 @@ const safeName = (name: string) =>
   // eslint-disable-next-line no-control-regex -- control characters are exactly what is removed
   (name || "file").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").replace(/^\.+/, "").slice(-120) || "file";
 
-export function registerAttachments(app: FastifyInstance, db: DB, dataDir: string) {
+/** `readScan` reads a file with no text layer (the owner's chosen scan reader). Null or a throw keeps `needs_ocr`. */
+export function registerAttachments(app: FastifyInstance, db: DB, dataDir: string,
+  readScan?: (chatId: number, name: string, bytes: Buffer) => Promise<Conversion | null>) {
   const root = attachmentDir(dataDir);
 
   // Raw upload: the file is the body; name and type travel in the query string.
@@ -193,7 +195,13 @@ export function registerAttachments(app: FastifyInstance, db: DB, dataDir: strin
     const path = join(dir, `${id}-${name}`);
     writeFileSync(path, body);
     // The original stays as uploaded. A copy is written beside it; a failure is recorded and the message can still be sent.
-    const conv = await convertUpload(name, mime, body, parseRules(getSettings(db).attachment_rules));
+    let conv = await convertUpload(name, mime, body, parseRules(getSettings(db).attachment_rules));
+    if (conv?.status === "needs_ocr" && readScan) {
+      try {
+        const scanned = await readScan(chatId, name, body);
+        if (scanned) conv = scanned;
+      } catch { /* the file stays needs_ocr; the message can still be sent */ }
+    }
     const status = conv?.status ?? "";
     if (conv?.markdown != null) writeFileSync(markdownPath({ id, path }), conv.markdown, "utf8");
     db.prepare("UPDATE attachments SET path = ?, status = ? WHERE id = ?").run(path, status, id);

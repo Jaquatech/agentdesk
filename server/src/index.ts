@@ -47,7 +47,7 @@ export async function buildApp(opts: AppOptions) {
   registerAuth(app, db);
   registerRoutes(app, db, vault, orch, opts.dataDir);
   registerUsage(app, db);
-  registerAttachments(app, db, opts.dataDir);
+  registerAttachments(app, db, opts.dataDir, (chatId, name, bytes) => orch.readScan(chatId, name, bytes));
   registerTeams(app, db);
   registerModelGuide(app, db);
   registerScrum(app, db, orch.scrum);
