@@ -9,6 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Choice } from "../../components/inputs.tsx";
+import { decodeText, type TextEncodingName } from "../../lib/decodeText.ts";
+import { localTime } from "./localTime.ts";
+
+const ENCODING_LABELS: Record<TextEncodingName, string> = {
+  "utf-8": "UTF-8",
+  "utf-8-bom": "UTF-8 with BOM",
+  "utf-16le": "UTF-16",
+  "utf-16be": "UTF-16",
+  "windows-1252": "Windows-1252 (ANSI)",
+};
 
 type DatasetRow = { id: number; name: string; version: number; version_id: number; format: string; case_count: number; note: string };
 type Version = { id: number; version: number; format: string; case_count: number; note: string; created_at: string };
@@ -48,6 +58,9 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [pendingDelete, setPendingDelete] = useState<DatasetRow | null>(null);
+  const [nameTyped, setNameTyped] = useState(false);
+  const [formatGuessed, setFormatGuessed] = useState(false);
+  const [encoding, setEncoding] = useState<TextEncodingName>("utf-8");
   const fileInput = useRef<HTMLInputElement>(null);
 
   const detail = useLoad<DatasetDetail>(openId === null ? null : `/api/datasets/${openId}`);
@@ -56,18 +69,24 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
   const versionId = shown ? (shown.versions.some((v) => v.id === pickedVersion) ? pickedVersion : (shown.versions[0]?.id ?? null)) : null;
   const cases = useLoad<CaseRow[]>(versionId === null ? null : `/api/dataset-versions/${versionId}/cases?limit=20`);
 
+  const clearMessages = () => { setError(""); setProblems([]); setWarnings([]); setMessage(""); };
+
   const pickFile = async (file: File | undefined) => {
     if (!file) return;
-    setText(await file.text());
+    clearMessages();
+    const decoded = decodeText(await file.arrayBuffer());
+    setText(decoded.text);
+    setEncoding(decoded.encoding);
     setFileName(file.name);
     const guessed = guessFormat(file.name);
     if (guessed) setFormat(guessed);
-    if (!name.trim()) setName(file.name.replace(/\.[^.]+$/, ""));
+    setFormatGuessed(guessed !== "");
+    if (!nameTyped) setName(file.name.replace(/\.[^.]+$/, ""));
   };
 
   const doImport = async () => {
     if (text === null) return;
-    setBusy(true); setError(""); setProblems([]); setWarnings([]); setMessage("");
+    setBusy(true); clearMessages();
     try {
       // Plain fetch: a 400 carries the problem list, which the shared helper would drop.
       const res = await fetch(`/api/projects/${projectId}/datasets`, {
@@ -85,7 +104,8 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
       setMessage(body.unchanged ? `Nothing new: this file is the same as version ${body.version.version}.` : `Saved as version ${body.version.version}.`);
       setOpenId(body.dataset_id);
       setVersionId(body.version.id);
-      setText(null); setFileName(""); setNote("");
+      setText(null); setFileName(""); setNote(""); setName(""); setNameTyped(false);
+      setFormatGuessed(false); setEncoding("utf-8");
       if (fileInput.current) fileInput.current.value = "";
       list.reload();
       detail.reload();
@@ -102,7 +122,8 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
 
   const rows = list.data ?? [];
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      <div className="flex flex-col gap-4 lg:order-2">
       <Card>
         <CardHeader><CardTitle>Import a dataset</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -113,19 +134,21 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ds-name">Name</Label>
-              <Input id="ds-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoComplete="off" />
+              <Input id="ds-name" value={name} onChange={(e) => { setName(e.target.value); setNameTyped(true); clearMessages(); }} maxLength={120} autoComplete="off" />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ds-format">Format</Label>
-              <Choice id="ds-format" value={format} onValueChange={setFormat} options={FORMATS} />
+              <Choice id="ds-format" value={format} onValueChange={(v) => { setFormat(v); setFormatGuessed(false); clearMessages(); }} options={FORMATS} />
+              {formatGuessed && <p className="text-xs text-muted-foreground">Guessed from the file name. Change it if the import fails.</p>}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ds-file">File{fileName ? `: ${fileName}` : ""}</Label>
               <Input id="ds-file" ref={fileInput} type="file" accept=".jsonl,.ndjson,.json,.csv,text/plain" onChange={(e) => void pickFile(e.target.files?.[0])} />
+              {text !== null && encoding !== "utf-8" && <p className="text-xs text-muted-foreground">Read as {ENCODING_LABELS[encoding]}.</p>}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ds-note">Note (optional)</Label>
-              <Input id="ds-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} autoComplete="off" />
+              <Input id="ds-note" value={note} onChange={(e) => { setNote(e.target.value); clearMessages(); }} maxLength={500} autoComplete="off" />
             </div>
           </div>
           <div>
@@ -184,6 +207,7 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
           )}
         </CardContent>
       </Card>
+      </div>
 
       <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
         <AlertDialogContent>
@@ -200,20 +224,21 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {detail.data && detail.data.id === openId && (
-        <Card>
-          <CardHeader><CardTitle>{detail.data.name}: versions</CardTitle></CardHeader>
-          <CardContent className="flex flex-col gap-3">
+      <Card className="lg:order-1">
+        <CardHeader><CardTitle>{shown ? `${shown.name}: versions` : "Cases"}</CardTitle></CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {!shown && <p className="text-sm text-muted-foreground">Pick a dataset to see its cases.</p>}
+          {shown && (<>
             <div className="flex flex-wrap gap-2">
-              {detail.data.versions.map((v) => (
+              {shown.versions.map((v) => (
                 <Button key={v.id} size="sm" variant={v.id === versionId ? "default" : "outline"} aria-pressed={v.id === versionId} onClick={() => setVersionId(v.id)}>
                   v{v.version} <Badge variant="secondary">{v.case_count}</Badge>
                 </Button>
               ))}
             </div>
             {(() => {
-              const v = detail.data.versions.find((x) => x.id === versionId);
-              return v ? <p className="text-sm text-muted-foreground">Imported {v.created_at} as {v.format}.{v.note ? ` ${v.note}` : ""}</p> : null;
+              const v = shown.versions.find((x) => x.id === versionId);
+              return v ? <p className="text-sm text-muted-foreground">Imported {localTime(v.created_at)} as {v.format}.{v.note ? ` ${v.note}` : ""}</p> : null;
             })()}
             {cases.data && (
               <Table>
@@ -233,9 +258,9 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
               </Table>
             )}
             {cases.data && <p className="text-xs text-muted-foreground">First {cases.data.length} cases.</p>}
-          </CardContent>
-        </Card>
-      )}
+          </>)}
+        </CardContent>
+      </Card>
     </div>
   );
 }

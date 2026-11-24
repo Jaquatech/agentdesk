@@ -5,6 +5,10 @@
 ### Added
 - Projects have a Data factory switch. When it is on, the project shows a Data factory page in the sidebar.
 - Data factory: import a dataset (JSONL, JSON or CSV), see problems and warnings, and keep each import as an immutable version.
+- Data factory files are read in their real encoding: UTF-8 (with or without BOM), UTF-16, or Windows ANSI, so Nordic letters survive. The page says which one was used.
+
+### Changed
+- The Datasets page has the import form and the list on the right and the cases on the left, clears the form and old messages after an import, and shows times in local time.
 
 ## 1.6.0 (2026-11-24)
 
