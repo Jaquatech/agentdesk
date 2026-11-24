@@ -66,7 +66,8 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
   const [encoding, setEncoding] = useState<TextEncodingName>("utf-8");
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const rows = list.data ?? [];
+  // The server lists datasets by name; the newest (highest id) comes first, so the first one opens by itself.
+  const rows = [...(list.data ?? [])].sort((a, b) => b.id - a.id);
   // The chosen dataset, or the first one when none is chosen (or the chosen one is gone).
   const current = rows.some((d) => d.id === openId) ? openId : (rows[0]?.id ?? null);
   const detail = useLoad<DatasetDetail>(current === null ? null : `/api/datasets/${current}`);
@@ -129,7 +130,7 @@ export function DatasetsPanel({ projectId }: { projectId: number }) {
   };
 
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(16rem,20%)_minmax(0,1fr)] lg:grid-rows-1">
+    <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(16rem,25%)_minmax(0,1fr)] lg:grid-rows-1">
       {rows.length > 0 && (
         <nav aria-label="Datasets" className="max-h-60 min-h-0 overflow-auto border-b lg:max-h-none lg:border-b-0 lg:border-r">
           <ul className="flex flex-col">
