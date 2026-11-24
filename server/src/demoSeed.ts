@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DB } from "./db.ts";
+import { importDataset } from "./dataFactory/datasets.ts";
 import { ensureProjectPages, syncReleasePage, syncTaskPage } from "./documents.ts";
 import { DEFAULT_WORKER_TOOLS } from "./engines/types.ts";
 import { ROLE_TEMPLATES } from "./orchestrator/prompts.ts";
@@ -54,7 +55,25 @@ export function seedDemo(db: DB, dataDir: string): boolean {
     ["Rover Radio: crater playlists", "Suggest a playlist for each crater the rover passes.", "As a rover driver I want music that fits the crater so that long drives are fun.", "- [ ] Three craters have a playlist\n- [ ] Unknown craters get a default", "## Approach (demo)\nA lookup table under rover-radio/.", 2],
   ].forEach(([title, request, story, acceptance, notes, points], n) => insertItem.run(projectId, title, request, story, acceptance, notes, points, n + 1));
   seedHistory(db, projectId, ids);
+  seedDataFactory(db, dataDir, projectId);
   return true;
+}
+
+/** The Data factory is on in the demo, with one small sample dataset (generic support questions, no real names). */
+function seedDataFactory(db: DB, dataDir: string, projectId: number) {
+  db.prepare("UPDATE projects SET data_factory = 1 WHERE id = ?").run(projectId);
+  const cases = [
+    { input: "How do I reset my password?", expected: "Use the 'Forgot password' link on the sign-in page and follow the email.", tags: ["account"] },
+    { input: "Where can I see my last invoice?", expected: "Open Billing in your account settings; invoices are listed by date.", tags: ["billing"] },
+    { input: "My order has not arrived yet.", expected: "Check the tracking link in your confirmation email; if it has not moved in five days, contact support.", tags: ["shipping"] },
+    { input: "Can I change my delivery address after ordering?", expected: "Yes, within one hour of ordering, from Orders; after that the carrier must be contacted.", tags: ["shipping"] },
+    { input: "How do I cancel my subscription?", expected: "Go to Settings, then Subscription, and choose Cancel. The plan stays active until the period ends.", tags: ["billing"] },
+    { input: "The app crashes when I open the camera.", expected: "Update to the latest version and allow camera access; send the app version to support if it persists.", tags: ["technical"] },
+    { input: "Do you offer a refund for a damaged item?", expected: "Yes, photograph the damage and request a refund from Orders within 30 days.", tags: ["returns"] },
+    { input: "How do I change the language?", expected: "Open Settings, then Language, and pick one from the list.", tags: ["account"] },
+  ];
+  const text = cases.map((c) => JSON.stringify(c)).join("\n");
+  importDataset(db, dataDir, { projectId, name: "support-questions", format: "jsonl", text, note: "Demo sample" });
 }
 
 /** A released first sprint (two merged tasks, runs, release notes) and an active second sprint: one task waiting to run, one needing the user, one merged. */
