@@ -10,7 +10,7 @@ npm run setup        # install + build the UI
 npm run dev          # server on 4317 (reload) + Vite on 5173 (/api proxied)
 npm run demo         # scripted agents, no key, no cost, separate data folder (data-demo/)
 npm run demo:reset   # stop a leftover demo server and clear data-demo/ (the next demo re-seeds)
-npm run lint         # ESLint on server and web (CI runs lint, test, build)
+npm run lint         # ESLint on server and web (CI runs lint, test, build, and `npm audit --omit=dev --audit-level=moderate`)
 npm test             # server (vitest, ~52 tests) + web
 npm run e2e          # browser tests (Playwright) against a fresh demo seed; needs `npx playwright install chromium` once, or E2E_BROWSER=<path to a Chrome>
 npm run build        # web build + server typecheck (tsc --noEmit)
