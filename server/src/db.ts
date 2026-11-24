@@ -452,6 +452,7 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_eval_cases_version ON eval_cases(version_id, position);
   `,
+  `ALTER TABLE eval_dataset_versions ADD COLUMN source_name TEXT NOT NULL DEFAULT '';`,
 ];
 
 export function openDb(file: string): DB {

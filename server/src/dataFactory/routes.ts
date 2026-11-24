@@ -59,14 +59,16 @@ export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: strin
   app.post("/api/projects/:id/datasets", { bodyLimit: MAX_UPLOAD_BYTES + 1024 * 1024 }, async (req, reply) => {
     const projectId = Number((req.params as { id: string }).id);
     if (!projectOn(reply, projectId)) return;
-    const b = (req.body ?? {}) as { name?: unknown; format?: unknown; text?: unknown; note?: unknown };
+    const b = (req.body ?? {}) as { name?: unknown; format?: unknown; text?: unknown; note?: unknown; source_name?: unknown };
     const name = typeof b.name === "string" ? b.name.trim() : "";
     if (!name || name.length > MAX_NAME) return fail(reply, 400, `Give the dataset a name of up to ${MAX_NAME} characters`);
     if (typeof b.format !== "string" || !FORMATS.has(b.format)) return fail(reply, 400, "format must be jsonl, json or csv");
     if (typeof b.text !== "string" || b.text.trim() === "") return fail(reply, 400, "The file is empty");
     if (Buffer.byteLength(b.text) > MAX_UPLOAD_BYTES) return fail(reply, 400, "The file is larger than 10 MB");
     const note = typeof b.note === "string" ? b.note.trim().slice(0, 500) : "";
-    const result = importDataset(db, dataDir, { projectId, name, format: b.format as DatasetFormat, text: b.text, note });
+    // Only the last path segment of the picked file's name is kept.
+    const sourceName = typeof b.source_name === "string" ? (b.source_name.split(/[\\/]/).pop() ?? "").trim().slice(0, 255) : "";
+    const result = importDataset(db, dataDir, { projectId, name, format: b.format as DatasetFormat, text: b.text, note, sourceName });
     if (!result.ok) return reply.code(400).send({ error: "The file has problems", problems: result.problems, warnings: result.warnings });
     return { dataset_id: result.datasetId, version: result.version, unchanged: result.unchanged, warnings: result.warnings };
   });

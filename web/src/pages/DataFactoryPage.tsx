@@ -3,7 +3,8 @@ import { get, type Project } from "../api.ts";
 import { Page } from "../components/page.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DatasetsPanel } from "./dataFactory/DatasetsPanel.tsx";
+import { DatasetsPanel, type DatasetPick } from "./dataFactory/DatasetsPanel.tsx";
+import { ImportPanel, type ImportStatus } from "./dataFactory/ImportPanel.tsx";
 import { SECTIONS, sectionFromTab, type SectionId } from "./dataFactory/sections.ts";
 
 /** The Data factory of one project: sections as header tabs, each a list and a wide view. */
@@ -14,6 +15,10 @@ export function DataFactoryPage({ projectId, tab }: { projectId: number; tab?: s
     get<Project[]>("/api/projects").then((list) => setProject(list.find((p) => p.id === projectId) ?? null));
   }, [projectId]);
 
+  // Open dataset and version and the line after an import live here, so they survive a tab switch.
+  const [pick, setPick] = useState<DatasetPick>({ datasetId: null, versionId: null });
+  const [status, setStatus] = useState<ImportStatus | null>(null);
+
   if (project === undefined) return null;
   if (project === null) return <Page title="Data factory"><p className="text-sm text-muted-foreground">No such project.</p></Page>;
   if ((project as Project & { data_factory?: number }).data_factory !== 1) {
@@ -22,9 +27,9 @@ export function DataFactoryPage({ projectId, tab }: { projectId: number; tab?: s
 
   const current = sectionFromTab(tab);
   const section = SECTIONS.find((s) => s.id === current)!;
-  const pick = (id: SectionId) => { window.location.hash = `#/data-factory/${project.id}?tab=${id}`; };
+  const goTab = (id: SectionId) => { window.location.hash = `#/data-factory/${project.id}?tab=${id}`; };
   const tabs = (
-    <Tabs value={current} onValueChange={(v) => pick(v as SectionId)} className="ml-auto w-auto">
+    <Tabs value={current} onValueChange={(v) => goTab(v as SectionId)} className="ml-auto w-auto">
       <TabsList>
         {SECTIONS.map((s) => <TabsTrigger key={s.id} value={s.id}>{s.label}</TabsTrigger>)}
       </TabsList>
@@ -36,7 +41,14 @@ export function DataFactoryPage({ projectId, tab }: { projectId: number; tab?: s
       actions={tabs}
       bleed
     >
-      {current === "datasets" ? <DatasetsPanel projectId={project.id} /> : (
+      {current === "import" ? (
+        <ImportPanel
+          projectId={project.id}
+          onImported={(datasetId, versionId, s) => { setPick({ datasetId, versionId }); setStatus(s); goTab("datasets"); }}
+        />
+      ) : current === "datasets" ? (
+        <DatasetsPanel projectId={project.id} pick={pick} onPick={setPick} status={status} onStatusDone={() => setStatus(null)} />
+      ) : (
         <div className="min-h-0 flex-1 overflow-auto p-6">
           <Card>
             <CardHeader>

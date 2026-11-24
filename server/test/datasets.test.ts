@@ -49,6 +49,25 @@ describe("datasets", () => {
     expect(list[0].version).toBe(1);
   });
 
+  it("stores the source file name: last path segment, at most 255 characters, empty when missing", async () => {
+    const url = `/api/projects/${projectId}/datasets`;
+    const stored = async (name: string, source_name?: unknown, n = 6) => {
+      const r = await call("POST", url, { name, format: "jsonl", text: jsonl(n), source_name });
+      const d = await call("GET", `/api/datasets/${r.dataset_id}`);
+      return d.versions[0].source_name;
+    };
+    expect(await stored("a", "support.csv")).toBe("support.csv");
+    expect(await stored("b", "C:\\data\\x\\support.csv")).toBe("support.csv");
+    expect(await stored("c", "a/b/support.csv")).toBe("support.csv");
+    expect(await stored("d")).toBe("");
+    expect(await stored("e", 42)).toBe("");
+    expect(await stored("f", "x".repeat(300))).toBe("x".repeat(255));
+    // Re-importing the same text keeps the stored name.
+    const again = await call("POST", url, { name: "a", format: "jsonl", text: jsonl(6), source_name: "other.csv" });
+    expect(again.unchanged).toBe(true);
+    expect(again.version.source_name).toBe("support.csv");
+  });
+
   it("changed text creates v2 and v1 cases stay intact", async () => {
     const v1 = await call("POST", `/api/projects/${projectId}/datasets`, { name: "set", format: "jsonl", text: jsonl(6) });
     const v2 = await call("POST", `/api/projects/${projectId}/datasets`, { name: "set", format: "jsonl", text: jsonl(7, "x") });
