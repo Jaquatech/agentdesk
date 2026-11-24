@@ -14,7 +14,9 @@ import {
 } from "./git.ts";
 import { runCommandLine, tail, type ShellKind } from "./shell.ts";
 import { loadForPrompt, storeImageNotes, type AttachmentRow, type PromptAttachments } from "../attachments.ts";
-import { readChatAttachment } from "../attachmentMarkdown.ts";
+import { readChatAttachment, type Conversion } from "../attachmentMarkdown.ts";
+import { renderPdfPages } from "../pdfPages.ts";
+import { scanMarkdown, scanPrompt } from "../scanReader.ts";
 import { parseRules } from "../attachmentRules.ts";
 import { getCapabilities } from "../providers/capabilities.ts";
 import { placeEnvFile, type EnvFileHandle } from "./envFile.ts";
@@ -269,6 +271,47 @@ export class Orchestrator {
       this.busyAgents.delete(o.agent.id);
       this.activity(o.agent.id, "idle", undefined, undefined, undefined);
     }
+  }
+
+  /**
+   * Reads a scanned PDF (no text layer) with the agent chosen under Attachment handling > Reading scans. Once, at
+   * upload: the reply becomes the file's Markdown copy. Returns null when no agent is chosen, so the file stays
+   * needs_ocr. Every other failure is returned as `failed: reason`. One agent call, kind `scan`, in Usage.
+   */
+  async readScan(chatId: number, name: string, bytes: Buffer): Promise<Conversion | null> {
+    const settings = getSettings(this.db);
+    const raw = String(settings.scan_reader_agent_id ?? "").trim();
+    const agentId = Math.round(Number(raw));
+    const agent = raw && Number.isInteger(agentId) && agentId > 0 ? this.agent(agentId) : undefined;
+    if (!agent) return null;
+    const pageText = String(settings.scan_reader_max_pages ?? "").trim();
+    const pageCap = pageText === "" ? NaN : Math.round(Number(pageText));
+    const maxPages = Number.isFinite(pageCap) ? Math.min(50, Math.max(1, pageCap)) : 10;
+    const fail = (reason: string): Conversion => ({ status: `failed: ${reason.slice(0, 120)}`, markdown: null });
+    const chat = this.db.prepare("SELECT project_id FROM chats WHERE id = ?").get(chatId) as { project_id: number } | undefined;
+    if (!chat) return null;
+    const p = resolveProvider(this.db, this.vault, agent);
+    if (p.kind === "claude-cli") return fail("Claude CLI cannot read scans here, pick an agent with an API provider");
+    const caps = await getCapabilities(p.kind, p.baseUrl, p.model, p.apiKey);
+    if (caps.vision === false) return fail("the chosen agent's model cannot read images");
+    let rendered: Awaited<ReturnType<typeof renderPdfPages>>;
+    try {
+      rendered = await renderPdfPages(bytes, maxPages);
+    } catch (err) {
+      return fail(String((err as Error).message ?? err));
+    }
+    const { pages, total } = rendered;
+    if (!pages.length) return fail("the PDF has no pages");
+    const project = this.project(chat.project_id);
+    const result = await this.callAgent({
+      agent, kind: "scan", chatId, cwd: project.path, prompt: scanPrompt(pages.length, total, name), mode: "read", wiki: "none",
+      attachments: {
+        images: pages.map((pg) => ({ name: `${name} page ${pg.page}`, mime: "image/png", base64: pg.png.toString("base64") })),
+        texts: [], skipped: [], paths: [], readPaths: [], notes: [],
+      },
+    });
+    if (!result.ok) return fail(result.error || "the agent call failed");
+    return scanMarkdown(result.summary, pages.length, total);
   }
 
   // ---------- planning ----------

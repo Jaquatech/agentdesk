@@ -242,13 +242,14 @@ Paste, drop or attach files on a chat message. The original file is kept as you 
 - Excel (`.xlsx`) becomes one table per sheet. A sheet longer than 200 rows or wider than 20 columns is cut, the copy says how much was left out, and the message says it was cut short. Older `.xls` files are named only.
 - Word (`.docx`) keeps headings, paragraphs, lists and tables. Older `.doc` files are named only.
 - A PDF with a text layer is copied page by page, with a heading for each page. A scanned or image-only PDF is marked as needing a text scan. The app does not guess what the picture says.
+- Scan reading is opt-in: with an agent chosen under **Reading scans**, a scanned PDF is read once at upload and its transcribed pages become the file's copy. Only the first pages up to the page limit are read, and the rest are noted as left out. The call uses the chosen agent, so it costs tokens and shows in Usage as kind `scan`. A Claude CLI agent cannot be used for this, and a model that cannot see images is refused. With no agent chosen, nothing is sent.
 - The first time an agent sees an image it writes a one-line note about it. The note is kept with the file and shown under the image, and later messages use the note instead of sending the image again.
 
 The planner, and in a Scrum project the product manager, reads images when its model can read images, and the first part of that Markdown copy (about 20 000 characters). To hear the rest, ask for the next part by the file's name, for example "read the rest of budget.csv". The message shows whether the copy was made. A file that cannot be read is marked failed, and the message still sends. Files on earlier messages stay as names, with the size and how many parts the agent can ask for.
 
 The limits above are the defaults. **Attachment handling** (sidebar, group **Platform settings**) sets them per file type: Markdown copy on or off, characters sent with the message, spreadsheet rows and columns, and image size. A change applies to files attached afterwards.
 
-Scanned PDFs and photos of documents have no text to copy. The **Reading scans** card on the same page stores which agent should read them and the page cap per file; reading scans is not switched on yet, so this only stores the choice.
+Scanned PDFs and photos of documents have no text to copy. The **Reading scans** card on the same page stores which agent should read them and the page cap per file; see the bullet on scanned PDFs above for what it does and what it costs.
 
 ## Scrum: backlog, sprints, release
 

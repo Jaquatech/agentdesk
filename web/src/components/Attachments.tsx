@@ -31,7 +31,7 @@ export function attachmentStatusText(file: { name: string; status?: string }): s
   if (!status) return "";
   if (status === "converted") return `${file.name}: Converted to Markdown`;
   if (status === "truncated") return `${file.name}: Converted to Markdown, cut short`;
-  if (status === "needs_ocr") return `${file.name}: Needs a text scan`;
+  if (status === "needs_ocr") return `${file.name}: No text layer. Choose an agent under Attachment handling > Reading scans to read it.`;
   if (status.startsWith("failed:")) return `${file.name}: Not converted: ${status.slice("failed:".length).trim()}`;
   return `${file.name}: ${status}`;
 }
