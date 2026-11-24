@@ -8,9 +8,8 @@
 - Data factory files are read in their real encoding: UTF-8 (with or without BOM), UTF-16, or Windows ANSI, so Nordic letters survive. The page says which one was used.
 
 ### Changed
-- The Data factory has a side menu (Datasets, Models, Judge, Runs, Review, Reports) and a wide work area. Only Datasets is built; the others are placeholders.
-- The Datasets page is a list on the left and the cases on the right, uses the whole width, and opens the first dataset by itself.
-- The Datasets page has the import form and the list on the right and the cases on the left, clears the form and old messages after an import, and shows times in local time.
+- The Data factory sections are tabs in the page header like Scrum, with a narrow list on the left and a wide view. Replaces the side menu. Only Datasets is built; the other tabs are placeholders.
+- The Datasets page opens the first dataset by itself, clears the form and old messages after an import, and shows times in local time.
 - Picking a second file after typing a dataset name renames the dataset from the new file name, unless the name was typed again since the last pick.
 
 ### Changed

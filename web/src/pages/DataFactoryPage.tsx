@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { get, type Project } from "../api.ts";
 import { Page } from "../components/page.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DatasetsPanel } from "./dataFactory/DatasetsPanel.tsx";
-import { SECTIONS, sectionFromTab } from "./dataFactory/sections.ts";
+import { SECTIONS, sectionFromTab, type SectionId } from "./dataFactory/sections.ts";
 
-/** The Data factory of one project: a side menu of sections and a work area. */
+/** The Data factory of one project: sections as header tabs, each a list and a wide view. */
 export function DataFactoryPage({ projectId, tab }: { projectId: number; tab?: string }) {
   // undefined = loading, null = no such project.
   const [project, setProject] = useState<Project | null | undefined>(undefined);
@@ -22,36 +22,31 @@ export function DataFactoryPage({ projectId, tab }: { projectId: number; tab?: s
 
   const current = sectionFromTab(tab);
   const section = SECTIONS.find((s) => s.id === current)!;
+  const pick = (id: SectionId) => { window.location.hash = `#/data-factory/${project.id}?tab=${id}`; };
+  const tabs = (
+    <Tabs value={current} onValueChange={(v) => pick(v as SectionId)} className="ml-auto w-auto">
+      <TabsList>
+        {SECTIONS.map((s) => <TabsTrigger key={s.id} value={s.id}>{s.label}</TabsTrigger>)}
+      </TabsList>
+    </Tabs>
+  );
   return (
-    <Page title={project.name} bleed>
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <nav aria-label="Data factory sections" className="flex shrink-0 gap-1 overflow-auto border-b p-2 md:w-56 md:flex-col md:border-b-0 md:border-r">
-          {SECTIONS.map((s) => (
-            <a
-              key={s.id}
-              href={`#/data-factory/${project.id}?tab=${s.id}`}
-              aria-current={s.id === current ? "page" : undefined}
-              className={cn(
-                "flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/50 [&_svg]:size-4",
-                s.id === current && "bg-accent font-medium text-accent-foreground",
-              )}
-            >
-              <s.icon /> <span>{s.label}</span>
-            </a>
-          ))}
-        </nav>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto p-6">
-          {current === "datasets" ? <DatasetsPanel projectId={project.id} /> : (
-            <Card>
-              <CardHeader>
-                <CardTitle>{section.label}</CardTitle>
-                <CardDescription>{section.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">Not built yet.</CardContent>
-            </Card>
-          )}
+    <Page
+      title={<><span className="text-muted-foreground">{project.name}</span><span className="text-muted-foreground">/</span><h1 className="text-sm font-medium">Data factory</h1></>}
+      actions={tabs}
+      bleed
+    >
+      {current === "datasets" ? <DatasetsPanel projectId={project.id} /> : (
+        <div className="min-h-0 flex-1 overflow-auto p-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{section.label}</CardTitle>
+              <CardDescription>{section.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">Not built yet.</CardContent>
+          </Card>
         </div>
-      </div>
+      )}
     </Page>
   );
 }
