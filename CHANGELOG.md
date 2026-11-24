@@ -8,6 +8,7 @@
 - An agent that sees an image writes one short note about it in the same answer. The note is shown under the image and used in later messages instead of the image.
 - Attachment limits are settings per file type (Markdown copy on or off, characters sent with the message, spreadsheet rows and columns, image size).
 - Attachment handling page (sidebar group Platform settings): limits per file type.
+- PDF pages can be rendered to PNG images (`@hyzyla/pdfium`, up to 50 pages, longest side 2000 px). Nothing uses it yet; reading scanned pages is the next step.
 
 ### Changes
 - CI runs `npm audit --omit=dev --audit-level=moderate`, so a production dependency with a moderate or worse finding fails the build. The four moderate findings in the dev-only `shadcn` tool stay accepted and are recorded in `docs/decisions.md`.

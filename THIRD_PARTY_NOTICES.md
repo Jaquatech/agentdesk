@@ -2,7 +2,7 @@
 
 AgentDesk is MIT licensed (see LICENSE). Copyright (c) 2026 Jan Romppanen. It uses the packages below; each keeps its own licence, whose text ships with the package.
 
-- MIT: 335
+- MIT: 336
 - MPL-2.0: 12
 - BSD-2-Clause: 11
 - ISC: 11
@@ -65,6 +65,7 @@ AgentDesk is MIT licensed (see LICENSE). Copyright (c) 2026 Jan Romppanen. It us
 | @floating-ui/react-dom | 2.1.9 | MIT |
 | @floating-ui/utils | 0.2.12 | MIT |
 | @fontsource-variable/roboto | 5.3.0 | OFL-1.1 |
+| @hyzyla/pdfium | 3.0.0 | MIT |
 | @isaacs/nonrecursive-glob-match | 1.1.0 | BlueOak-1.0.0 |
 | @jridgewell/gen-mapping | 0.3.13 | MIT |
 | @jridgewell/remapping | 2.3.5 | MIT |
