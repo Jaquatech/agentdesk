@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { DB } from "../db.ts";
 import type { DatasetFormat } from "./datasetParser.ts";
-import { datasetRunCount, deleteDataset, importDataset } from "./datasets.ts";
+import { DatasetInUseError, deleteDataset, importDataset } from "./datasets.ts";
 import { modelFamily, priceStatus } from "./modelFamily.ts";
 import { registerRunPlans } from "./runPlans.ts";
 
@@ -82,9 +82,12 @@ export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: strin
     const projectId = datasetProject(id);
     if (projectId === undefined) return fail(reply, 404, "No such dataset");
     if (!projectOn(reply, projectId)) return;
-    const used = datasetRunCount(db, id);
-    if (used > 0) return fail(reply, 409, `This dataset is used by ${used} runs. Delete those runs first.`);
-    deleteDataset(db, dataDir, id);
+    try {
+      deleteDataset(db, dataDir, id);
+    } catch (err) {
+      if (err instanceof DatasetInUseError) return fail(reply, 409, err.message);
+      throw err;
+    }
     return { ok: true };
   });
 
