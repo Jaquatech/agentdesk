@@ -410,7 +410,7 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
           </Button>
           <input ref={fileInput} type="file" multiple hidden onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
           <Textarea
-            className="min-h-11 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+            className="max-h-[40dvh] min-h-11 flex-1 resize-none overflow-y-auto border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
             placeholder={planning ? "The planner is working on it…" : "What should the team do? Paste or drop screenshots and files. (Enter to send, Shift+Enter for a new line)"}
             value={text}
             onChange={(e) => writeText(e.target.value)}

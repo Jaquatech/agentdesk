@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- Chat: a long message no longer grows the input box past the window. The box stops at 40% of the window height and scrolls, so the conversation and the Send button stay on screen.
 - Data factory, Review tab: the cards in the right-hand column no longer shrink and get cut off; the column scrolls to show the whole page.
 
 ### Added
