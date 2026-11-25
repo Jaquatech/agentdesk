@@ -80,6 +80,7 @@ export const PLAN_TOOL: ToolDef = {
           },
         },
       },
+      next: { type: "string", description: "with tasks: one line naming the road-map step that comes after them (empty when none is left)" },
       merge: { type: "array", items: { type: "string" }, description: "slugs of approved tasks the user asked to merge" },
       retry: {
         type: "array",

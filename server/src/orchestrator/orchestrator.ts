@@ -423,6 +423,7 @@ If the user asks to merge finished work, do not write tasks for it: put the slug
 (they then get a Merge button). Approved tasks: ${tasks.filter((t) => t.status === "approved").map((t) => t.slug).join(", ") || "none"}.
 If the user asks to run earlier tasks again, put them in \`retry\` (any chat of this project; set \`worker\` to hand one to another
 developer) instead of writing new tasks. Retryable: ${tasks.filter((t) => RETRYABLE.includes(t.status)).map((t) => t.slug).join(", ") || "none"}.
+When you write tasks, put in \`next\` the road-map step that comes after them, and keep the Road map page to what is not tasked yet.
 Add to \`journal\` only what a later chat must know (a decision, a finding, why something failed); usually nothing.
 ${WIKI_LINE} The wiki in your instructions is an index. Use read_wiki or search_wiki when you need a page that is not written out. Put the pages in \`wiki\`: overview, architecture, roadmap and setup replace that one page (a title is optional). decisions and releases are one page per title.
 Do not put this project's name, its data, or a customer name into General pages. You cannot edit those from here.`;
@@ -868,7 +869,29 @@ Do not put this project's name, its data, or a customer name into General pages.
     const result = await mergeTask(project, t.worktree, t.branch, msg);
     if (!result.startsWith("Complete")) this.updateTask(taskId, { status: "merged" });
     this.postMessage(t.chat_id, "event", `**${t.title}**: ${result}.`);
+    if (!result.startsWith("Complete")) this.afterPlanMerged(t);
     return result;
+  }
+
+  /**
+   * Once every task of a plan is merged (or cancelled), say what comes next: the step the planner named in \`next\`
+   * and the project's Road map page. The chat shows a "Plan next step" button for it; nothing is planned until it is pressed.
+   */
+  private afterPlanMerged(t: TaskRow) {
+    if (!t.message_id || t.sprint_id) return;
+    const siblings = this.db.prepare("SELECT title, status FROM tasks WHERE message_id = ?").all(t.message_id) as { title: string; status: string }[];
+    const open = siblings.filter((s) => s.status !== "merged" && s.status !== "cancelled");
+    if (open.length) {
+      this.postMessage(t.chat_id, "event", `Still open from this plan: ${open.map((s) => `**${s.title}** (${s.status.replace("_", " ")})`).join(", ")}.`);
+      return;
+    }
+    const msg = this.db.prepare("SELECT plan FROM messages WHERE id = ?").get(t.message_id) as { plan: string | null } | undefined;
+    const next = String(json.parse<{ next?: unknown }>(msg?.plan ?? null, {}).next ?? "").trim().slice(0, 300);
+    const roadmap = this.db.prepare("SELECT id FROM documents WHERE project_id = ? AND slot = 'roadmap'").get(t.project_id) as { id: number } | undefined;
+    const text = siblings.length > 1 ? `All ${siblings.length} tasks from this plan are merged.` : "This plan is merged.";
+    // The step itself is shown by the card under the message.
+    this.postMessage(t.chat_id, "event", text, undefined,
+      { next_step: { text: next, roadmap_id: roadmap?.id ?? null } });
   }
 
   async discard(taskId: number) {
@@ -918,7 +941,7 @@ function firstLine(text: string) {
 
 type PlanTask = { slug: string; title: string; spec: string; paths?: string[]; worker?: string };
 
-export function normalizePlan(raw: Record<string, unknown>, existing: string[]): { reply: string; tasks: PlanTask[] } {
+export function normalizePlan(raw: Record<string, unknown>, existing: string[]): { reply: string; tasks: PlanTask[]; next?: string } {
   const used = new Set(existing);
   const tasks = (Array.isArray(raw.tasks) ? raw.tasks : []).slice(0, 12).map((t: Record<string, unknown>, i: number) => {
     let slug = String(t.slug || t.title || `task-${i + 1}`).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || `task-${i + 1}`;
@@ -930,5 +953,6 @@ export function normalizePlan(raw: Record<string, unknown>, existing: string[]):
       paths: Array.isArray(t.paths) ? t.paths.map(String) : [], worker: t.worker ? String(t.worker) : undefined,
     };
   }).filter((t) => t.spec.trim());
-  return { reply: String(raw.reply ?? ""), tasks };
+  const next = typeof raw.next === "string" ? raw.next.trim().slice(0, 300) : "";
+  return { reply: String(raw.reply ?? ""), tasks, ...(next && tasks.length ? { next } : {}) };
 }

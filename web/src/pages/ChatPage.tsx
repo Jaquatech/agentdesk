@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
-import { Building2, GitMerge, NotebookPen, Paperclip, RotateCcw, ListChecks, MessageSquare, Play, Send, Trash2, Pencil } from "lucide-react";
+import { Building2, GitMerge, Milestone, NotebookPen, Paperclip, RotateCcw, ListChecks, MessageSquare, Play, Send, Trash2, Pencil } from "lucide-react";
 import { ApiError, get, post, put, del, parseJson, uploadAttachment, useLiveEvents, useLoad, type Agent, type Chat, type Message, type Project, type Task, type Team } from "../api.ts";
 import { clearDraft, getDraft, mergeById, setDraft } from "../lib/chatDraft.ts";
 import { StatusBadge, Avatar, Modal, Field, money } from "../components/ui.tsx";
@@ -339,6 +339,16 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
     } catch (e) { setError((e as Error).message); }
   };
 
+  // The "Plan next step" button sends the chat message for the user; it is offered only until the user writes again.
+  const planNext = async (step: string) => {
+    setError("");
+    try {
+      await post(`/api/chats/${chatId}/messages`, { content: step ? `Plan the next step: ${step}` : "Plan the next step on the road map." });
+      setPlanning(true);
+    } catch (e) { setError((e as Error).message); }
+  };
+  const lastUserId = Math.max(0, ...data.messages.filter((m) => m.role === "user").map((m) => m.id));
+
   const agent = (id: number | null) => agents.find((a) => a.id === id);
   const planner = agents.find((a) => a.id === data.planner_id) ?? agents.find((a) => a.role === "planner" && a.enabled);
 
@@ -379,6 +389,7 @@ function ChatView({ data, agents, planning, setPlanning, openTasks }: {
                   return <>
                     {plan.merge_ids?.length ? <ActionCard kind="merge" items={plan.merge_ids.map((id) => ({ id }))} agents={agents} /> : null}
                     {plan.retry?.length ? <ActionCard kind="retry" items={plan.retry} agents={agents} /> : null}
+                    {plan.next_step ? <NextStepCard step={plan.next_step} current={m.id > lastUserId} planning={planning} onPlan={planNext} /> : null}
                     {plan.journal?.length ? <div className="flex items-baseline gap-1.5 text-xs text-muted-foreground"><NotebookPen /> Noted for later chats: {plan.journal.join(" · ")}</div> : null}
                   </>;
                 })()}
@@ -460,7 +471,32 @@ function PlanCard({ tasks, agents, messageId, onEdit, openTasks }: {
   );
 }
 
-type PlanExtras = { merge_ids?: number[]; retry?: { id: number; worker_id?: number }[]; journal?: string[] };
+type PlanExtras = {
+  merge_ids?: number[]; retry?: { id: number; worker_id?: number }[]; journal?: string[];
+  next_step?: { text: string; roadmap_id: number | null };
+};
+
+function NextStepCard({ step, current, planning, onPlan }: {
+  step: NonNullable<PlanExtras["next_step"]>; current: boolean; planning: boolean; onPlan: (step: string) => void;
+}) {
+  return (
+    <Card className="w-full gap-2 p-3">
+      <div className="flex items-baseline gap-2 text-sm">
+        <Milestone className="size-4 shrink-0 self-center text-muted-foreground" aria-hidden />
+        <span>{step.text ? <>Next: <b>{step.text}</b></> : "The road map says what comes next."}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        {current && (
+          <Button size="sm" disabled={planning} onClick={() => onPlan(step.text)}>
+            <Milestone data-icon="inline-start" /> {planning ? "Planning…" : "Plan next step"}
+          </Button>
+        )}
+        {step.roadmap_id ? <a className="text-sm" href={`#/documents/${step.roadmap_id}`}>Open the road map →</a> : null}
+        {current && <span className="text-xs text-muted-foreground">Asks the planner in this chat.</span>}
+      </div>
+    </Card>
+  );
+}
 
 function ActionCard({ kind, items, agents }: { kind: "merge" | "retry"; items: { id: number; worker_id?: number }[]; agents: Agent[] }) {
   const [tasks, setTasks] = useState<Task[]>([]);

@@ -70,7 +70,7 @@ describe("pipeline", () => {
     const chat = await call("POST", "/api/chats", { project_id: project.id });
     script = (req) => {
       if (req.agent.role === "planner") {
-        return ok("plan", { reply: "Adding hello.", tasks: [{ slug: "Add Hello", title: "Add hello", spec: "Create src/hello.txt", paths }] });
+        return ok("plan", { reply: "Adding hello.", tasks: [{ slug: "Add Hello", title: "Add hello", spec: "Create src/hello.txt", paths }], next: "Step 2: say goodbye" });
       }
       throw new Error("unexpected");
     };
@@ -113,6 +113,11 @@ describe("pipeline", () => {
     expect(readFileSync(join(repo, "src", "hello.txt"), "utf8").replace(/\r\n/g, "\n")).toBe("hello, world\n");
     expect(ctx.orch.task(task.id).status).toBe("merged");
     expect(existsSync(done.worktree)).toBe(false);
+    // the plan's last task is merged: the chat names the next step and links the project's Road map page
+    const next = ctx.db.prepare("SELECT content, plan FROM messages WHERE chat_id = ? AND role = 'event' AND plan LIKE '%next_step%'").get(task.chat_id) as { content: string; plan: string };
+    expect(next.content).toBe("This plan is merged.");
+    const roadmap = ctx.db.prepare("SELECT id FROM documents WHERE project_id = ? AND slot = 'roadmap'").get(task.project_id) as { id: number };
+    expect(JSON.parse(next.plan).next_step).toEqual({ text: "Step 2: say goodbye", roadmap_id: roadmap.id });
 
     const runs = ctx.db.prepare("SELECT kind FROM runs WHERE task_id = ? ORDER BY id").all(task.id).map((r: any) => r.kind);
     expect(runs).toEqual(["build", "checks", "review", "build", "checks", "review"]);
