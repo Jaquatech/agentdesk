@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { DB } from "../db.ts";
-import { itemOf, reviewList, reviewSummary } from "./review.ts";
+import { itemOf, reviewList, reviewSummary, reviewVotes, type Agreement } from "./review.ts";
 
 const fail = (reply: FastifyReply, code: number, error: string) => reply.code(code).send({ error });
 const MAX_NOTE = 500;
@@ -33,6 +33,17 @@ export function registerReviewRoutes(app: FastifyInstance, db: DB, projectOn: (r
     const limit = Math.min(100, Math.max(1, Math.floor(Number(q.limit) || 20)));
     const modelId = q.model === undefined || q.model === "" || !Number.isFinite(Number(q.model)) ? null : Number(q.model);
     return reviewList(db, id, modelId, q.unvoted === "1", offset, limit);
+  });
+
+  app.get("/api/eval-runs/:id/review-votes", async (req, reply) => {
+    const id = checkedRun(req, reply);
+    if (id === null) return;
+    const q = req.query as { model?: string; agreement?: string; offset?: string; limit?: string };
+    const offset = Math.max(0, Math.floor(Number(q.offset) || 0));
+    const limit = Math.min(200, Math.max(1, Math.floor(Number(q.limit) || 50)));
+    const modelId = q.model === undefined || q.model === "" || !Number.isFinite(Number(q.model)) ? null : Number(q.model);
+    const filter: Agreement = q.agreement === "agree" || q.agreement === "disagree" || q.agreement === "no_judge" ? q.agreement : "all";
+    return reviewVotes(db, id, modelId, filter, offset, limit);
   });
 
   app.put("/api/eval-results/:id/vote", async (req, reply) => {

@@ -145,6 +145,36 @@ describe("blind review", () => {
     expect((await call("PUT", `/api/eval-results/${results[2]}/vote`, { verdict: "bad" })).agrees).toBe(true);
   });
 
+  it("lists voted answers only, filters by agreement and model, and pages", async () => {
+    const url = (qs = "") => `/api/eval-runs/${runId}/review-votes${qs}`;
+    expect(await call("GET", url())).toEqual({ total: 0, items: [] });
+    const j = addJudge("jm");
+    judge(j, results[0], 1);
+    judge(j, results[1], 1);
+    judge(j, results[4], 0);
+    await call("PUT", `/api/eval-results/${results[0]}/vote`, { verdict: "good" }); // agrees
+    await call("PUT", `/api/eval-results/${results[1]}/vote`, { verdict: "bad" });  // disagrees
+    await call("PUT", `/api/eval-results/${results[3]}/vote`, { verdict: "good" }); // no judgement
+    await call("PUT", `/api/eval-results/${results[4]}/vote`, { verdict: "good" }); // model B, disagrees
+    const ids = async (qs = "") => (await call("GET", url(qs))).items.map((i: any) => i.result_id);
+    const all = await call("GET", url());
+    expect(all.total).toBe(4);
+    expect(all.items[0]).toMatchObject({ result_id: results[0], input: "q1", expected: "a1", vote: { verdict: "good" }, judge: { pass: true, judge_model: "jm" }, agrees: true });
+    expect(all.items[0].provider_name).toBe("P");
+    expect(await ids()).toEqual([results[0], results[4], results[1], results[3]]); // position, then model
+    expect(await ids("?agreement=agree")).toEqual([results[0]]);
+    expect(await ids("?agreement=disagree")).toEqual([results[4], results[1]]);
+    expect(await ids("?agreement=no_judge")).toEqual([results[3]]);
+    expect(await ids("?agreement=weird")).toEqual(await ids());
+    expect(await ids(`?model=${modelB}`)).toEqual([results[4]]);
+    const page = await call("GET", url("?offset=1&limit=2"));
+    expect(page.total).toBe(4);
+    expect(page.items.map((i: any) => i.result_id)).toEqual([results[4], results[1]]);
+    expect((await call("GET", url("?agreement=disagree&limit=1"))).total).toBe(2);
+    expect(await status("GET", "/api/eval-runs/99999/review-votes")).toBe(404);
+    expect(await status("GET", `/api/eval-runs/${offRunId}/review-votes`)).toBe(409);
+  });
+
   it("summarises per model, including a model with no votes and a run with no judge", async () => {
     const empty = await call("GET", `/api/eval-runs/${runId}/review-summary`);
     expect(empty).toMatchObject({ answers: 5, voted: 0, good: 0, bad: 0, good_rate: null, compared: 0, agree: 0, agreement: null });
