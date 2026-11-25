@@ -96,6 +96,15 @@ function seedDemoRun(db: DB, projectId: number, providerId: number) {
     const j = JSON.parse(demoJudgeReply(byCase.get(r.case_id)?.expected ?? null, r.answer)) as { score: number; pass: boolean; reason: string };
     insJudgement.run(judgeId, r.id, j.score, j.pass ? 1 : 0, j.reason, 200 + n * 30);
   });
+
+  // Votes on about half of the answers: good when the answer equals the expected one. The first answer the judge scored 2 is
+  // voted good whatever its position, so that agreement with the judge is below 100%.
+  const insVote = db.prepare("INSERT INTO eval_votes (result_id, verdict, note) VALUES (?, ?, '')");
+  const disputed = results.find((r) => (JSON.parse(demoJudgeReply(byCase.get(r.case_id)?.expected ?? null, r.answer)) as { score: number }).score === 2);
+  results.forEach((r, n) => {
+    if (r === disputed) { insVote.run(r.id, "good"); return; }
+    if (n % 2 === 0) insVote.run(r.id, r.answer === byCase.get(r.case_id)?.expected ? "good" : "bad");
+  });
 }
 
 /** The Data factory is on in the demo, with one small sample dataset (generic support questions, no real names). */

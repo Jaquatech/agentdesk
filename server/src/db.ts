@@ -554,6 +554,16 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_eval_judgements_run ON eval_judgements(judge_run_id, id);
   `,
+  `
+  CREATE TABLE eval_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    result_id INTEGER NOT NULL UNIQUE REFERENCES eval_results(id) ON DELETE CASCADE,
+    verdict TEXT NOT NULL CHECK (verdict IN ('good','bad')),
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  `,
 ];
 
 export function openDb(file: string): DB {

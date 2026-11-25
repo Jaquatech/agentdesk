@@ -9,7 +9,8 @@ import { registerJudgeRoutes } from "./judgeRoutes.ts";
 import { interruptJudges } from "./judgeRunner.ts";
 import { registerRunPlans } from "./runPlans.ts";
 import { interruptRunning } from "./runner.ts";
-import { registerRunner } from "./runnerRoutes.ts";
+import { registerReviewRoutes } from "./reviewRoutes.ts";
+import { registerRunner }from "./runnerRoutes.ts";
 
 const FORMATS = new Set(["jsonl", "json", "csv"]);
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -34,6 +35,7 @@ export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: strin
   registerRunner(app, db, vault, projectOn);
   registerJudgeConfig(app, db, projectOn);
   registerJudgeRoutes(app, db, vault, projectOn);
+  registerReviewRoutes(app, db, projectOn);
 
   const datasetProject = (id: number) =>
     (db.prepare("SELECT project_id FROM eval_datasets WHERE id = ?").get(id) as { project_id: number } | undefined)?.project_id;
