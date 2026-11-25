@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DatasetsPanel, type DatasetPick } from "./dataFactory/DatasetsPanel.tsx";
 import { ImportPanel, type ImportStatus } from "./dataFactory/ImportPanel.tsx";
+import { ModelsPanel } from "./dataFactory/ModelsPanel.tsx";
 import { SECTIONS, sectionFromTab, type SectionId } from "./dataFactory/sections.ts";
 
 /** The Data factory of one project: sections as header tabs, each a list and a wide view. */
@@ -48,6 +49,8 @@ export function DataFactoryPage({ projectId, tab }: { projectId: number; tab?: s
         />
       ) : current === "datasets" ? (
         <DatasetsPanel projectId={project.id} pick={pick} onPick={setPick} status={status} onStatusDone={() => setStatus(null)} />
+      ) : current === "models" ? (
+        <ModelsPanel projectId={project.id} />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto p-6">
           <Card>
