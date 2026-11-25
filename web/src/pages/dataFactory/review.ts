@@ -39,6 +39,56 @@ export function nextAfterSkip(voted: boolean[], from: number, unvotedOnly: boole
   return nextIndex(now, from, unvotedOnly);
 }
 
+export type VoteFilter = "all" | "agree" | "disagree" | "no_judge";
+
+export const VOTE_FILTERS: { value: VoteFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "agree", label: "Agree" },
+  { value: "disagree", label: "Disagree" },
+  { value: "no_judge", label: "No judge" },
+];
+
+/** The word for the Agreement column: text, so colour is never the only signal. */
+export function agreementWord(agrees: boolean | null | undefined): "Agree" | "Disagree" | "No judge" {
+  if (agrees === null || agrees === undefined) return "No judge";
+  return agrees ? "Agree" : "Disagree";
+}
+
+/** The filter the Your votes card opens with: the disagreements when there are any, else all. */
+export function defaultVoteFilter(disagreeTotal: number | null | undefined): VoteFilter {
+  return typeof disagreeTotal === "number" && disagreeTotal > 0 ? "disagree" : "all";
+}
+
+/** `Good` or `Bad`; `-` when there is no vote. */
+export function voteLabel(verdict: "good" | "bad" | null | undefined): string {
+  if (verdict === "good") return "Good";
+  if (verdict === "bad") return "Bad";
+  return "-";
+}
+
+/** `8, pass` / `3, fail` / `pass` (no score); `No judge` when no judge run covers the answer. */
+export function judgeLabel(judge: { score: number | null; pass: boolean } | null | undefined): string {
+  if (!judge) return "No judge";
+  const verdict = judge.pass ? "pass" : "fail";
+  return judge.score === null || judge.score === undefined ? verdict : `${judge.score}, ${verdict}`;
+}
+
+/** What the review card shows for the model: hidden while the setting is on and the answer has no vote yet. */
+export function modelShown(hide: boolean, voted: boolean, model: string, provider: string): string {
+  return hide && !voted ? "Model hidden" : `${model} (${provider})`;
+}
+
+const HIDE_KEY = "agentdesk.review.hideModels";
+
+/** Hide model names while voting: on unless the browser remembers it was turned off. Storage may fail. */
+export function readHideModels(): boolean {
+  try { return localStorage.getItem(HIDE_KEY) !== "0"; } catch { return true; }
+}
+
+export function saveHideModels(hide: boolean): void {
+  try { localStorage.setItem(HIDE_KEY, hide ? "1" : "0"); } catch { /* the page works without storage */ }
+}
+
 /** The nearest earlier item voted in this session, or null. Pass `from = length` when the view is done. */
 export function previousVoted(votedThisSession: boolean[], from: number): number | null {
   for (let i = Math.min(from, votedThisSession.length) - 1; i >= 0; i--) if (votedThisSession[i]) return i;
