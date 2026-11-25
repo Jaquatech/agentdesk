@@ -407,7 +407,7 @@ function JudgeRunView({ id, runLabel, onChanged, onDeleted }: { id: number; runL
           <TableBody>
             {judge.summary.map((s) => (
               <TableRow key={s.run_model_id}>
-                <TableCell className="whitespace-normal break-all">{s.model}</TableCell>
+                <TableCell className="max-w-56 truncate whitespace-nowrap" title={s.model}>{s.model}</TableCell>
                 <TableCell>{s.judged}</TableCell>
                 <TableCell>{averageText(s.avg_score, s.judged)}</TableCell>
                 <TableCell>{passRateText(s.pass_rate, s.judged)}</TableCell>

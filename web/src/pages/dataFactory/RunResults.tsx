@@ -81,8 +81,8 @@ function Row({ row: r, free }: { row: ResultRow; free: boolean }) {
   const cut = input.cut || out.cut;
   return (
     <TableRow className="align-top">
-      <TableCell className="whitespace-normal break-all">{r.case_key ?? ""}</TableCell>
-      <TableCell className="whitespace-normal break-all">{r.model}</TableCell>
+      <TableCell className="whitespace-nowrap">{r.case_key ?? ""}</TableCell>
+      <TableCell className="max-w-56 truncate whitespace-nowrap" title={r.model}>{r.model}</TableCell>
       <TableCell className="whitespace-pre-wrap break-words">{open ? r.input : input.text}</TableCell>
       <TableCell className={failed ? "whitespace-pre-wrap break-words text-destructive" : "whitespace-pre-wrap break-words"}>
         {open ? <div className="max-h-96 overflow-auto">{answer}</div> : out.text}
