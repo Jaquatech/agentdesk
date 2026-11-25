@@ -15,6 +15,10 @@ export type EvalCallInput = {
   maxTokens: number; signal?: AbortSignal; caseKey: string;
   /** Only the demo reads it, to script its answer. */
   expected?: string | null;
+  /** What the call is recorded as in `runs.kind`. */
+  kind?: "eval" | "judge";
+  /** The demo answers with this text instead of `demoAnswer`. */
+  demoReply?: string;
 };
 export type EvalCallResult =
   | { ok: true; answer: string; tokensIn: number; tokensOut: number; costUsd: number | null; ms: number; usageRunId: number }
@@ -58,8 +62,8 @@ export async function evalCall(db: DB, vault: Vault, o: EvalCallInput): Promise<
     if (!chat) return failure(`Provider ${p.name} cannot be called`);
   }
 
-  const usageRunId = Number(db.prepare("INSERT INTO runs (project_id, kind, model, engine, status) VALUES (?, 'eval', ?, ?, 'running')")
-    .run(o.projectId, o.model, p.kind).lastInsertRowid);
+  const usageRunId = Number(db.prepare("INSERT INTO runs (project_id, kind, model, engine, status) VALUES (?, ?, ?, ?, 'running')")
+    .run(o.projectId, o.kind ?? "eval", o.model, p.kind).lastInsertRowid);
   const started = Date.now();
   const finish = (status: "ok" | "error", u: { input: number; output: number; cacheRead: number; cacheWrite: number }, cost: number | null, summary: string) => {
     const ms = Date.now() - started;
@@ -71,15 +75,15 @@ export async function evalCall(db: DB, vault: Vault, o: EvalCallInput): Promise<
 
   try {
     if (!chat) {
-      const answer = demoAnswer(o.model, o.caseKey, o.prompt, o.expected ?? null);
+      const answer = o.demoReply ?? demoAnswer(o.model, o.caseKey, o.prompt, o.expected ?? null);
       const u = { input: Math.ceil((o.system.length + o.prompt.length) / 4), output: Math.ceil(answer.length / 4), cacheRead: 0, cacheWrite: 0 };
-      const ms = finish("ok", u, 0, `eval: ${o.caseKey}`);
+      const ms = finish("ok", u, 0, `${o.kind ?? "eval"}: ${o.caseKey}`);
       return { ok: true, answer, tokensIn: u.input, tokensOut: u.output, costUsd: 0, ms, usageRunId };
     }
     const res = await chat.chat({ model: o.model, system: o.system, messages: [{ role: "user", content: [{ type: "text", text: o.prompt }] }], maxTokens: o.maxTokens, signal: o.signal });
     const price = findPrice(db, o.model);
     const cost = price ? callCost(price, res.usage) : p.kind === "ollama" ? 0 : null;
-    const ms = finish("ok", res.usage, cost, `eval: ${o.caseKey}`);
+    const ms = finish("ok", res.usage, cost, `${o.kind ?? "eval"}: ${o.caseKey}`);
     return { ok: true, answer: textOf(res.content), tokensIn: res.usage.input, tokensOut: res.usage.output, costUsd: cost, ms, usageRunId };
   } catch (err) {
     const message = String((err as Error)?.message ?? err);

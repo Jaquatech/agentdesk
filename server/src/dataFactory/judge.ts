@@ -17,6 +17,7 @@ const PART_CHARS = 6000;
 const REASON_CHARS = 1000;
 const CUT = "\n[cut]";
 
+// Prompt size: the judge system text is the rubric (700 characters or less by default) plus the format line (200 or less).
 export function judgeSystem(rubric: string): string {
   const text = rubric.trim() === "" ? DEFAULT_RUBRIC : rubric.trim();
   return `${text}\n\n${FORMAT_LINE}`;
