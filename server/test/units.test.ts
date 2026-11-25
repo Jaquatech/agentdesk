@@ -98,6 +98,11 @@ describe("structured output", () => {
     const p = normalizePlan({ reply: "r", tasks: [{ title: "Fix Login!", spec: "x" }, { slug: "fix-login", spec: "y" }, { title: "empty", spec: " " }] }, []);
     expect(p.tasks.map((t) => t.slug)).toEqual(["fix-login", "fix-login-2"]);
   });
+  it("keeps the next road-map step only when the plan has tasks", () => {
+    expect(normalizePlan({ reply: "r", tasks: [{ title: "a", spec: "x" }], next: "  Step 3: pinch  " }, []).next).toBe("Step 3: pinch");
+    expect(normalizePlan({ reply: "r", tasks: [], next: "Step 3" }, []).next).toBeUndefined();
+    expect(normalizePlan({ reply: "r", tasks: [{ title: "a", spec: "x" }], next: 42 }, []).next).toBeUndefined();
+  });
 });
 
 describe("crypto", () => {
