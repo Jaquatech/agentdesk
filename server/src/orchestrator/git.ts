@@ -49,7 +49,13 @@ export async function ensureWorktree(p: ProjectRow, worktreeRoot: string, slug: 
     mkdirSync(worktreeRoot, { recursive: true });
     await git(p.path, "worktree", "prune");
     if (branchExists && !fresh) await git(p.path, "worktree", "add", wt, branch);
-    else await git(p.path, "worktree", "add", "-b", branch, wt, startPoint ?? (remote ? `origin/${p.base_branch}` : p.base_branch));
+    else {
+      const from = startPoint ?? (remote ? `origin/${p.base_branch}` : p.base_branch);
+      if (!(await gitOk(p.path, "rev-parse", "--verify", "--quiet", `${from}^{commit}`))) {
+        throw new Error(`The base branch \`${p.base_branch}\` has no commits. Make an initial commit, then retry.`);
+      }
+      await git(p.path, "worktree", "add", "-b", branch, wt, from);
+    }
   }
   return { wt, branch };
 }
