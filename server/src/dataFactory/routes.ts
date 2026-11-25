@@ -3,7 +3,10 @@ import type { DB } from "../db.ts";
 import type { DatasetFormat } from "./datasetParser.ts";
 import { DatasetInUseError, deleteDataset, importDataset } from "./datasets.ts";
 import { modelFamily, priceStatus } from "./modelFamily.ts";
+import type { Vault } from "../crypto.ts";
 import { registerRunPlans } from "./runPlans.ts";
+import { interruptRunning } from "./runner.ts";
+import { registerRunner } from "./runnerRoutes.ts";
 
 const FORMATS = new Set(["jsonl", "json", "csv"]);
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -12,7 +15,9 @@ const MAX_NAME = 120;
 const fail = (reply: FastifyReply, code: number, error: string) => reply.code(code).send({ error });
 
 /** Datasets of the Data factory. Every route refuses a project that has the Data factory off. */
-export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: string) {
+export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: string, vault: Vault) {
+  interruptRunning(db);
+
   /** True when the project exists and has the Data factory on; otherwise the reply is already sent. */
   const projectOn = (reply: FastifyReply, projectId: number): boolean => {
     const p = db.prepare("SELECT data_factory FROM projects WHERE id = ?").get(projectId) as { data_factory: number } | undefined;
@@ -22,6 +27,7 @@ export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: strin
   };
 
   registerRunPlans(app, db, projectOn);
+  registerRunner(app, db, vault, projectOn);
 
   const datasetProject = (id: number) =>
     (db.prepare("SELECT project_id FROM eval_datasets WHERE id = ?").get(id) as { project_id: number } | undefined)?.project_id;

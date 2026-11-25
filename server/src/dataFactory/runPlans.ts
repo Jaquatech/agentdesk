@@ -15,25 +15,26 @@ type Plan = {
 };
 type PlanModel = Plan["models"][number];
 
+export function estimateFor(db: DB, versionId: number, p: { systemPrompt: string; maxTokens: number; capUsd: number | null }, models: { provider_id: number | null; provider_name: string; model: string }[]): RunEstimate {
+  const cases = db.prepare("SELECT input, expected FROM eval_cases WHERE version_id = ? ORDER BY position").all(versionId) as { input: string; expected: string | null }[];
+  const providers = new Map<number, { kind: string; secret_id: number | null }>();
+  return estimateRun({
+    cases, systemPrompt: p.systemPrompt, maxTokens: p.maxTokens, capUsd: p.capUsd,
+    models: models.map((m) => {
+      let prov = m.provider_id === null ? undefined : providers.get(m.provider_id);
+      if (!prov && m.provider_id !== null) {
+        prov = db.prepare("SELECT kind, secret_id FROM providers WHERE id = ?").get(m.provider_id) as { kind: string; secret_id: number | null } | undefined;
+        if (prov) providers.set(m.provider_id, prov);
+      }
+      // A provider that is gone has no known kind: its model is priced from the table or missing.
+      const s = priceStatus(db, prov ?? { kind: "", secret_id: null }, m.model);
+      return { provider_name: m.provider_name, model: m.model, price: s.price, free: s.status === "free" };
+    }),
+  });
+}
+
 /** Plans of runs: a dataset version, the models to test, a prompt and caps, with a cost estimate. Nothing is sent to a model. */
 export function registerRunPlans(app: FastifyInstance, db: DB, projectOn: (reply: FastifyReply, projectId: number) => boolean) {
-  const estimateFor = (versionId: number, p: { systemPrompt: string; maxTokens: number; capUsd: number | null }, models: { provider_id: number | null; provider_name: string; model: string }[]): RunEstimate => {
-    const cases = db.prepare("SELECT input, expected FROM eval_cases WHERE version_id = ? ORDER BY position").all(versionId) as { input: string; expected: string | null }[];
-    const providers = new Map<number, { kind: string; secret_id: number | null }>();
-    return estimateRun({
-      cases, systemPrompt: p.systemPrompt, maxTokens: p.maxTokens, capUsd: p.capUsd,
-      models: models.map((m) => {
-        let prov = m.provider_id === null ? undefined : providers.get(m.provider_id);
-        if (!prov && m.provider_id !== null) {
-          prov = db.prepare("SELECT kind, secret_id FROM providers WHERE id = ?").get(m.provider_id) as { kind: string; secret_id: number | null } | undefined;
-          if (prov) providers.set(m.provider_id, prov);
-        }
-        // A provider that is gone has no known kind: its model is priced from the table or missing.
-        const s = priceStatus(db, prov ?? { kind: "", secret_id: null }, m.model);
-        return { provider_name: m.provider_name, model: m.model, price: s.price, free: s.status === "free" };
-      }),
-    });
-  };
 
   /** Reads and checks the shared body of estimate and create; the reply is sent when it returns a string. */
   const readPlan = (projectId: number, body: unknown): Plan | string => {
@@ -84,7 +85,7 @@ export function registerRunPlans(app: FastifyInstance, db: DB, projectOn: (reply
     if (!projectOn(reply, projectId)) return null;
     const plan = readPlan(projectId, req.body);
     if (typeof plan === "string") { fail(reply, 400, plan); return null; }
-    return { projectId, plan, estimate: estimateFor(plan.versionId, plan, plan.models) };
+    return { projectId, plan, estimate: estimateFor(db, plan.versionId, plan, plan.models) };
   };
 
   app.post("/api/projects/:id/runs/estimate", async (req, reply) => {
@@ -134,11 +135,13 @@ export function registerRunPlans(app: FastifyInstance, db: DB, projectOn: (reply
     const run = db.prepare(`
       SELECT r.*, d.id AS dataset_id, d.name AS dataset_name, v.version, v.case_count
       FROM eval_runs r JOIN eval_dataset_versions v ON v.id = r.version_id JOIN eval_datasets d ON d.id = v.dataset_id
-      WHERE r.id = ?`).get(id) as { version_id: number; system_prompt: string; max_tokens: number; cap_usd: number | null };
+      WHERE r.id = ?`).get(id) as { version_id: number; system_prompt: string; max_tokens: number; cap_usd: number | null; case_count: number; cost_usd: number };
     const models = db.prepare("SELECT id, provider_id, provider_name, model FROM eval_run_models WHERE run_id = ? ORDER BY id").all(id) as
       { id: number; provider_id: number | null; provider_name: string; model: string }[];
-    const estimate = estimateFor(run.version_id, { systemPrompt: run.system_prompt, maxTokens: run.max_tokens, capUsd: run.cap_usd }, models);
-    return { ...run, models, estimate };
+    const estimate = estimateFor(db, run.version_id, { systemPrompt: run.system_prompt, maxTokens: run.max_tokens, capUsd: run.cap_usd }, models);
+    const p = db.prepare(`SELECT COUNT(*) AS done_calls, COALESCE(SUM(status = 'error'), 0) AS error_calls FROM eval_results WHERE run_id = ?`).get(id) as { done_calls: number; error_calls: number };
+    const progress = { total_calls: run.case_count * models.length, ...p, cost_usd: run.cost_usd };
+    return { ...run, models, estimate, progress };
   });
 
   app.delete("/api/eval-runs/:id", async (req, reply) => {

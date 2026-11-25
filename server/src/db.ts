@@ -493,6 +493,26 @@ const MIGRATIONS: string[] = [
     UNIQUE (run_id, provider_id, model)
   );
   `,
+  `
+  CREATE TABLE eval_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+    run_model_id INTEGER NOT NULL REFERENCES eval_run_models(id) ON DELETE CASCADE,
+    case_id INTEGER NOT NULL REFERENCES eval_cases(id) ON DELETE CASCADE,
+    case_key TEXT NOT NULL,
+    answer TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL CHECK (status IN ('ok','error')),
+    error TEXT NOT NULL DEFAULT '',
+    tokens_in INTEGER NOT NULL DEFAULT 0,
+    tokens_out INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL,
+    ms INTEGER NOT NULL DEFAULT 0,
+    usage_run_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (run_model_id, case_id)
+  );
+  CREATE INDEX idx_eval_results_run ON eval_results(run_id, id);
+  `,
 ];
 
 export function openDb(file: string): DB {
