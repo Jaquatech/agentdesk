@@ -167,25 +167,36 @@ export class ClaudeCliEngine implements Engine {
 export function takeWikiFromSummary(summary: string): { summary: string; wiki?: unknown[] } {
   const parsed = lastJsonBlock(summary);
   if (!parsed || !Array.isArray(parsed.wiki)) return { summary };
-  const blocks = [...summary.matchAll(/```json\s*[\s\S]*?```/g)];
-  if (blocks.length) {
-    const last = blocks[blocks.length - 1];
-    const at = last.index ?? 0;
-    return { summary: (summary.slice(0, at) + summary.slice(at + last[0].length)).trim(), wiki: parsed.wiki };
+  const found = findJsonBlock(summary)!;
+  return { summary: (summary.slice(0, found.start) + summary.slice(found.end)).trim(), wiki: parsed.wiki };
+}
+
+/**
+ * Find the last JSON block of an answer and where it sits (`start` to `end`, fences included).
+ * Per ```json opener, last to first: the nearest closing fence, then each closing fence from the last
+ * backwards, so a string holding Markdown fences still parses. Then a bare object after the last "\n{".
+ */
+function findJsonBlock(text: string): { value: Record<string, unknown>; start: number; end: number } | undefined {
+  const openers = [...text.matchAll(/```json\s*/g)];
+  for (let i = openers.length - 1; i >= 0; i--) {
+    const start = openers[i].index ?? 0;
+    const from = start + openers[i][0].length;
+    const closers: number[] = [];
+    for (let at = text.indexOf("```", from); at >= 0; at = text.indexOf("```", at + 3)) closers.push(at);
+    if (!closers.length) continue;
+    for (const close of [closers[0], ...[...closers].reverse()]) {
+      try { return { value: JSON.parse(text.slice(from, close)), start, end: close + 3 }; } catch { /* next cut */ }
+    }
   }
-  const brace = summary.lastIndexOf("\n{");
-  if (brace >= 0) return { summary: summary.slice(0, brace).trim(), wiki: parsed.wiki };
-  return { summary: summary.trim(), wiki: parsed.wiki };
+  const brace = text.lastIndexOf("\n{");
+  if (brace >= 0) {
+    try { return { value: JSON.parse(text.slice(brace + 1).replace(/\s*```\s*$/, "")), start: brace, end: text.length }; } catch { /* none */ }
+  }
+  return undefined;
 }
 
 export function lastJsonBlock(text: string): Record<string, unknown> | undefined {
-  const blocks = [...text.matchAll(/```json\s*([\s\S]*?)```/g)];
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    try { return JSON.parse(blocks[i][1]); } catch { /* try the previous one */ }
-  }
-  const brace = text.lastIndexOf("\n{");
-  if (brace >= 0) { try { return JSON.parse(text.slice(brace + 1)); } catch { /* none */ } }
-  return undefined;
+  return findJsonBlock(text)?.value;
 }
 
 function describeTool(name: string, input: Record<string, unknown>) {
