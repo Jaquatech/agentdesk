@@ -37,7 +37,7 @@ describe("priceLine", () => {
     expect(priceLine({ ...base, cache_read: 0.1, cache_write: 2.5 })).toBe("$2.00 in / $10.00 out per Mtok + cache read $0.10, cache write $2.50");
   });
   it("handles free and missing", () => {
-    expect(priceLine({ ...base, price_status: "free", price_in: null, price_out: null })).toBe("Free (local model)");
+    expect(priceLine({ ...base, price_status: "free", price_in: null, price_out: null })).toBe("Free");
     expect(priceLine({ ...base, price_status: "missing", price_in: null, price_out: null })).toBe("No price set");
   });
 });

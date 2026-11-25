@@ -49,6 +49,11 @@ export type RunEstimate = {
 
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
+/** A price row with every rate 0 (a free model behind a key). */
+export function isZeroPrice(p: ModelPrice): boolean {
+  return p.price_in === 0 && p.price_out === 0 && p.cache_read === 0 && p.cache_write === 0;
+}
+
 export function estimateRun(input: EstimateInput): RunEstimate {
   const { cases, systemPrompt, maxTokens, capUsd } = input;
   const models: ModelEstimate[] = [];
@@ -56,7 +61,7 @@ export function estimateRun(input: EstimateInput): RunEstimate {
   let low = 0, high = 0;
 
   for (const m of input.models) {
-    const status = m.free ? "free" : m.price ? "priced" : "missing";
+    const status = m.free || (m.price && isZeroPrice(m.price)) ? "free" : m.price ? "priced" : "missing";
     const est: ModelEstimate = {
       provider_name: m.provider_name, model: m.model, status, calls: cases.length,
       in_tokens: { low: 0, high: 0 }, out_tokens: { low: 0, high: 0 }, low: 0, high: 0,
