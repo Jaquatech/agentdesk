@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- A task that fails before its developer is called (for example when the worktree cannot be created) no longer leaves the developer busy, so a retry starts without restarting the server. A repo whose base branch has no commits now says so. A queued task says once "Waiting for <developer>" while its developer is busy (#55).
+
 ### Added
 - Data factory: Review tab to vote Good or Bad on answers before seeing the reference answer and the judge, with a per-model summary of good rate and agreement with the judge.
 - Data factory: Runs tab to plan a run with a cost estimate, follow it live, stop it and read each model's answers.
