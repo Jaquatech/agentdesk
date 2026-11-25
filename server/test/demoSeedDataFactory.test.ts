@@ -14,6 +14,7 @@ describe("demo seed: Data factory", () => {
     const dataset = ctx.db.prepare("SELECT id FROM eval_datasets WHERE name = 'support-questions'").get() as { id: number };
     const versions = ctx.db.prepare("SELECT version, case_count FROM eval_dataset_versions WHERE dataset_id = ?").all(dataset.id);
     expect(versions).toEqual([{ version: 1, case_count: 8 }]);
+    expect(ctx.db.prepare("SELECT model, for_test, for_judge FROM eval_models").all()).toEqual([{ model: "demo-model", for_test: 1, for_judge: 1 }]);
     expect(seedDemo(ctx.db, dataDir)).toBe(false);
     expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM eval_dataset_versions WHERE dataset_id = ?").get(dataset.id)).toEqual({ n: 1 });
     await ctx.app.close();
