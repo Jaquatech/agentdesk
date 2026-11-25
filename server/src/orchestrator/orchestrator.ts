@@ -857,7 +857,8 @@ Do not put this project's name, its data, or a customer name into General pages.
       }
     }
     this.updateTask(t.id, { status: "approved", pr_url: pr || "" });
-    this.postMessage(t.chat_id, "event", `**${t.title}** is ready to merge${pr ? ` · [pull request](${pr})` : ""}.`);
+    // The message carries the task's Merge button, so the chat where the work was asked for can merge it.
+    this.postMessage(t.chat_id, "event", `**${t.title}** is ready to merge${pr ? ` · [pull request](${pr})` : ""}.`, undefined, { merge_ids: [t.id] });
   }
 
   async merge(taskId: number): Promise<string> {
