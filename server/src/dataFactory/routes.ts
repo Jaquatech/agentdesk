@@ -4,6 +4,7 @@ import type { DatasetFormat } from "./datasetParser.ts";
 import { DatasetInUseError, deleteDataset, importDataset } from "./datasets.ts";
 import { modelFamily, priceStatus } from "./modelFamily.ts";
 import type { Vault } from "../crypto.ts";
+import { registerJudgeConfig } from "./judgeConfig.ts";
 import { registerRunPlans } from "./runPlans.ts";
 import { interruptRunning } from "./runner.ts";
 import { registerRunner } from "./runnerRoutes.ts";
@@ -28,6 +29,7 @@ export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: strin
 
   registerRunPlans(app, db, projectOn);
   registerRunner(app, db, vault, projectOn);
+  registerJudgeConfig(app, db, projectOn);
 
   const datasetProject = (id: number) =>
     (db.prepare("SELECT project_id FROM eval_datasets WHERE id = ?").get(id) as { project_id: number } | undefined)?.project_id;
