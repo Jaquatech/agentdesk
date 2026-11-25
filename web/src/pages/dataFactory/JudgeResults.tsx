@@ -13,6 +13,7 @@ type JudgementRow = {
 export type JudgeResultModel = { run_model_id: number; model: string };
 
 const PAGE = 50;
+const TEXT = "min-w-40 whitespace-pre-wrap break-words";
 
 /** The judgements of a judge run: a model filter, a Pass / Fail / All filter, 50 rows per page. Text is shown as text. */
 export function JudgeResults({ judgeId, models, doneCalls }: { judgeId: number; models: JudgeResultModel[]; doneCalls: number }) {
@@ -86,14 +87,14 @@ function Row({ row: r }: { row: JudgementRow }) {
   const show = (i: number) => (open ? <div className="max-h-96 overflow-auto">{full[i]}</div> : cells[i].text);
   return (
     <TableRow className="align-top">
-      <TableCell className="whitespace-normal break-all">{r.case_key ?? ""}</TableCell>
-      <TableCell className="whitespace-normal break-all">{r.model}</TableCell>
-      <TableCell className="whitespace-pre-wrap break-words">{show(0)}</TableCell>
-      <TableCell className="whitespace-pre-wrap break-words">{show(1)}</TableCell>
-      <TableCell className="whitespace-pre-wrap break-words">{show(2)}</TableCell>
-      <TableCell>{scoreLabel(r.score)}</TableCell>
-      <TableCell>{verdictLabel(r.status, r.pass)}</TableCell>
-      <TableCell className={failed ? "whitespace-pre-wrap break-words text-destructive" : "whitespace-pre-wrap break-words"}>
+      <TableCell className="whitespace-nowrap">{r.case_key ?? ""}</TableCell>
+      <TableCell className="max-w-56 truncate whitespace-nowrap" title={r.model}>{r.model}</TableCell>
+      <TableCell className={`${TEXT} w-1/4`}>{show(0)}</TableCell>
+      <TableCell className={`${TEXT} w-1/4`}>{show(1)}</TableCell>
+      <TableCell className={`${TEXT} w-1/4`}>{show(2)}</TableCell>
+      <TableCell className="whitespace-nowrap">{scoreLabel(r.score)}</TableCell>
+      <TableCell className="whitespace-nowrap">{verdictLabel(r.status, r.pass)}</TableCell>
+      <TableCell className={failed ? `${TEXT} w-1/4 text-destructive` : `${TEXT} w-1/4`}>
         {show(3)}
         {cut && <div><Button variant="link" size="sm" className="h-auto p-0" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Show less" : "Show more"}</Button></div>}
       </TableCell>
