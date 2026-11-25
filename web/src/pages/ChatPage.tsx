@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import { Building2, GitMerge, NotebookPen, Paperclip, RotateCcw, ListChecks, MessageSquare, Play, Send, Trash2, Pencil } from "lucide-react";
 import { ApiError, get, post, put, del, parseJson, uploadAttachment, useLiveEvents, useLoad, type Agent, type Chat, type Message, type Project, type Task, type Team } from "../api.ts";
 import { clearDraft, getDraft, mergeById, setDraft } from "../lib/chatDraft.ts";
+import { agentLabel, specialty } from "../lib/agentLabel.ts";
 import { StatusBadge, Avatar, Modal, Field, money } from "../components/ui.tsx";
 import { lookFor } from "../office/palette.ts";
 import { Office } from "../office/Office.tsx";
@@ -200,7 +201,7 @@ export function ChatPage({ chatId, tab = "chat", projects, onChanged }: { chatId
             value={data.chat.planner_id ? String(data.chat.planner_id) : ""} onValueChange={(v) => setPlanner(v ? Number(v) : null)}
             options={[
               { value: "", label: data.chat.planner_id ? "Planner: automatic (project / team)" : `Planner: ${agents.find((a) => a.id === data.planner_id)?.name ?? "none"} (automatic)` },
-              ...planners.map((a) => ({ value: String(a.id), label: `Planner: ${a.name}` })),
+              ...planners.map((a) => ({ value: String(a.id), label: `Planner: ${a.name}${specialty(a.context) ? ` · ${specialty(a.context)}` : ""}` })),
             ]} />
         )}
         <Tabs value={tab} onValueChange={setTab} className="ml-auto w-auto">
@@ -526,7 +527,7 @@ function EditTask({ task, agents, onClose }: { task: Task; agents: Agent[]; onCl
       <Field label="Title"><Input value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Developer">
-          <Choice value={worker} onValueChange={setWorker} options={[{ value: "", label: "Any free developer" }, ...agents.filter((a) => a.role === "worker").map((a) => ({ value: String(a.id), label: a.name }))]} />
+          <Choice value={worker} onValueChange={setWorker} options={[{ value: "", label: "Any free developer" }, ...agents.filter((a) => a.role === "worker").map((a) => ({ value: String(a.id), label: agentLabel(a) }))]} />
         </Field>
         <Field label="Allowed paths (one per line)"><Textarea className="font-mono text-xs" rows={2} value={paths} onChange={(e) => setPaths(e.target.value)} /></Field>
       </div>

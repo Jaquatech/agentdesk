@@ -1,3 +1,4 @@
+import { agentLabel } from "../lib/agentLabel.ts";
 import { useEffect, useState } from "react";
 import { get, post, put, del, type Agent } from "../api.ts";
 import { Field } from "../components/ui.tsx";
@@ -33,7 +34,6 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
 
   useEffect(() => { get<Record<string, string>>("/api/settings").then(setS); }, []);
   useEffect(() => { get<Agent[]>("/api/agents").then(setAgents); }, []);
-  const roleLabel = (role: Agent["role"]) => role === "worker" ? "developer" : role === "reviewer" ? "reviewer" : "planner";
   if (!s) return <Page title="Settings"><Skeleton className="h-40 w-full" /></Page>;
   const set = (k: string, v: string) => setS({ ...s, [k]: v });
   const save = async () => { setS(await put("/api/settings", s)); setSaved("Saved"); onChanged(); setTimeout(() => setSaved(""), 2000); };
@@ -129,7 +129,7 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
                   onValueChange={(v) => set("rollup_agent_id", v)}
                   options={[
                     { value: "", label: "The planner" },
-                    ...agents.filter((a) => a.enabled !== 0 || String(a.id) === (s.rollup_agent_id ?? "")).map((a) => ({ value: String(a.id), label: `${a.name} (${roleLabel(a.role)})` })),
+                    ...agents.filter((a) => a.enabled !== 0 || String(a.id) === (s.rollup_agent_id ?? "")).map((a) => ({ value: String(a.id), label: agentLabel(a) })),
                   ]}
                 />
               </Field>
