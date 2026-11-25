@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Field } from "../../components/ui.tsx";
 import { Choice, NoFillInput } from "../../components/inputs.tsx";
-import { capabilityLabel, priceLine, type PriceStatus } from "./models.ts";
+import { capabilityLabel, priceLine, usableProviders, type PriceStatus } from "./models.ts";
 
 type ModelRow = {
   id: number; provider_id: number; provider_name: string; provider_kind: string; model: string;
@@ -74,8 +74,8 @@ export function ModelsPanel({ projectId }: { projectId: number }) {
 }
 
 function AddModel({ projectId, onAdded }: { projectId: number; onAdded: (id: number) => void }) {
-  const providers = useLoad<Provider[]>("/api/providers");
-  const usable = (providers.data ?? []).filter((p) => p.kind !== "claude-cli");
+  const providers = useLoad<{ providers: Provider[] }>("/api/providers");
+  const usable = usableProviders(providers.data);
   const [providerId, setProviderId] = useState("");
   const [model, setModel] = useState("");
   const [forTest, setForTest] = useState(true);

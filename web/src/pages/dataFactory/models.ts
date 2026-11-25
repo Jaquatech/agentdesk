@@ -1,3 +1,5 @@
+import type { Provider } from "../../api.ts";
+
 /** Pure helpers for the Models tab. */
 
 export type PriceStatus = "priced" | "free" | "missing";
@@ -9,6 +11,12 @@ export type PriceFields = {
   cache_read: number | null;
   cache_write: number | null;
 };
+
+/** Providers a model can be added for, from the raw `/api/providers` response (`{ providers, defaults }`). */
+export function usableProviders(data: { providers?: Provider[] } | null | undefined): Provider[] {
+  const list = data && !Array.isArray(data) ? data.providers : undefined;
+  return Array.isArray(list) ? list.filter((p) => p.kind !== "claude-cli") : [];
+}
 
 /** Yes, No or Unknown for a capability the provider may not report. */
 export function capabilityLabel(v: boolean | null | undefined): "Yes" | "No" | "Unknown" {

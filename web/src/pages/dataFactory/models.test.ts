@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { capabilityLabel, priceLine, type PriceFields } from "./models.ts";
+import { capabilityLabel, priceLine, usableProviders, type PriceFields } from "./models.ts";
+import type { Provider } from "../../api.ts";
+
+const prov = (id: number, kind: string) => ({ id, kind, name: kind }) as unknown as Provider;
+
+describe("usableProviders", () => {
+  it("returns an empty list for anything but the response shape", () => {
+    expect(usableProviders(undefined)).toEqual([]);
+    expect(usableProviders(null)).toEqual([]);
+    expect(usableProviders({})).toEqual([]);
+    expect(usableProviders([prov(1, "anthropic")] as never)).toEqual([]);
+  });
+  it("reads the providers field and leaves out claude-cli", () => {
+    const r = usableProviders({ providers: [prov(1, "anthropic"), prov(2, "ollama"), prov(3, "claude-cli")] });
+    expect(r.map((p) => p.id)).toEqual([1, 2]);
+  });
+});
 
 const base: PriceFields = { price_status: "priced", price_in: 2, price_out: 10, cache_read: null, cache_write: null };
 
