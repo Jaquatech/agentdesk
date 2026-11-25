@@ -223,6 +223,10 @@ export class OfficeScene {
     if (F.table) { const f = L2.table; add(f.x, f.y, f.x + f.w, f.y + f.d, () => P.drawCoffeeTable(ctx, iso, s, f), [f.x, f.y, f.w, f.d, 0.14]); }
     if (F.arcade) { const f = L2.arcade; add(f.x, f.y, f.x + f.w + 0.2, f.y + f.d, () => P.drawArcade(ctx, iso, s, f, t), [f.x, f.y, f.w + 0.15, f.d, 0.2]); }
     if (F.slots) { const f = L2.slots; add(f.x, f.y, f.x + f.w, f.y + f.d, () => P.drawSlots(ctx, iso, s, f, t), [f.x, f.y, f.w, f.d, 0.2]); }
+    if (F.taps) {
+      const k = L2.kombucha; add(k.x, k.y, k.x + k.w, k.y + k.d, () => P.drawKombucha(ctx, iso, s, k, t), [k.x, k.y, k.w, k.d, 0.2]);
+      const b = L2.beer; add(b.x, b.y, b.x + b.w, b.y + b.d, () => P.drawBeer(ctx, iso, s, b, t), [b.x, b.y, b.w, b.d, 0.2]);
+    }
     if (F.decor) {
       const f = L2.shelf; add(f.x, f.y, f.x + f.w, f.y + f.d, () => P.drawShelf(ctx, iso, s, f), [f.x, f.y, f.w, f.d, 0.14]);
       add(L2.lamp.x - 0.2, L2.lamp.y - 0.2, L2.lamp.x + 0.2, L2.lamp.y + 0.2, () => P.drawLamp(ctx, iso, s, L2.lamp, !!s.dark));
@@ -247,7 +251,7 @@ export class OfficeScene {
         if (d) { by0 = d.y - 0.7; by1 = d.y - 0.001; }
       } else if (spot) {
         dir = spot.face === "front" ? "fl" : "br";
-        pose = spot.kind === "sofa" ? "sitBack" : spot.kind === "coffee" ? "coffee" : spot.kind === "arcade" ? "play" : spot.kind === "slots" ? "pull" : "chat";
+        pose = spot.kind === "sofa" ? "sitBack" : spot.kind === "coffee" || spot.kind === "beer" || spot.kind === "kombucha" ? "coffee" : spot.kind === "arcade" ? "play" : spot.kind === "slots" ? "pull" : "chat";
         if (spot.kind === "sofa") { by0 = L2.sofa.y - 0.6; by1 = L2.sofa.y - 0.001; }
       }
       const mood = a.state === "error" ? "error" : a.state === "thinking" ? "think" : "ok";
@@ -333,6 +337,8 @@ const IDLE_TALK: Record<string, string[]> = {
   arcade: ["🕹 one more round", "👾 they're coming!", "🏆 new high score"],
   slots: ["🎰 feeling lucky", "🍒🍒🍒 ?", "💰 come on…"],
   coffee: ["☕ refill", "☕ best part of the day"],
+  beer: ["🍺 cheers", "🍺 merged, so it's earned", "🍻 to green checks"],
+  kombucha: ["🫧 live cultures", "🍹 the healthy one", "🫧 second ferment"],
   sofa: ["🎮 my turn next", "🛋 five more minutes"],
   chat: ["💬 did you see the diff?", "💬 nice work"],
 };

@@ -599,6 +599,105 @@ export function drawSlots(ctx: Ctx, iso: Iso, s: OfficeStyle, f: Layout["lounge"
   });
 }
 
+/** One pour every 7 s: the glass fills, holds, then is taken away. */
+export function pourCycle(t: number, offset = 0) {
+  const c = ((t + offset) % 7000) / 7000;
+  return { fill: c < 0.55 ? c / 0.55 : 1, pouring: c < 0.55, glass: c < 0.9 };
+}
+
+export function drawBeer(ctx: Ctx, iso: Iso, s: OfficeStyle, f: Layout["lounge"]["beer"], t: number) {
+  const { x, y, w, d } = f;
+  const steel = "#aab1b9", chrome = "#d9dee3";
+  // kegerator: a steel fridge with the tap tower on top
+  box(ctx, iso, x, y, 0, w, d, 0.95, { top: shade(steel, 0.08), left: steel, right: shade(steel, -0.14) });
+  faceY(ctx, iso, x, y + d, 0.95, () => {
+    ctx.strokeStyle = shade(steel, -0.22); ctx.lineWidth = 1.4; ctx.strokeRect(6, 8, w * 100 - 12, 78);
+  });
+  faceX(ctx, iso, x + w, y + d, 0.95, () => {
+    const W = d * 100;
+    ctx.strokeStyle = shade(steel, -0.3); ctx.lineWidth = 1.6; ctx.strokeRect(6, 8, W - 12, 80);
+    ctx.fillStyle = "#5d646c"; ctx.fillRect(W - 18, 22, 4, 40);
+    fillRound(ctx, 16, 16, W - 40, 18, 3, "#2a1d12");
+    ctx.fillStyle = "#f3c04a"; ctx.font = "800 12px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("DRAFT", 16 + (W - 40) / 2, 26);
+  });
+  // drip tray along the front edge of the top
+  box(ctx, iso, x + w - 0.3, y + 0.08, 0.95, 0.26, d - 0.16, 0.03, { top: "#3a3f45", left: "#2d3136", right: "#24272b" });
+  // tower: post and a crossbar with two taps pointing at the camera side
+  box(ctx, iso, x + 0.22, y + d / 2 - 0.06, 0.95, 0.12, 0.12, 0.42, { top: chrome, left: shade(chrome, -0.1), right: shade(chrome, -0.22) });
+  box(ctx, iso, x + 0.2, y + 0.14, 1.37, 0.16, d - 0.28, 0.12, { top: chrome, left: shade(chrome, -0.1), right: shade(chrome, -0.22) });
+  const taps = [{ ty: y + 0.28, handle: "#c98b2e", beer: "#e9a93a", off: 0 }, { ty: y + d - 0.36, handle: "#3b2416", beer: "#4a2614", off: 3500 }];
+  for (const tp of taps) {
+    box(ctx, iso, x + 0.36, tp.ty, 1.4, 0.2, 0.06, 0.05, chrome); // spout
+    box(ctx, iso, x + 0.3, tp.ty - 0.01, 1.49, 0.07, 0.08, 0.26, { top: shade(tp.handle, 0.15), left: tp.handle, right: shade(tp.handle, -0.15) });
+  }
+  // glasses on the tray, each filling from its tap
+  for (const tp of taps) {
+    const p = pourCycle(t, tp.off);
+    const [gx, gy] = iso.p(x + 0.58, tp.ty + 0.03, 0.98);
+    const gw = iso.k * 0.13, gh = iso.k * 0.24;
+    if (p.pouring) {
+      ctx.fillStyle = tp.beer; ctx.globalAlpha = 0.85;
+      ctx.fillRect(gx - 0.8, gy - gh - iso.k * 0.14, 1.6, iso.k * 0.14 + gh * (1 - p.fill * 0.85));
+      ctx.globalAlpha = 1;
+    }
+    if (!p.glass) continue;
+    ctx.globalAlpha = 0.35; fillRound(ctx, gx - gw / 2, gy - gh, gw, gh, 1.5, "#eef6ff"); ctx.globalAlpha = 1;
+    const lh = gh * 0.82 * p.fill;
+    if (lh > 0) {
+      ctx.fillStyle = tp.beer; ctx.fillRect(gx - gw / 2 + 1, gy - lh - 1, gw - 2, lh);
+      const foam = Math.min(lh, gh * 0.18);
+      fillRound(ctx, gx - gw / 2 + 0.5, gy - lh - foam * 0.6, gw - 1, foam, 1.5, "#fbf6e9");
+    }
+  }
+}
+
+export function drawKombucha(ctx: Ctx, iso: Iso, s: OfficeStyle, f: Layout["lounge"]["kombucha"], t: number) {
+  const { x, y, w, d } = f;
+  const body = "#3d5a4a", brew = "#d9895b";
+  box(ctx, iso, x, y, 0, w, d, 0.85, { top: shade(body, 0.1), left: body, right: shade(body, -0.12) });
+  faceY(ctx, iso, x, y + d, 0.85, () => {
+    // a leaf on the side
+    ctx.fillStyle = "#8fc28a"; ctx.beginPath(); ctx.ellipse(w * 50, 44, 10, 20, 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = body; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(w * 50 - 9, 60); ctx.lineTo(w * 50 + 8, 28); ctx.stroke();
+  });
+  faceX(ctx, iso, x + w, y + d, 0.85, () => {
+    const W = d * 100;
+    fillRound(ctx, 8, 8, W - 16, 20, 3, "#f1e7cf");
+    ctx.fillStyle = body; ctx.font = "800 10.5px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("KOMBUCHA", W / 2, 18.5);
+    // spout and a drip now and then
+    ctx.fillStyle = "#c9cfd6"; ctx.fillRect(W / 2 - 5, 36, 10, 8); ctx.fillRect(W / 2 - 2, 44, 4, 8);
+    const ph = (t % 2600) / 2600;
+    if (ph < 0.5) ellipse(ctx, W / 2, 54 + ph * 40, 2, 2.6, brew);
+    // cup on a little grate
+    ctx.fillStyle = "#24272b"; ctx.fillRect(W / 2 - 16, 78, 32, 4);
+    fillRound(ctx, W / 2 - 8, 62, 16, 16, 2, "#f4f1ea");
+    ctx.fillStyle = brew; ctx.fillRect(W / 2 - 6, 65, 12, 4);
+  });
+  // glass fermenting jar on top: brew, a SCOBY near the top, a lid
+  const jx = x + 0.16, jy = y + 0.16, jw = w - 0.32, jd = d - 0.32, jz = 0.85, jh = 0.7, lq = 0.62;
+  ctx.globalAlpha = 0.88;
+  box(ctx, iso, jx, jy, jz, jw, jd, jh * lq, { top: "#efe2bd", left: brew, right: shade(brew, -0.12) });
+  ctx.globalAlpha = 0.22;
+  box(ctx, iso, jx, jy, jz + jh * lq, jw, jd, jh * (1 - lq), { top: "#eef6ff", left: "#dfeaf3", right: "#c9d6e0" });
+  ctx.globalAlpha = 1;
+  // glass shine and a thin steel lid with a knob
+  faceX(ctx, iso, jx + jw, jy + jd, jz + jh, () => { ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.fillRect(jd * 100 - 9, 6, 3, jh * 100 - 12); });
+  box(ctx, iso, jx - 0.02, jy - 0.02, jz + jh, jw + 0.04, jd + 0.04, 0.03, { top: "#c9cfd6", left: "#aab1b9", right: "#8f969e" });
+  box(ctx, iso, jx + jw / 2 - 0.05, jy + jd / 2 - 0.05, jz + jh + 0.03, 0.1, 0.1, 0.05, "#8f969e");
+  // bubbles rising on the jar's front
+  faceX(ctx, iso, jx + jw, jy + jd, jz + jh * lq, () => {
+    const W = jd * 100, H = jh * lq * 100;
+    ctx.globalAlpha = 0.7;
+    for (let i = 0; i < 6; i++) {
+      const ph = ((t / 2200 + rnd(i + 11)) % 1);
+      ellipse(ctx, 6 + rnd(i + 3) * (W - 12), H - 3 - ph * (H - 8), 1.4 + rnd(i) * 1.2, 1.4 + rnd(i) * 1.2, "#fff3e0");
+    }
+    ctx.globalAlpha = 1;
+  });
+}
+
 /* ---------------------------------------------------------------- glass rooms */
 
 export function glassSegments(b: Block): { x0: number; y0: number; x1: number; y1: number; front: boolean }[] {

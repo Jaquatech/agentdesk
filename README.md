@@ -3,7 +3,7 @@
 A local AI development team that runs on your own machine. You chat with a **planner**; it reads the code and
 splits the work into tasks. **Developer** agents build each task in its own git branch and worktree, the project's
 checks run, a **reviewer** (QA) approves or sends it back for a fix round, and you merge. An isometric **office**
-shows who is working, reviewing or taking a break (coffee, sofa, arcade, slot machine).
+shows who is working, reviewing or taking a break (coffee, sofa, arcade, slot machine, beer and kombucha).
 
 - Runs locally: the server listens on `127.0.0.1` only. Only the server calls model APIs; API keys are encrypted on
   disk and never sent to the browser.
@@ -297,7 +297,7 @@ bubble for what they do, idle agents walk to the lounge: they play the (animated
 machine, get coffee, sit on the sofa in front of the TV or chat. Click an agent to see its state.
 
 Settings > Office controls it: company name, colour style, **features** (team rooms, plants, coffee corner, sofa and
-TV, coffee table, arcade, slot machine, decorations) and the **company logo**: pick a shape, symbol and colour, or
+TV, coffee table, arcade, slot machine, beer and kombucha, decorations) and the **company logo**: pick a shape, symbol and colour, or
 upload your own picture (shrunk to 256 px). The logo shows on the office wall, the sign and the sidebar.
 With **team rooms** on and two or more teams that have members, each team gets its own glass room; agents without a
 team share the open space.

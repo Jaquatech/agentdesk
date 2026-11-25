@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Office: a draft beer tap and a kombucha machine in the lounge that idle agents pour from. Turn them off with "Beer and kombucha" in Settings > Office.
 - Data factory: Runs tab to plan a run with a cost estimate, follow it live, stop it and read each model's answers.
 - Projects have a Data factory switch. When it is on, the project shows a Data factory page in the sidebar.
 - Data factory: import a dataset (JSONL, JSON or CSV), see problems and warnings, and keep each import as an immutable version.
