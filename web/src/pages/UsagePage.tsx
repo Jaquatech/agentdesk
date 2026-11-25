@@ -1,8 +1,10 @@
 import { useCallback, Fragment, useEffect, useMemo, useState } from "react";
 import { Download, Plus, RefreshCw } from "lucide-react";
-import { get, put, post, del } from "../api.ts";
+import { get, put, post, del, useLoad, type Provider } from "../api.ts";
 import { Field, FooterGap, Modal, ToneBadge } from "../components/ui.tsx";
-import { NoFillInput } from "../components/inputs.tsx";
+import { Choice, NoFillInput } from "../components/inputs.tsx";
+import { suggestModelIds, usableProviders } from "./dataFactory/models.ts";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Page, Section } from "../components/page.tsx";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -263,26 +265,54 @@ function PriceTable({ onChanged }: { onChanged: () => void }) {
           </Table>
         </Card>
       </Section>
-      {editing && <PriceForm p={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {editing && <PriceForm p={editing} prices={prices} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </>
   );
 }
 
-function PriceForm({ p, onClose, onSaved }: { p: Price & { original?: string }; onClose: () => void; onSaved: () => void }) {
+const RATE_KEYS = ["price_in", "price_out", "cache_read", "cache_write"] as const;
+
+function PriceForm({ p, prices, onClose, onSaved }: { p: Price & { original?: string }; prices: Price[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState(p);
   const [error, setError] = useState("");
+  const providers = useLoad<{ providers: Provider[] }>("/api/providers");
+  const usable = p.original ? [] : usableProviders(providers.data);
+  const [providerId, setProviderId] = useState("");
+  const [typed, setTyped] = useState(false);
+  const provider = usable.find((x) => String(x.id) === providerId) ?? usable[0];
+  const modelValue = typed || !provider ? f.model : (provider.default_model ?? "");
+  const [free, setFree] = useState(!!p.original && p.price_in === 0 && p.price_out === 0);
+  const suggestions = provider ? suggestModelIds(provider.kind, prices) : [];
   const set = (k: keyof Price, v: string) => setF({ ...f, [k]: k === "model" || k === "note" ? v : Number(v) });
   const num = (k: keyof Price, label: string) => (
-    <Field label={label}><Input type="number" min={0} step="0.001" value={String(f[k])} onChange={(e) => set(k, e.target.value)} /></Field>
+    <Field label={label}><Input type="number" min={0} step="0.001" value={String(f[k])} disabled={free && (RATE_KEYS as readonly string[]).includes(k)} onChange={(e) => set(k, e.target.value)} /></Field>
   );
-  const save = async () => { try { await put("/api/model-prices", f); onSaved(); } catch (e) { setError((e as Error).message); } };
+  const toggleFree = (on: boolean) => {
+    setFree(on);
+    if (on) setF({ ...f, price_in: 0, price_out: 0, cache_read: 0, cache_write: 0 });
+  };
+  const save = async () => {
+    try {
+      const body = free ? { ...f, price_in: 0, price_out: 0, cache_read: 0, cache_write: 0 } : f;
+      await put("/api/model-prices", { ...body, model: modelValue });
+      onSaved();
+    } catch (e) { setError((e as Error).message); }
+  };
   const remove = async () => { if (confirm(`Remove the price of ${p.original}?`)) { await del(`/api/model-prices/${encodeURIComponent(p.original!)}`); onSaved(); } };
   return (
     <Modal title={p.original ? `Price of ${p.original}` : "Add a model price"} onClose={onClose}
       footer={<>{p.original && <Button variant="destructive" onClick={remove}>Remove</Button>}<FooterGap /><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save}>Save</Button></>}>
+      {provider && (
+        <Field label="Provider">
+          <Choice value={String(provider.id)} onValueChange={(v) => { setProviderId(v); setTyped(false); }}
+            options={usable.map((x) => ({ value: String(x.id), label: `${x.name} (${x.kind})` }))} />
+        </Field>
+      )}
       <Field label="Model id" hint="Exactly as the provider names it. A dated snapshot (…-20251001) uses the undated price.">
-        <NoFillInput className="font-mono" value={f.model} onChange={(e) => set("model", e.target.value)} placeholder="claude-sonnet-5-5" />
+        <NoFillInput className="font-mono" value={modelValue} list={suggestions.length ? "price-model-ids" : undefined} onChange={(e) => { set("model", e.target.value); setTyped(true); }} placeholder="claude-sonnet-5-5" />
+        {suggestions.length > 0 && <datalist id="price-model-ids">{suggestions.map((id) => <option key={id} value={id} />)}</datalist>}
       </Field>
+      <label className="flex items-center gap-2 text-sm"><Checkbox checked={free} onCheckedChange={(v) => toggleFree(v === true)} /> Free model (all prices 0)</label>
       <div className="grid gap-4 sm:grid-cols-2">{num("price_in", "Input $ / M")}{num("price_out", "Output $ / M")}{num("cache_read", "Cache read $ / M")}{num("cache_write", "Cache write $ / M")}</div>
       <div className="grid gap-4 sm:grid-cols-2">
         {num("long_threshold", "Long-prompt threshold (tokens, 0 = none)")}
