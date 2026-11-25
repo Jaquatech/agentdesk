@@ -9,7 +9,10 @@ import { cn } from "@/lib/utils";
 import { Field } from "../../components/ui.tsx";
 import { Choice } from "../../components/inputs.tsx";
 import { hasEnded } from "./judge.ts";
-import { agreementSentence, nextAfterSkip, nextAfterVote, percentText, previousVoted, progressLine } from "./review.ts";
+import {
+  agreementSentence, agreementWord, defaultVoteFilter, judgeLabel, modelShown, nextAfterSkip, nextAfterVote, percentText, previousVoted, progressLine,
+  readHideModels, saveHideModels, voteLabel, VOTE_FILTERS, type VoteFilter,
+} from "./review.ts";
 
 type RunRow = { id: number; name: string; status: string; dataset_name: string; version: number };
 type Vote = { verdict: "good" | "bad"; note: string };
@@ -19,6 +22,7 @@ type ReviewItem = {
   vote: Vote | null; expected: string | null; judge: Judge | null; agrees: boolean | null;
 };
 type ReviewPage = { total: number; voted: number; items: ReviewItem[] };
+type VotesPage = { total: number; items: ReviewItem[] };
 type Counts = { answers: number; voted: number; good: number; bad: number; compared: number; agree: number };
 type ModelSummary = Counts & { run_model_id: number; provider_name: string; model: string; good_rate: number | null; agreement: number | null };
 type Summary = Counts & { good_rate: number | null; agreement: number | null; models: ModelSummary[] };
@@ -98,6 +102,8 @@ function ReviewView({ runId, summary, projectId, onChanged }: { runId: number; s
   const [session, setSession] = useState<number[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hideModels, setHideModels] = useState(readHideModels);
+  const [votesTick, setVotesTick] = useState(0);
   const focusRef = useRef<HTMLButtonElement>(null);
   const focusNext = useRef(false);
 
@@ -138,6 +144,7 @@ function ReviewView({ runId, summary, projectId, onChanged }: { runId: number; s
     try {
       replace(await put<ReviewItem>(`/api/eval-results/${item.result_id}/vote`, { verdict, note }));
       setSession((s) => (s.includes(item.result_id) ? s : [...s, item.result_id]));
+      setVotesTick((n) => n + 1);
       onChanged();
       return true;
     } catch (e) { setError(message(e)); return false; }
@@ -147,6 +154,7 @@ function ReviewView({ runId, summary, projectId, onChanged }: { runId: number; s
     try {
       await del(`/api/eval-results/${item.result_id}/vote`);
       replace({ ...item, vote: null, expected: null, judge: null, agrees: null });
+      setVotesTick((n) => n + 1);
       onChanged();
       return true;
     } catch (e) { setError(message(e)); return false; }
@@ -165,10 +173,13 @@ function ReviewView({ runId, summary, projectId, onChanged }: { runId: number; s
         <label className="flex items-center gap-2 pb-2 text-sm">
           <Checkbox checked={unvotedOnly} onCheckedChange={(v) => setUnvotedOnly(v === true)} /> Unvoted only
         </label>
+        <label className="flex items-center gap-2 pb-2 text-sm">
+          <Checkbox checked={hideModels} onCheckedChange={(v) => { setHideModels(v === true); saveHideModels(v === true); }} /> Hide model names while voting
+        </label>
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {ready && here && (
-        <AnswerCard key={here.result_id} item={here} focusRef={focusRef} projectId={projectId}
+        <AnswerCard key={here.result_id} item={here} focusRef={focusRef} projectId={projectId} hideModels={hideModels}
           previous={prev !== null ? () => go(prev) : null}
           onVote={(verdict, note) => vote(here, verdict, note)}
           onRemove={() => remove(here)}
@@ -182,6 +193,7 @@ function ReviewView({ runId, summary, projectId, onChanged }: { runId: number; s
         </Card>
       )}
       <SummaryCard summary={summary} />
+      <VotesCard runId={runId} modelPick={modelPick} refresh={votesTick} />
     </>
   );
 }
@@ -195,8 +207,8 @@ function Block({ label, text }: { label: string; text: string }) {
   );
 }
 
-function AnswerCard({ item, focusRef, projectId, previous, onVote, onRemove, onSkip, onNext }: {
-  item: ReviewItem; focusRef: React.RefObject<HTMLButtonElement | null>; projectId: number; previous: (() => void) | null;
+function AnswerCard({ item, focusRef, projectId, hideModels, previous, onVote, onRemove, onSkip, onNext }: {
+  item: ReviewItem; focusRef: React.RefObject<HTMLButtonElement | null>; projectId: number; hideModels: boolean; previous: (() => void) | null;
   onVote: (verdict: "good" | "bad", note: string) => Promise<boolean>; onRemove: () => Promise<boolean>; onSkip: () => void; onNext: () => void;
 }) {
   const [note, setNote] = useState(item.vote?.note ?? "");
@@ -218,7 +230,7 @@ function AnswerCard({ item, focusRef, projectId, previous, onVote, onRemove, onS
         <CardTitle>
           <h2>Case {item.case_key}</h2>
         </CardTitle>
-        <p className="text-xs text-muted-foreground">{item.model} ({item.provider_name})</p>
+        <p className="text-xs text-muted-foreground">{modelShown(hideModels, revealed, item.model, item.provider_name)}</p>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 text-sm">
         <Block label="Question" text={item.input} />
@@ -259,6 +271,138 @@ function AnswerCard({ item, focusRef, projectId, previous, onVote, onRemove, onS
         )}
       </CardContent>
     </Card>
+  );
+}
+
+const VOTES_PAGE = 50;
+const VOTE_FILTER_OPTIONS = VOTE_FILTERS.map((f) => ({ value: f.value, label: f.label }));
+
+/** The human votes of one run next to the judge's verdict; a row opens to the full answers. */
+function VotesCard({ runId, modelPick, refresh }: { runId: number; modelPick: string; refresh: number }) {
+  const [filter, setFilter] = useState<VoteFilter | null>(null);
+  const [items, setItems] = useState<ReviewItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [more, setMore] = useState(false);
+  const count = useRef(0);
+  useEffect(() => { count.current = items.length; }, [items.length]);
+  const base = `/api/eval-runs/${runId}/review-votes`;
+  const modelQ = modelPick ? `&model=${modelPick}` : "";
+
+  // Opens on the disagreements when there are any.
+  useEffect(() => {
+    let live = true;
+    get<VotesPage>(`${base}?agreement=disagree&limit=1`)
+      .then((p) => { if (live) setFilter((f) => f ?? defaultVoteFilter(p.total)); })
+      .catch(() => { if (live) setFilter((f) => f ?? "all"); });
+    return () => { live = false; };
+  }, [base]);
+
+  // Reloads after every vote, keeping as many rows as were shown.
+  useEffect(() => {
+    if (filter === null) return;
+    let live = true;
+    const limit = Math.min(200, Math.max(VOTES_PAGE, count.current));
+    get<VotesPage>(`${base}?agreement=${filter}&limit=${limit}&offset=0${modelQ}`)
+      .then((p) => { if (live) { setItems(p.items); setTotal(p.total); setError(null); setLoaded(true); } })
+      .catch((e) => { if (live) { setError(message(e)); setLoaded(true); } });
+    return () => { live = false; };
+  }, [base, filter, modelQ, refresh]);
+
+  const showMore = async () => {
+    if (filter === null) return;
+    setMore(true);
+    try {
+      const p = await get<VotesPage>(`${base}?agreement=${filter}&limit=${VOTES_PAGE}&offset=${items.length}${modelQ}`);
+      setItems((list) => [...list, ...p.items.filter((n) => !list.some((i) => i.result_id === n.result_id))]);
+      setTotal(p.total);
+    } catch (e) { setError(message(e)); }
+    setMore(false);
+  };
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>Your votes</CardTitle></CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="w-48">
+          <Field label="Agreement with the judge">
+            <Choice value={filter ?? "all"} onValueChange={(v) => { setFilter(v as VoteFilter); setOpenId(null); }} options={VOTE_FILTER_OPTIONS} />
+          </Field>
+        </div>
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {loaded && items.length === 0 && !error && (
+          <p className="text-sm text-muted-foreground">{filter === "all" && !modelPick ? "No votes yet." : "No votes match this filter."}</p>
+        )}
+        {items.length > 0 && (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Case</TableHead>
+                <TableHead>Model</TableHead>
+                <TableHead>Your vote</TableHead>
+                <TableHead>Judge</TableHead>
+                <TableHead>Agreement</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((i) => {
+                const open = openId === i.result_id;
+                const panel = `vote-detail-${i.result_id}`;
+                const toggle = () => setOpenId(open ? null : i.result_id);
+                return (
+                  <VoteRows key={i.result_id} item={i} open={open} panel={panel} toggle={toggle} />
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+        {items.length < total && (
+          <div><Button variant="outline" disabled={more} onClick={showMore}>Show more results</Button></div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function VoteRows({ item, open, panel, toggle }: { item: ReviewItem; open: boolean; panel: string; toggle: () => void }) {
+  return (
+    <>
+      <TableRow className="cursor-pointer" onClick={toggle}>
+        <TableCell className="whitespace-nowrap">
+          <button type="button" aria-expanded={open} aria-controls={panel} className="text-left underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+            onClick={(e) => { e.stopPropagation(); toggle(); }}>
+            {item.case_key}
+          </button>
+        </TableCell>
+        <TableCell className="whitespace-nowrap">
+          <span className="block max-w-56 truncate" title={`${item.model} (${item.provider_name})`}>{item.model}</span>
+        </TableCell>
+        <TableCell className="whitespace-nowrap">{voteLabel(item.vote?.verdict)}</TableCell>
+        <TableCell className="whitespace-nowrap">{judgeLabel(item.judge)}</TableCell>
+        <TableCell className="whitespace-nowrap">{agreementWord(item.agrees)}</TableCell>
+      </TableRow>
+      {open && (
+        <TableRow className="hover:bg-transparent">
+          <TableCell id={panel} colSpan={5} className="whitespace-normal">
+            <div className="flex flex-col gap-3 py-2">
+              <Block label="Question" text={item.input} />
+              <Block label="Answer" text={item.answer} />
+              <Block label="Reference answer" text={item.expected ?? "(none)"} />
+              <Block label={`Your vote: ${voteLabel(item.vote?.verdict)}`} text={item.vote?.note ?? ""} />
+              {item.judge ? (
+                <>
+                  <Block label={`Judge: ${judgeLabel(item.judge)} (${item.judge.judge_model})`} text={item.judge.reason} />
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No judge run covers this answer.</p>
+              )}
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   );
 }
 

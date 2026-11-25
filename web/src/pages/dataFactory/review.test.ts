@@ -1,5 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { agreementSentence, nextAfterSkip, nextAfterVote, percentText, previousVoted, progressLine } from "./review.ts";
+import {
+  agreementSentence, agreementWord, defaultVoteFilter, judgeLabel, modelShown, nextAfterSkip, nextAfterVote, percentText, previousVoted, progressLine, voteLabel,
+} from "./review.ts";
+
+describe("votes table helpers", () => {
+  it("says the agreement word", () => {
+    expect(agreementWord(true)).toBe("Agree");
+    expect(agreementWord(false)).toBe("Disagree");
+    expect(agreementWord(null)).toBe("No judge");
+    expect(agreementWord(undefined)).toBe("No judge");
+  });
+  it("picks the default filter", () => {
+    expect(defaultVoteFilter(3)).toBe("disagree");
+    expect(defaultVoteFilter(0)).toBe("all");
+    expect(defaultVoteFilter(null)).toBe("all");
+    expect(defaultVoteFilter(undefined)).toBe("all");
+  });
+  it("labels a vote", () => {
+    expect(voteLabel("good")).toBe("Good");
+    expect(voteLabel("bad")).toBe("Bad");
+    expect(voteLabel(null)).toBe("-");
+  });
+  it("labels a judge verdict", () => {
+    expect(judgeLabel({ score: 8, pass: true })).toBe("8, pass");
+    expect(judgeLabel({ score: 0, pass: false })).toBe("0, fail");
+    expect(judgeLabel({ score: null, pass: true })).toBe("pass");
+    expect(judgeLabel(null)).toBe("No judge");
+    expect(judgeLabel(undefined)).toBe("No judge");
+  });
+  it("hides the model only before the vote", () => {
+    expect(modelShown(true, false, "m", "p")).toBe("Model hidden");
+    expect(modelShown(true, true, "m", "p")).toBe("m (p)");
+    expect(modelShown(false, false, "m", "p")).toBe("m (p)");
+    expect(modelShown(false, true, "m", "p")).toBe("m (p)");
+  });
+});
 
 describe("review helpers", () => {
   it("writes the progress line", () => {

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Data factory, Review tab: a "Your votes" table with the judge's verdict and an Agree / Disagree / No judge filter (click a row to read the answers), and a "Hide model names while voting" option, on by default.
+
 ### Fixed
 - A Claude CLI answer whose JSON block holds Markdown code fences inside a string (for example a task spec) is read correctly, so the planner run no longer fails with "did not end with the requested JSON block" (#57).
 - A task that fails before its developer is called (for example when the worktree cannot be created) no longer leaves the developer busy, so a retry starts without restarting the server. A repo whose base branch has no commits now says so. A queued task says once "Waiting for <developer>" while its developer is busy (#55).
