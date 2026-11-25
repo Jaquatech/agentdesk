@@ -18,6 +18,18 @@ export function usableProviders(data: { providers?: Provider[] } | null | undefi
   return Array.isArray(list) ? list.filter((p) => p.kind !== "claude-cli") : [];
 }
 
+const FAMILY_PREFIXES: Record<string, RegExp> = {
+  anthropic: /^claude/i,
+  openai: /^(gpt|o\d|chatgpt|text-|codex)/i,
+};
+
+/** Known model ids from the price table that fit a provider kind, at most 8. Unknown kinds get none. */
+export function suggestModelIds(providerKind: string | undefined, prices: { model: string }[]): string[] {
+  const re = providerKind ? FAMILY_PREFIXES[providerKind] : undefined;
+  if (!re) return [];
+  return [...new Set(prices.map((p) => p.model).filter((id) => re.test(id)))].slice(0, 8);
+}
+
 /** Yes, No or Unknown for a capability the provider may not report. */
 export function capabilityLabel(v: boolean | null | undefined): "Yes" | "No" | "Unknown" {
   return v === true ? "Yes" : v === false ? "No" : "Unknown";
