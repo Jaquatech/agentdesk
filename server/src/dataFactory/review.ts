@@ -59,7 +59,19 @@ export function reviewList(db: DB, runId: number, modelId: number | null, unvote
   return { total: t.total, voted: t.voted, items: rows.map((r) => reviewItem(db, r)) };
 }
 
-type Counts = { answers: number; voted: number; good: number; bad: number; compared: number; agree: number };
+export type Agreement = "all" | "agree" | "disagree" | "no_judge";
+
+/** Voted answers only (so nothing blind is revealed), by case position then model; `total` is after the filters. */
+export function reviewVotes(db: DB, runId: number, modelId: number | null, filter: Agreement, offset: number, limit: number) {
+  const rows = db.prepare(`${ITEM_SELECT} WHERE r.run_id = ? AND r.status = 'ok' AND v.id IS NOT NULL AND (? IS NULL OR r.run_model_id = ?)
+    ORDER BY c.position, m.id, r.id`).all(runId, modelId, modelId) as unknown as Row[];
+  const keep = (i: ReviewItem) =>
+    filter === "agree" ? i.agrees === true : filter === "disagree" ? i.agrees === false : filter === "no_judge" ? i.judge === null : true;
+  const items = rows.map((r) => reviewItem(db, r)).filter(keep);
+  return { total: items.length, items: items.slice(offset, offset + limit) };
+}
+
+type Counts ={ answers: number; voted: number; good: number; bad: number; compared: number; agree: number };
 
 export function reviewSummary(db: DB, runId: number) {
   const rows = db.prepare(`
