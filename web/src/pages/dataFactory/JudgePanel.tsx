@@ -13,6 +13,7 @@ import { Field } from "../../components/ui.tsx";
 import { Choice, NoFillInput } from "../../components/inputs.tsx";
 import { averageText, hasEnded, judgeableRuns, overallAverage, passRateText, type JudgeSummaryRow } from "./judge.ts";
 import { JudgeResults } from "./JudgeResults.tsx";
+import { JUDGE_EXAMPLES } from "./judgeExamples.ts";
 import { localTime } from "./localTime.ts";
 import { canStart, compareLine, estimateRange, formatUsd, progressPercent, statusLabel } from "./runs.ts";
 
@@ -41,7 +42,7 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant={variant}>{statusLabel(status)}</Badge>;
 }
 
-/** Judging of one project: the rubric, new judgings and the judge runs, as a narrow list and a wide view. */
+/** Judging of one project: the scoring guide, new judgings and the judge runs, as a narrow list and a wide view. */
 export function JudgePanel({ projectId }: { projectId: number }) {
   const runs = useLoad<RunRow[]>(`/api/projects/${projectId}/runs`);
   const [sel, setSel] = useState<Selection>({ kind: "rubric" });
@@ -78,8 +79,8 @@ export function JudgePanel({ projectId }: { projectId: number }) {
         <ul className="flex flex-col">
           <li className={cn("border-b hover:bg-accent/50", sel.kind === "rubric" && "bg-accent")} aria-current={sel.kind === "rubric" ? "true" : undefined}>
             <button type="button" className={entry} onClick={() => setSel({ kind: "rubric" })}>
-              <span className="text-sm font-medium">Rubric</span>
-              <span className="text-xs text-muted-foreground">What the judge looks for</span>
+              <span className="text-sm font-medium">Scoring guide</span>
+              <span className="text-xs text-muted-foreground">How the judge scores answers</span>
             </button>
           </li>
           {judges.map((j) => {
@@ -149,25 +150,56 @@ function RubricForm({ projectId, initial }: { projectId: number; initial: Rubric
   };
 
   return (
-    <Card className="max-w-3xl shrink-0">
-      <CardHeader><CardTitle>Rubric</CardTitle></CardHeader>
-      <CardContent className="flex flex-col gap-4 text-sm">
-        <Field label="Rubric" hint={`${text.length} of ${MAX_RUBRIC} characters`}>
-          <Textarea value={text} rows={10} maxLength={MAX_RUBRIC} onChange={(e) => { setText(e.target.value); setNote(null); }} />
-        </Field>
-        {saved.is_default && <p role="status" className="text-muted-foreground">This is the default rubric.</p>}
-        <div className="flex flex-col gap-1">
-          <p className="text-muted-foreground">The answer format is added automatically after the rubric and cannot be edited:</p>
-          <p className="rounded-md bg-muted p-2 font-mono text-xs break-words">{saved.format_line}</p>
-        </div>
-        {error && <p role="alert" className="text-destructive">{error}</p>}
-        {note && <p role="status">{note}</p>}
-        <div className="flex gap-2">
-          <Button disabled={busy || text === saved.rubric} onClick={() => void save(text, "Saved.")}>Save</Button>
-          <Button variant="outline" disabled={busy || saved.is_default} onClick={() => void save("", "The default rubric is back.")}>Reset to default</Button>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <Card className="min-w-0 shrink-0">
+        <CardHeader><CardTitle>Scoring guide</CardTitle></CardHeader>
+        <CardContent className="flex flex-col gap-4 text-sm">
+          <Field label="Scoring guide" hint={`${text.length} of ${MAX_RUBRIC} characters`}>
+            <Textarea value={text} rows={16} maxLength={MAX_RUBRIC} className="min-h-80 max-h-[70vh] w-full resize-y"
+              onChange={(e) => { setText(e.target.value); setNote(null); }} />
+          </Field>
+          {saved.is_default && <p role="status" className="text-muted-foreground">This is the default scoring guide.</p>}
+          <div className="flex flex-col gap-1">
+            <p className="text-muted-foreground">The answer format is added automatically after your scoring guide and cannot be edited:</p>
+            <p className="rounded-md bg-muted p-2 font-mono text-xs break-words">{saved.format_line}</p>
+          </div>
+          {error && <p role="alert" className="text-destructive">{error}</p>}
+          {note && <p role="status">{note}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={busy || text === saved.rubric} onClick={() => void save(text, "Saved.")}>Save</Button>
+            {text !== saved.rubric && <Button variant="outline" disabled={busy} onClick={() => { setText(saved.rubric); setNote(null); }}>Discard changes</Button>}
+            <Button variant="outline" disabled={busy || saved.is_default} onClick={() => void save("", "The default scoring guide is back.")}>Reset to default</Button>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="min-w-0 lg:sticky lg:top-0">
+        <CardHeader><CardTitle>How it works</CardTitle></CardHeader>
+        <CardContent className="flex flex-col gap-4 text-sm">
+          <div className="flex flex-col gap-2">
+            <p>The judge sees the question, the reference answer (when the dataset has one) and the model&apos;s answer. You decide what counts as good.</p>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>Say what each score from 1 to 5 means.</li>
+              <li>Say what pass means.</li>
+              <li>Name what to ignore, such as wording or length.</li>
+              <li>Keep it short: it is sent with every answer. About 4 characters make a token, so 400 characters is about 100 tokens per answer.</li>
+            </ul>
+            <p>The answer format line is added for you. A changed guide applies to new judgings only; earlier judge runs keep the text they used.</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <h3 className="font-medium">Examples</h3>
+            <ul className="flex flex-col gap-2">
+              {JUDGE_EXAMPLES.map((ex) => (
+                <li key={ex.id} className="flex flex-col gap-1 rounded-md border p-2">
+                  <span className="font-medium">{ex.name}</span>
+                  <span className="text-xs text-muted-foreground">{ex.when}</span>
+                  <div><Button size="sm" variant="outline" aria-label={`Use this example: ${ex.name}`} onClick={() => { setText(ex.text); setNote(null); }}>Use this example</Button></div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -375,7 +407,7 @@ function JudgeRunView({ id, runLabel, onChanged, onDeleted }: { id: number; runL
           <TableBody>
             {judge.summary.map((s) => (
               <TableRow key={s.run_model_id}>
-                <TableCell className="whitespace-normal break-all">{s.model}</TableCell>
+                <TableCell className="max-w-56 truncate whitespace-nowrap" title={s.model}>{s.model}</TableCell>
                 <TableCell>{s.judged}</TableCell>
                 <TableCell>{averageText(s.avg_score, s.judged)}</TableCell>
                 <TableCell>{passRateText(s.pass_rate, s.judged)}</TableCell>
