@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { DB } from "../db.ts";
 import type { DatasetFormat } from "./datasetParser.ts";
-import { deleteDataset, importDataset } from "./datasets.ts";
+import { DatasetInUseError, deleteDataset, importDataset } from "./datasets.ts";
 import { modelFamily, priceStatus } from "./modelFamily.ts";
+import { registerRunPlans } from "./runPlans.ts";
 
 const FORMATS = new Set(["jsonl", "json", "csv"]);
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -19,6 +20,8 @@ export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: strin
     if (p.data_factory !== 1) { fail(reply, 409, "The Data factory is off for this project"); return false; }
     return true;
   };
+
+  registerRunPlans(app, db, projectOn);
 
   const datasetProject = (id: number) =>
     (db.prepare("SELECT project_id FROM eval_datasets WHERE id = ?").get(id) as { project_id: number } | undefined)?.project_id;
@@ -79,7 +82,12 @@ export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: strin
     const projectId = datasetProject(id);
     if (projectId === undefined) return fail(reply, 404, "No such dataset");
     if (!projectOn(reply, projectId)) return;
-    deleteDataset(db, dataDir, id);
+    try {
+      deleteDataset(db, dataDir, id);
+    } catch (err) {
+      if (err instanceof DatasetInUseError) return fail(reply, 409, err.message);
+      throw err;
+    }
     return { ok: true };
   });
 

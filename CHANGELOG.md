@@ -9,6 +9,7 @@
 - Each dataset version remembers the name of the file it was imported from.
 - Data factory: each project keeps a list of the models it tests and judges with.
 - Data factory: Models tab with capabilities and prices for each model.
+- Data factory: plan a run (dataset version, models, system prompt, answer cap, cost cap) with a cost estimate before anything is sent.
 
 ### Changed
 - The Data factory sections are tabs in the page header like Scrum, with a narrow list on the left and a wide view. Replaces the side menu. Only Datasets is built; the other tabs are placeholders.

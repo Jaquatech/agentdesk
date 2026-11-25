@@ -74,8 +74,24 @@ export function importDataset(
   return { ok: true, datasetId: stored.datasetId, version: row, unchanged: false, warnings };
 }
 
+/** Number of runs that use a version of this dataset. */
+export function datasetRunCount(db: DB, datasetId: number): number {
+  const r = db.prepare(`SELECT COUNT(*) AS n FROM eval_runs r JOIN eval_dataset_versions v ON v.id = r.version_id WHERE v.dataset_id = ?`).get(datasetId) as { n: number };
+  return r.n;
+}
+
+/** Thrown by deleteDataset while runs still use the dataset; the route turns it into 409. */
+export class DatasetInUseError extends Error {
+  constructor(readonly runs: number) {
+    super(`This dataset is used by ${runs} runs. Delete those runs first.`);
+    this.name = "DatasetInUseError";
+  }
+}
+
 /** Removes the dataset, all its versions and cases (cascade) and the stored original files. */
 export function deleteDataset(db: DB, dataDir: string, datasetId: number): void {
+  const used = datasetRunCount(db, datasetId);
+  if (used > 0) throw new DatasetInUseError(used);
   db.prepare("DELETE FROM eval_datasets WHERE id = ?").run(datasetId);
   rmSync(datasetDir(dataDir, datasetId), { recursive: true, force: true });
 }
