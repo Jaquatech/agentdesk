@@ -6,6 +6,7 @@
 - Data factory, Review tab: the cards in the right-hand column no longer shrink and get cut off; the column scrolls to show the whole page.
 
 ### Added
+- Agent pickers (project planner, team leads, chat planner, task developer, retry, roll-up and scan reader) show each agent's role and, when its instructions have a Specialty line, its specialty: "Frida (developer · frontend)". The team editor shows the specialty next to each developer.
 - Office: a draft beer tap and a kombucha machine in the lounge that idle agents pour from. Turn them off with "Beer and kombucha" in Settings > Office.
 - Data factory, Review tab: a "Your votes" table with the judge's verdict and an Agree / Disagree / No judge filter (click a row to read the answers), and a "Hide model names while voting" option, on by default.
 

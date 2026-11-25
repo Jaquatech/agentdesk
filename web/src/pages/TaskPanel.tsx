@@ -1,3 +1,4 @@
+import { agentLabel } from "../lib/agentLabel.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { Check as CheckIcon, Circle, Copy, Download, ExternalLink, GitMerge, RotateCcw, Square, Trash2, X } from "lucide-react";
@@ -230,7 +231,7 @@ export function TaskDetail({ task, name, workers, onAction }: { task: Task; name
           <span className="flex items-center gap-1">
             <Button variant="outline" disabled={!!busy} onClick={() => act("retry", retryWorker ? { worker_id: Number(retryWorker) } : {})}><RotateCcw data-icon="inline-start" /> Retry</Button>
             <Choice size="sm" className="w-auto" value={retryWorker} onValueChange={setRetryWorker} title="Developer for the retry"
-              options={[{ value: "", label: `with ${name(task.worker_id)}` }, ...workers.filter((w) => w.id !== task.worker_id).map((w) => ({ value: String(w.id), label: `with ${w.name}` }))]} />
+              options={[{ value: "", label: `with ${name(task.worker_id)}` }, ...workers.filter((w) => w.id !== task.worker_id).map((w) => ({ value: String(w.id), label: `with ${agentLabel(w)}` }))]} />
           </span>
         )}
         <Button variant="outline" asChild><a href={`#/chat/${task.chat_id}`}>Open chat</a></Button>

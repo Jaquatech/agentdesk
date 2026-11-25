@@ -1,3 +1,4 @@
+import { agentLabel } from "../lib/agentLabel.ts";
 import { useCallback, useEffect, useState } from "react";
 import { FolderGit2, FolderOpen, Plus, ArrowUp, GitBranch, Sparkles } from "lucide-react";
 import { get, post, put, del, parseJson, type Agent, type Project, type Team } from "../api.ts";
@@ -126,7 +127,7 @@ function ProjectForm({ p, teams, agents, onClose, onSaved }: { p: Partial<Projec
       </Field>
       <Field label="Planner" hint="Answers this project's chats unless a chat picks another. Automatic = the team's planner.">
         <Choice value={f.planner_id ? String(f.planner_id) : ""} onValueChange={(v) => set("planner_id", v ? Number(v) : null)}
-          options={[{ value: "", label: "Automatic (team's planner)" }, ...agents.filter((a) => a.role === "planner" && a.enabled).map((a) => ({ value: String(a.id), label: a.name }))]} />
+          options={[{ value: "", label: "Automatic (team's planner)" }, ...agents.filter((a) => a.role === "planner" && a.enabled).map((a) => ({ value: String(a.id), label: agentLabel(a) }))]} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="How work is run" hint={f.process === "scrum" ? "A backlog the team refines, sprints by priority and capacity, QA on every task, then a release." : "Chat with the planner; tasks run as soon as you approve them."}>

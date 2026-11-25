@@ -1,3 +1,4 @@
+import { agentLabel, specialty } from "../lib/agentLabel.ts";
 import { useEffect, useState } from "react";
 import { Plus, Pencil } from "lucide-react";
 import { get, post, put, del, parseJson, type Agent, type Role, type Team } from "../api.ts";
@@ -106,7 +107,7 @@ function TeamForm({ team, agents, onClose, onSaved }: { team: Partial<Team>; age
   };
   const leadPick = (role: Role, value: number | null, set: (v: number | null) => void) => (
     <Choice value={value ? String(value) : ""} onValueChange={(v) => set(v ? Number(v) : null)}
-      options={[{ value: "", label: `First ${role} in the team` }, ...inTeam(role).map((a) => ({ value: String(a.id), label: a.name }))]} />
+      options={[{ value: "", label: `First ${role} in the team` }, ...inTeam(role).map((a) => ({ value: String(a.id), label: agentLabel(a) }))]} />
   );
 
   return (
@@ -131,7 +132,7 @@ function TeamForm({ team, agents, onClose, onSaved }: { team: Partial<Team>; age
               <label key={a.id} className="flex cursor-pointer items-center gap-2 py-0.5 text-sm">
                 <Checkbox checked={members.includes(a.id)} onCheckedChange={() => toggle(a.id)} />
                 <Avatar look={lookFor(a.name, parseJson(a.appearance, {}))} size={24} />
-                <span className="truncate">{a.name}{!a.enabled && " (off)"}</span>
+                <span className="truncate">{a.name}{!a.enabled && " (off)"}{specialty(a.context) && <span className="text-muted-foreground"> · {specialty(a.context)}</span>}</span>
               </label>
             ))}
           </div>

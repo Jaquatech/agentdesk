@@ -1,3 +1,4 @@
+import { agentLabel } from "../lib/agentLabel.ts";
 import { useEffect, useState } from "react";
 import { get, put, type Agent } from "../api.ts";
 import { Field } from "../components/ui.tsx";
@@ -162,7 +163,7 @@ export function AttachmentsPage() {
                   onValueChange={(v) => setScan({ ...scan, agent: v })}
                   options={[
                     { value: "", label: "None" },
-                    ...agents.filter((a) => a.enabled !== 0 || String(a.id) === scan.agent).map((a) => ({ value: String(a.id), label: `${a.name} (${a.role === "worker" ? "developer" : a.role === "reviewer" ? "reviewer" : "planner"})` })),
+                    ...agents.filter((a) => a.enabled !== 0 || String(a.id) === scan.agent).map((a) => ({ value: String(a.id), label: agentLabel(a) })),
                   ]}
                 />
               </Field>
