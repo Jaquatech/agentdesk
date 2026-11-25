@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Office: a draft beer tap and a kombucha machine in the lounge that idle agents pour from. Turn them off with "Beer and kombucha" in Settings > Office.
 - Data factory, Review tab: a "Your votes" table with the judge's verdict and an Agree / Disagree / No judge filter (click a row to read the answers), and a "Hide model names while voting" option, on by default.
 
 ### Fixed

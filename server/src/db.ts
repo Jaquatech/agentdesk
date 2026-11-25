@@ -600,7 +600,7 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   office_style: "nordic",
   // office features (Settings > Office) and the company logo
   office_rooms: "true", office_plants: "true", office_coffee: "true", office_sofa: "true",
-  office_table: "true", office_arcade: "true", office_slots: "true", office_decor: "true",
+  office_table: "true", office_arcade: "true", office_slots: "true", office_taps: "true", office_decor: "true",
   logo_shape: "circle", logo_glyph: "monogram", logo_color: "auto", logo_image: "",
   max_parallel: "3",
   max_review_rounds: "2",

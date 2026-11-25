@@ -8,7 +8,7 @@ import { hashString } from "./palette.ts";
 
 export type Features = {
   plants: boolean; coffee: boolean; sofa: boolean; table: boolean;
-  arcade: boolean; slots: boolean; decor: boolean; rooms: boolean;
+  arcade: boolean; slots: boolean; taps: boolean; decor: boolean; rooms: boolean;
 };
 
 export const FEATURE_LABELS: { key: keyof Features; label: string; hint: string }[] = [
@@ -19,11 +19,12 @@ export const FEATURE_LABELS: { key: keyof Features; label: string; hint: string 
   { key: "table", label: "Coffee table", hint: "A low table in front of the sofa" },
   { key: "arcade", label: "Arcade cabinet", hint: "An invaders-style game that idle agents play" },
   { key: "slots", label: "Slot machine", hint: "A slot machine that idle agents try their luck on" },
+  { key: "taps", label: "Beer and kombucha", hint: "A draft beer tap and a kombucha machine that idle agents pour from" },
   { key: "decor", label: "Decorations", hint: "Posters, rug, lamps, clock and a bookshelf" },
 ];
 
 export const DEFAULT_FEATURES: Features = {
-  plants: true, coffee: true, sofa: true, table: true, arcade: true, slots: true, decor: true, rooms: true,
+  plants: true, coffee: true, sofa: true, table: true, arcade: true, slots: true, taps: true, decor: true, rooms: true,
 };
 
 export function featuresFromSettings(s: Record<string, string>): Features {
@@ -45,7 +46,7 @@ export type Block = {
   desks: Desk[]; corrX: number; laneY: number;
 };
 
-export type SpotKind = "sofa" | "coffee" | "arcade" | "slots" | "chat";
+export type SpotKind = "sofa" | "coffee" | "arcade" | "slots" | "beer" | "kombucha" | "chat";
 export type Spot = { key: string; kind: SpotKind; x: number; y: number; via: Pt[]; face: "front" | "back" };
 
 export type Layout = {
@@ -59,6 +60,8 @@ export type Layout = {
     sofa: { x: number; y: number; w: number; d: number };
     arcade: { x: number; y: number; w: number; d: number };
     slots: { x: number; y: number; w: number; d: number };
+    kombucha: { x: number; y: number; w: number; d: number };
+    beer: { x: number; y: number; w: number; d: number };
     shelf: { x: number; y: number; w: number; d: number };
     rug: { x: number; y: number; w: number; d: number };
     plants: { x: number; y: number; big: boolean }[];
@@ -160,6 +163,10 @@ export function buildLayout(agents: AgentRef[], teams: TeamInfo[], features: Fea
     sofa: { x: L + 2.9, y: 3.5, w: 3, d: 1 },
     arcade: { x: L + 5.1, y: 6.1, w: 0.8, d: 0.9 },
     slots: { x: L + 5.1, y: 8.0, w: 0.8, d: 0.9 },
+    // The drinks stand at the front of the lounge, past the low corridor (y 10.4) they are reached from,
+    // and are poured from their +x side like the machines above.
+    kombucha: { x: L + 1.2, y: 10.8, w: 0.8, d: 0.9 },
+    beer: { x: L + 3.2, y: 10.8, w: 0.8, d: 0.9 },
     shelf: { x: L + 6.2, y: 0, w: 1.6, d: 0.55 },
     rug: { x: L + 2.2, y: 1.3, w: 4.4, d: 4.4 },
     plants: [{ x: L + 0.5, y: 4.9, big: true }, { x: L + 7.3, y: 1.1, big: true }, { x: L + 7.2, y: 10.6, big: false }],
@@ -171,6 +178,12 @@ export function buildLayout(agents: AgentRef[], teams: TeamInfo[], features: Fea
   const lowY = clamp(10.4);
   if (features.arcade) spots.push({ key: "arcade", kind: "arcade", x: lounge.arcade.x + 1.55, y: lounge.arcade.y + 0.45, face: "back", via: [{ x: corridorX, y: lowY }, { x: lounge.arcade.x + 1.55, y: lowY }] });
   if (features.slots) spots.push({ key: "slots", kind: "slots", x: lounge.slots.x + 1.55, y: lounge.slots.y + 0.45, face: "back", via: [{ x: corridorX, y: lowY }, { x: lounge.slots.x + 1.55, y: lowY }] });
+  if (features.taps) {
+    for (const kind of ["kombucha", "beer"] as const) {
+      const f = lounge[kind];
+      spots.push({ key: kind, kind, x: f.x + 1.55, y: f.y + 0.45, face: "back", via: [{ x: corridorX, y: lowY }, { x: f.x + 1.55, y: lowY }] });
+    }
+  }
   if (features.coffee) {
     spots.push({ key: "coffee-1", kind: "coffee", x: L + 0.7, y: 1.5, face: "back", via: [{ x: corridorX, y: 2.7 }, { x: L + 0.7, y: 2.7 }] });
   }

@@ -35,11 +35,11 @@ describe("office layout", () => {
   });
 
   it("only offers the break spots whose feature is on", () => {
-    const off: Features = { ...DEFAULT_FEATURES, arcade: false, slots: false, coffee: false, sofa: false };
+    const off: Features = { ...DEFAULT_FEATURES, arcade: false, slots: false, taps: false, coffee: false, sofa: false };
     const kinds = new Set(buildLayout(agents(4), [], off).spots.map((s) => s.kind));
     expect([...kinds]).toEqual(["chat"]);
     const on = new Set(buildLayout(agents(4), [], DEFAULT_FEATURES).spots.map((s) => s.kind));
-    expect(on).toEqual(new Set(["arcade", "slots", "coffee", "sofa", "chat"]));
+    expect(on).toEqual(new Set(["arcade", "slots", "beer", "kombucha", "coffee", "sofa", "chat"]));
   });
 
   it("builds a glass room per team when there are two or more", () => {
@@ -80,6 +80,7 @@ function rects(l: Layout) {
   if (f.table) r.push({ ...L.table, n: "table" });
   if (f.arcade) r.push({ ...L.arcade, n: "arcade" });
   if (f.slots) r.push({ ...L.slots, n: "slots" });
+  if (f.taps) r.push({ ...L.kombucha, n: "kombucha" }, { ...L.beer, n: "beer" });
   if (f.decor) r.push({ ...L.shelf, n: "shelf" });
   return r;
 }
@@ -97,7 +98,7 @@ function sample(pts: Pt[]) {
 describe("walking routes", () => {
   const ag = agents(11);
   const teams = [{ id: 1, name: "Web", members: [1, 2, 3, 4] }, { id: 2, name: "Data", members: [5, 6, 7, 8] }];
-  for (const [name, feats, t] of [["open office", DEFAULT_FEATURES, []], ["team rooms", DEFAULT_FEATURES, teams], ["bare", { ...DEFAULT_FEATURES, arcade: false, slots: false, sofa: false, table: false, coffee: false, decor: false }, teams]] as const) {
+  for (const [name, feats, t] of [["open office", DEFAULT_FEATURES, []], ["team rooms", DEFAULT_FEATURES, teams], ["bare", { ...DEFAULT_FEATURES, arcade: false, slots: false, taps: false, sofa: false, table: false, coffee: false, decor: false }, teams]] as const) {
     it(`never walk through furniture or glass (${name})`, () => {
       const l = buildLayout(ag, t as never, feats);
       const blocked = rects(l);
