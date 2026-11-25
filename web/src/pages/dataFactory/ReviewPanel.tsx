@@ -187,7 +187,7 @@ function ReviewView({ runId, summary, projectId, onChanged }: { runId: number; s
           onNext={() => go(nextAfterVote(voted, cursor!, unvotedOnly))} />
       )}
       {ready && !here && (
-        <Card>
+        <Card className="min-w-0 shrink-0">
           <CardHeader><CardTitle><h2>{counts.voted >= counts.answers ? "All answers in this view are voted." : "No more answers in this view."}</h2></CardTitle></CardHeader>
           {prev !== null && <CardContent><Button ref={focusRef} variant="outline" onClick={() => go(prev)}>Previous</Button></CardContent>}
         </Card>
@@ -225,7 +225,7 @@ function AnswerCard({ item, focusRef, projectId, hideModels, previous, onVote, o
   const sentence = agreementSentence(item.agrees);
 
   return (
-    <Card>
+    <Card className="min-w-0 shrink-0">
       <CardHeader>
         <CardTitle>
           <h2>Case {item.case_key}</h2>
@@ -323,7 +323,7 @@ function VotesCard({ runId, modelPick, refresh }: { runId: number; modelPick: st
   };
 
   return (
-    <Card>
+    <Card className="min-w-0 shrink-0">
       <CardHeader><CardTitle>Your votes</CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="w-48">
@@ -408,7 +408,7 @@ function VoteRows({ item, open, panel, toggle }: { item: ReviewItem; open: boole
 
 function SummaryCard({ summary }: { summary: Summary }) {
   return (
-    <Card>
+    <Card className="min-w-0 shrink-0">
       <CardHeader><CardTitle>Summary</CardTitle></CardHeader>
       <CardContent>
         <Table>

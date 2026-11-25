@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- Data factory, Review tab: the cards in the right-hand column no longer shrink and get cut off; the column scrolls to show the whole page.
+
 ### Added
 - Data factory, Review tab: a "Your votes" table with the judge's verdict and an Agree / Disagree / No judge filter (click a row to read the answers), and a "Hide model names while voting" option, on by default.
 
