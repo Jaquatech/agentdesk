@@ -7,6 +7,7 @@
 - Data factory: import a dataset (JSONL, JSON or CSV), see problems and warnings, and keep each import as an immutable version.
 - Data factory files are read in their real encoding: UTF-8 (with or without BOM), UTF-16, or Windows ANSI, so Nordic letters survive. The page says which one was used.
 - Each dataset version remembers the name of the file it was imported from.
+- Data factory: each project keeps a list of the models it tests and judges with.
 
 ### Changed
 - The Data factory sections are tabs in the page header like Scrum, with a narrow list on the left and a wide view. Replaces the side menu. Only Datasets is built; the other tabs are placeholders.

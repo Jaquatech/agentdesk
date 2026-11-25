@@ -453,6 +453,19 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_eval_cases_version ON eval_cases(version_id, position);
   `,
   `ALTER TABLE eval_dataset_versions ADD COLUMN source_name TEXT NOT NULL DEFAULT '';`,
+  `
+  CREATE TABLE eval_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    provider_id INTEGER NOT NULL REFERENCES providers(id) ON DELETE CASCADE,
+    model TEXT NOT NULL,
+    for_test INTEGER NOT NULL DEFAULT 1,
+    for_judge INTEGER NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (project_id, provider_id, model)
+  );
+  `,
 ];
 
 export function openDb(file: string): DB {

@@ -56,6 +56,8 @@ export function seedDemo(db: DB, dataDir: string): boolean {
   ].forEach(([title, request, story, acceptance, notes, points], n) => insertItem.run(projectId, title, request, story, acceptance, notes, points, n + 1));
   seedHistory(db, projectId, ids);
   seedDataFactory(db, dataDir, projectId);
+  db.prepare("INSERT INTO eval_models (project_id, provider_id, model, for_test, for_judge, note) VALUES (?, ?, ?, 1, 1, ?)")
+    .run(projectId, providerId, DEMO_MODEL, "Scripted demo model, no cost.");
   return true;
 }
 
