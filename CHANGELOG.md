@@ -4,6 +4,7 @@
 
 ### Added
 - Data factory: Runs tab to plan a run with a cost estimate, follow it live, stop it and read each model's answers.
+- Data factory: Judge tab to edit the rubric, score a finished run's answers with a judge model (with a cost estimate) and read each model's average score, pass rate and reasons.
 - Projects have a Data factory switch. When it is on, the project shows a Data factory page in the sidebar.
 - Data factory: import a dataset (JSONL, JSON or CSV), see problems and warnings, and keep each import as an immutable version.
 - Data factory files are read in their real encoding: UTF-8 (with or without BOM), UTF-16, or Windows ANSI, so Nordic letters survive. The page says which one was used.
