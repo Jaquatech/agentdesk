@@ -98,7 +98,7 @@ function ReviewView({ runId, summary, projectId, onChanged }: { runId: number; s
   const [session, setSession] = useState<number[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const headingRef = useRef<HTMLHeadingElement>(null);
+  const focusRef = useRef<HTMLButtonElement>(null);
   const focusNext = useRef(false);
 
   // The answers of this view are fetched once per filter change and kept in order, so Next never lands on the answer just voted.
@@ -120,7 +120,7 @@ function ReviewView({ runId, summary, projectId, onChanged }: { runId: number; s
   }, [runId, modelPick, unvotedOnly]);
 
   useEffect(() => {
-    if (focusNext.current) { focusNext.current = false; headingRef.current?.focus(); }
+    if (focusNext.current) { focusNext.current = false; focusRef.current?.focus(); }
   }, [cursor]);
 
   const voted = items.map((i) => i.vote !== null);
@@ -168,7 +168,7 @@ function ReviewView({ runId, summary, projectId, onChanged }: { runId: number; s
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {ready && here && (
-        <AnswerCard key={here.result_id} item={here} headingRef={headingRef} projectId={projectId}
+        <AnswerCard key={here.result_id} item={here} focusRef={focusRef} projectId={projectId}
           previous={prev !== null ? () => go(prev) : null}
           onVote={(verdict, note) => vote(here, verdict, note)}
           onRemove={() => remove(here)}
@@ -177,8 +177,8 @@ function ReviewView({ runId, summary, projectId, onChanged }: { runId: number; s
       )}
       {ready && !here && (
         <Card>
-          <CardHeader><CardTitle><h2 ref={headingRef} tabIndex={-1} className="outline-none">{counts.voted >= counts.answers ? "All answers in this view are voted." : "No more answers in this view."}</h2></CardTitle></CardHeader>
-          {prev !== null && <CardContent><Button variant="outline" onClick={() => go(prev)}>Previous</Button></CardContent>}
+          <CardHeader><CardTitle><h2>{counts.voted >= counts.answers ? "All answers in this view are voted." : "No more answers in this view."}</h2></CardTitle></CardHeader>
+          {prev !== null && <CardContent><Button ref={focusRef} variant="outline" onClick={() => go(prev)}>Previous</Button></CardContent>}
         </Card>
       )}
       <SummaryCard summary={summary} />
@@ -190,15 +190,13 @@ function Block({ label, text }: { label: string; text: string }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <div role="region" aria-label={label} tabIndex={0} className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-        {text === "" ? "(empty)" : text}
-      </div>
+      <Textarea readOnly aria-label={label} value={text === "" ? "(empty)" : text} rows={Math.min(12, Math.max(3, text.split("\n").length))} className="max-h-96 bg-muted/30" />
     </div>
   );
 }
 
-function AnswerCard({ item, headingRef, projectId, previous, onVote, onRemove, onSkip, onNext }: {
-  item: ReviewItem; headingRef: React.RefObject<HTMLHeadingElement | null>; projectId: number; previous: (() => void) | null;
+function AnswerCard({ item, focusRef, projectId, previous, onVote, onRemove, onSkip, onNext }: {
+  item: ReviewItem; focusRef: React.RefObject<HTMLButtonElement | null>; projectId: number; previous: (() => void) | null;
   onVote: (verdict: "good" | "bad", note: string) => Promise<boolean>; onRemove: () => Promise<boolean>; onSkip: () => void; onNext: () => void;
 }) {
   const [note, setNote] = useState(item.vote?.note ?? "");
@@ -218,7 +216,7 @@ function AnswerCard({ item, headingRef, projectId, previous, onVote, onRemove, o
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2 ref={headingRef} tabIndex={-1} className="outline-none">Case {item.case_key}</h2>
+          <h2>Case {item.case_key}</h2>
         </CardTitle>
         <p className="text-xs text-muted-foreground">{item.model} ({item.provider_name})</p>
       </CardHeader>
@@ -231,12 +229,12 @@ function AnswerCard({ item, headingRef, projectId, previous, onVote, onRemove, o
         </Field>
         <div className="flex flex-wrap gap-2">
           {previous && <Button variant="outline" disabled={busy} onClick={previous}>Previous</Button>}
-          <Button disabled={busy} variant={item.vote?.verdict === "good" ? "default" : "outline"} onClick={() => run(() => onVote("good", note), "Vote saved: good.")}>Good</Button>
+          <Button ref={revealed ? undefined : focusRef} disabled={busy} variant={item.vote?.verdict === "good" ? "default" : "outline"} onClick={() => run(() => onVote("good", note), "Vote saved: good.")}>Good</Button>
           <Button disabled={busy} variant={item.vote?.verdict === "bad" ? "default" : "outline"} onClick={() => run(() => onVote("bad", note), "Vote saved: bad.")}>Bad</Button>
           {revealed ? (
             <>
               <Button variant="outline" disabled={busy} onClick={() => run(onRemove, "Vote removed.")}>Remove vote</Button>
-              <Button disabled={busy} onClick={onNext}>Next</Button>
+              <Button ref={focusRef} disabled={busy} onClick={onNext}>Next</Button>
             </>
           ) : (
             <Button variant="outline" disabled={busy} onClick={onSkip}>Skip</Button>
