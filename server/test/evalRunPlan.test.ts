@@ -137,11 +137,8 @@ describe("run plans", () => {
     expect(await status("POST", url, body({ name: "n".repeat(121) }))).toBe(400);
     expect(await status("POST", `${url}/estimate`, body({ cap_usd: 0 }))).toBe(400);
     expect(count("eval_runs")).toBe(0);
-  });
-
-  it("refuses a version without cases", async () => {
     ctx.db.prepare("DELETE FROM eval_cases WHERE version_id = ?").run(versionId);
-    expect(await status("POST", `/api/projects/${projectId}/runs`, body())).toBe(400);
+    expect(await status("POST", url, body())).toBe(400);
   });
 
   it("is refused when the Data factory is off", async () => {

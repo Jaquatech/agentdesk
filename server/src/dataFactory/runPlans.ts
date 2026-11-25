@@ -14,7 +14,6 @@ type Plan = {
   models: { id: number; provider_id: number; provider_name: string; model: string }[];
 };
 type PlanModel = Plan["models"][number];
-type ModelRow = PlanModel & { kind: string; secret_id: number | null };
 
 /** Plans of runs: a dataset version, the models to test, a prompt and caps, with a cost estimate. Nothing is sent to a model. */
 export function registerRunPlans(app: FastifyInstance, db: DB, projectOn: (reply: FastifyReply, projectId: number) => boolean) {
