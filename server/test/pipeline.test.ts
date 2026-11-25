@@ -105,6 +105,9 @@ describe("pipeline", () => {
     expect(done.error).toBe("");
     expect(done.status).toBe("approved");
     expect(done.round).toBe(1);
+    // the "ready to merge" message in the chat carries the Merge button for this task
+    const ready = ctx.db.prepare("SELECT plan FROM messages WHERE chat_id = ? AND role = 'event' AND content LIKE '%is ready to merge%'").get(task.chat_id) as { plan: string };
+    expect(JSON.parse(ready.plan).merge_ids).toEqual([task.id]);
     expect(calls).toEqual(["planner:read", "worker:write", "reviewer:read", "worker:write", "reviewer:read"]);
     expect(readFileSync(join(done.worktree, "src", "hello.txt"), "utf8").replace(/\r\n/g, "\n")).toBe("hello, world\n");
 
