@@ -4,6 +4,8 @@ import { join } from "node:path";
 import type { DB } from "./db.ts";
 import { importDataset } from "./dataFactory/datasets.ts";
 import { demoAnswer } from "./dataFactory/evalCall.ts";
+import { DEFAULT_RUBRIC } from "./dataFactory/judge.ts";
+import { demoJudgeReply } from "./dataFactory/judgeRunner.ts";
 import { ensureProjectPages, syncReleasePage, syncTaskPage } from "./documents.ts";
 import { DEFAULT_WORKER_TOOLS } from "./engines/types.ts";
 import { ROLE_TEMPLATES } from "./orchestrator/prompts.ts";
@@ -80,6 +82,28 @@ function seedDemoRun(db: DB, projectId: number, providerId: number) {
   cases.forEach((c, n) => {
     const answer = demoAnswer(DEMO_MODEL, c.case_key, c.input, c.expected);
     ins.run(runId, runModelId, c.id, c.case_key, answer, Math.ceil(c.input.length / 4), Math.ceil(answer.length / 4), 300 + n * 40);
+  });
+
+  // One finished judge run with the scripted demo rule (no `runs` rows, cost 0).
+  const judgeId = Number(db.prepare(`INSERT INTO eval_judge_runs (run_id, provider_id, provider_name, model, rubric, max_tokens, status, est_low, est_high, cost_usd, created_at, ended_at)
+    VALUES (?, ?, ?, ?, ?, 300, 'done', 0, 0, 0, datetime('now', '-6 minutes'), datetime('now', '-5 minutes'))`)
+    .run(runId, providerId, DEMO_PROVIDER, DEMO_MODEL, DEFAULT_RUBRIC).lastInsertRowid);
+  const results = db.prepare("SELECT id, case_id, answer FROM eval_results WHERE run_id = ? AND status = 'ok' ORDER BY id").all(runId) as { id: number; case_id: number; answer: string }[];
+  const byCase = new Map(cases.map((c) => [c.id, c]));
+  const insJudgement = db.prepare(`INSERT INTO eval_judgements (judge_run_id, result_id, score, pass, reason, status, tokens_in, tokens_out, cost_usd, ms)
+    VALUES (?, ?, ?, ?, ?, 'ok', 0, 0, 0, ?)`);
+  results.forEach((r, n) => {
+    const j = JSON.parse(demoJudgeReply(byCase.get(r.case_id)?.expected ?? null, r.answer)) as { score: number; pass: boolean; reason: string };
+    insJudgement.run(judgeId, r.id, j.score, j.pass ? 1 : 0, j.reason, 200 + n * 30);
+  });
+
+  // Votes on about half of the answers: good when the answer equals the expected one. The first answer the judge scored 2 is
+  // voted good whatever its position, so that agreement with the judge is below 100%.
+  const insVote = db.prepare("INSERT INTO eval_votes (result_id, verdict, note) VALUES (?, ?, '')");
+  const disputed = results.find((r) => (JSON.parse(demoJudgeReply(byCase.get(r.case_id)?.expected ?? null, r.answer)) as { score: number }).score === 2);
+  results.forEach((r, n) => {
+    if (r === disputed) { insVote.run(r.id, "good"); return; }
+    if (n % 2 === 0) insVote.run(r.id, r.answer === byCase.get(r.case_id)?.expected ? "good" : "bad");
   });
 }
 

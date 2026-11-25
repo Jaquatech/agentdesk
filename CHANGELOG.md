@@ -4,7 +4,16 @@
 
 ### Added
 - Office: a draft beer tap and a kombucha machine in the lounge that idle agents pour from. Turn them off with "Beer and kombucha" in Settings > Office.
+- Data factory, Review tab: a "Your votes" table with the judge's verdict and an Agree / Disagree / No judge filter (click a row to read the answers), and a "Hide model names while voting" option, on by default.
+
+### Fixed
+- A Claude CLI answer whose JSON block holds Markdown code fences inside a string (for example a task spec) is read correctly, so the planner run no longer fails with "did not end with the requested JSON block" (#57).
+- A task that fails before its developer is called (for example when the worktree cannot be created) no longer leaves the developer busy, so a retry starts without restarting the server. A repo whose base branch has no commits now says so. A queued task says once "Waiting for <developer>" while its developer is busy (#55).
+
+### Added
+- Data factory: Review tab to vote Good or Bad on answers before seeing the reference answer and the judge, with a per-model summary of good rate and agreement with the judge.
 - Data factory: Runs tab to plan a run with a cost estimate, follow it live, stop it and read each model's answers.
+- Data factory: Judge tab to edit the scoring guide, score a finished run's answers with a judge model (with a cost estimate) and read each model's average score, pass rate and reasons.
 - Projects have a Data factory switch. When it is on, the project shows a Data factory page in the sidebar.
 - Data factory: import a dataset (JSONL, JSON or CSV), see problems and warnings, and keep each import as an immutable version.
 - Data factory files are read in their real encoding: UTF-8 (with or without BOM), UTF-16, or Windows ANSI, so Nordic letters survive. The page says which one was used.
@@ -19,6 +28,7 @@
 - The Datasets page opens the first dataset by itself, clears the form and old messages after an import, and shows times in local time.
 - Import is its own tab in the Data factory; after an import the page opens the dataset in the Datasets tab.
 - Picking a second file after typing a dataset name renames the dataset from the new file name, unless the name was typed again since the last pick.
+- Data factory run page: the run summary, New run and Estimate cards no longer shrink, an opened long answer scrolls inside its cell, and the free-model price hints are reworded.
 
 ### Changed
 - The demo project has the Data factory on and a small sample dataset.

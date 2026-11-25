@@ -523,11 +523,22 @@ Do not put this project's name, its data, or a customer name into General pages.
         if (!worker) continue;
         this.db.prepare("UPDATE tasks SET worker_id = ? WHERE id = ?").run(worker.id, t.id);
       }
-      if (this.busyAgents.has(worker.id) || this.isAgentReserved(worker.id)) continue;
+      if (this.busyAgents.has(worker.id) || this.isAgentReserved(worker.id)) {
+        const key = `${t.id}:wait-dev:${worker.id}`;
+        if (!this.budgetTold.has(key)) {
+          this.budgetTold.add(key);
+          this.postMessage(t.chat_id, "event", `Waiting for ${worker.name}`);
+        }
+        continue;
+      }
+      // A new wait for this developer later gets its own message.
+      this.budgetTold.delete(`${t.id}:wait-dev:${worker.id}`);
       const ctrl = new AbortController();
       this.running.set(t.id, ctrl);
-      this.busyAgents.add(worker.id);
+      const workerId = worker.id;
+      this.busyAgents.add(workerId);
       this.runTask(t.id, ctrl.signal).finally(() => {
+        this.busyAgents.delete(workerId);
         this.running.delete(t.id);
         if (t.sprint_id) void this.scrum?.settle(t.sprint_id);
         this.tick();

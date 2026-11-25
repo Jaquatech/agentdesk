@@ -71,6 +71,19 @@ describe("shell chains", () => {
 });
 
 describe("structured output", () => {
+  it("reads JSON blocks whose strings contain code fences", () => {
+    const fence = "```";
+    const spec = `Do this:\n${fence}ts\nconst a = 1;\n${fence}\nthen stop.`;
+    const plan = { reply: "ok", tasks: [{ title: "t", spec }] };
+    const block = (o: unknown) => `${fence}json\n${JSON.stringify(o)}\n${fence}`;
+    expect(lastJsonBlock(`Plan below.\n\n${block(plan)}`)).toEqual(plan);
+    expect(lastJsonBlock(`${block({ a: 1 })}\nmore\n${block(plan)}`)).toEqual(plan);
+    expect(lastJsonBlock(`Done.\n${block({ a: 3 })}`)).toEqual({ a: 3 });
+    expect(lastJsonBlock("nothing here")).toBeUndefined();
+    const wiki = [{ section: "setup", body: `Run:\n${fence}sh\nnpm start\n${fence}` }];
+    expect(takeWikiFromSummary(`Added it.\n\n${block({ wiki })}`)).toEqual({ summary: "Added it.", wiki });
+  });
+
   it("reads the last JSON block", () => {
     expect(lastJsonBlock("text\n```json\n{\"a\":1}\n```\nmore\n```json\n{\"a\":2}\n```")).toEqual({ a: 2 });
     expect(lastJsonBlock("no json")).toBeUndefined();

@@ -513,6 +513,57 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_eval_results_run ON eval_results(run_id, id);
   `,
+  `
+  CREATE TABLE eval_judge_config (
+    project_id INTEGER PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    rubric TEXT NOT NULL DEFAULT ''
+  );
+  CREATE TABLE eval_judge_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+    provider_id INTEGER REFERENCES providers(id) ON DELETE SET NULL,
+    provider_name TEXT NOT NULL,
+    model TEXT NOT NULL,
+    rubric TEXT NOT NULL,
+    max_tokens INTEGER NOT NULL DEFAULT 300,
+    cap_usd REAL,
+    status TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running','done','stopped','failed','interrupted')),
+    stop_reason TEXT NOT NULL DEFAULT '',
+    est_low REAL,
+    est_high REAL,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    ended_at TEXT
+  );
+  CREATE TABLE eval_judgements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    judge_run_id INTEGER NOT NULL REFERENCES eval_judge_runs(id) ON DELETE CASCADE,
+    result_id INTEGER NOT NULL REFERENCES eval_results(id) ON DELETE CASCADE,
+    score INTEGER,
+    pass INTEGER,
+    reason TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL CHECK (status IN ('ok','error')),
+    error TEXT NOT NULL DEFAULT '',
+    tokens_in INTEGER NOT NULL DEFAULT 0,
+    tokens_out INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL,
+    ms INTEGER NOT NULL DEFAULT 0,
+    usage_run_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (judge_run_id, result_id)
+  );
+  CREATE INDEX idx_eval_judgements_run ON eval_judgements(judge_run_id, id);
+  `,
+  `
+  CREATE TABLE eval_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    result_id INTEGER NOT NULL UNIQUE REFERENCES eval_results(id) ON DELETE CASCADE,
+    verdict TEXT NOT NULL CHECK (verdict IN ('good','bad')),
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  `,
 ];
 
 export function openDb(file: string): DB {

@@ -251,12 +251,17 @@ function PriceForm({ model: m, existing, onSaved, onCancel }: { model: ModelRow;
   const [priceIn, setPriceIn] = useState(existing && m.price_in !== null ? String(m.price_in) : "");
   const [priceOut, setPriceOut] = useState(existing && m.price_out !== null ? String(m.price_out) : "");
   const [error, setError] = useState<string | null>(null);
+  const [free, setFree] = useState(existing && m.price_in === 0 && m.price_out === 0);
+  const toggleFree = (on: boolean) => {
+    setFree(on);
+    if (on) { setPriceIn("0"); setPriceOut("0"); }
+  };
 
   const save = async () => {
     setError(null);
-    const pin = Number(priceIn);
-    const pout = Number(priceOut);
-    if (priceIn.trim() === "" || priceOut.trim() === "" || !Number.isFinite(pin) || !Number.isFinite(pout) || pin < 0 || pout < 0) {
+    const pin = free ? 0 : Number(priceIn);
+    const pout = free ? 0 : Number(priceOut);
+    if (!free && (priceIn.trim() === "" || priceOut.trim() === "") || !Number.isFinite(pin) || !Number.isFinite(pout) || pin < 0 || pout < 0) {
       setError("Give the input and output price as numbers of 0 or more.");
       return;
     }
@@ -276,9 +281,10 @@ function PriceForm({ model: m, existing, onSaved, onCancel }: { model: ModelRow;
 
   return (
     <div className="flex flex-col gap-3">
+      <label className="flex items-center gap-2 text-sm"><Checkbox checked={free} onCheckedChange={(v) => toggleFree(v === true)} /> Free model (prices 0)</label>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Input price per Mtok ($)"><NoFillInput inputMode="decimal" value={priceIn} onChange={(e) => setPriceIn(e.target.value)} /></Field>
-        <Field label="Output price per Mtok ($)"><NoFillInput inputMode="decimal" value={priceOut} onChange={(e) => setPriceOut(e.target.value)} /></Field>
+        <Field label="Input price per Mtok ($)"><NoFillInput inputMode="decimal" value={priceIn} disabled={free} onChange={(e) => setPriceIn(e.target.value)} /></Field>
+        <Field label="Output price per Mtok ($)"><NoFillInput inputMode="decimal" value={priceOut} disabled={free} onChange={(e) => setPriceOut(e.target.value)} /></Field>
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">

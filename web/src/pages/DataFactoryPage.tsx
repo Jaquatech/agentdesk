@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DatasetsPanel, type DatasetPick } from "./dataFactory/DatasetsPanel.tsx";
 import { ImportPanel, type ImportStatus } from "./dataFactory/ImportPanel.tsx";
+import { JudgePanel } from "./dataFactory/JudgePanel.tsx";
 import { ModelsPanel } from "./dataFactory/ModelsPanel.tsx";
+import { ReviewPanel } from "./dataFactory/ReviewPanel.tsx";
 import { RunsPanel } from "./dataFactory/RunsPanel.tsx";
 import { SECTIONS, sectionFromTab, type SectionId } from "./dataFactory/sections.ts";
 
@@ -52,8 +54,12 @@ export function DataFactoryPage({ projectId, tab }: { projectId: number; tab?: s
         <DatasetsPanel projectId={project.id} pick={pick} onPick={setPick} status={status} onStatusDone={() => setStatus(null)} />
       ) : current === "models" ? (
         <ModelsPanel projectId={project.id} />
+      ) : current === "judge" ? (
+        <JudgePanel projectId={project.id} />
       ) : current === "runs" ? (
         <RunsPanel projectId={project.id} />
+      ) : current === "review" ? (
+        <ReviewPanel projectId={project.id} />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto p-6">
           <Card>
