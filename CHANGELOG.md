@@ -9,6 +9,7 @@
 - Each dataset version remembers the name of the file it was imported from.
 - Data factory: each project keeps a list of the models it tests and judges with.
 - Data factory: Models tab with capabilities and prices for each model.
+- Data factory: start a run and see each model's answers, tokens, cost and time; every call counts in Usage with the kind eval and toward the daily limit.
 - Data factory: plan a run (dataset version, models, system prompt, answer cap, cost cap) with a cost estimate before anything is sent.
 
 ### Changed

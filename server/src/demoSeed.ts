@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DB } from "./db.ts";
 import { importDataset } from "./dataFactory/datasets.ts";
+import { demoAnswer } from "./dataFactory/evalCall.ts";
 import { ensureProjectPages, syncReleasePage, syncTaskPage } from "./documents.ts";
 import { DEFAULT_WORKER_TOOLS } from "./engines/types.ts";
 import { ROLE_TEMPLATES } from "./orchestrator/prompts.ts";
@@ -58,7 +59,28 @@ export function seedDemo(db: DB, dataDir: string): boolean {
   seedDataFactory(db, dataDir, projectId);
   db.prepare("INSERT INTO eval_models (project_id, provider_id, model, for_test, for_judge, note) VALUES (?, ?, ?, 1, 1, ?)")
     .run(projectId, providerId, DEMO_MODEL, "Scripted demo model, no cost.");
+  seedDemoRun(db, projectId, providerId);
   return true;
+}
+
+/** One finished run of the sample dataset with the demo model. It adds no rows to `runs`, so usage counts stay as they were. */
+function seedDemoRun(db: DB, projectId: number, providerId: number) {
+  const v = db.prepare(`SELECT v.id FROM eval_dataset_versions v JOIN eval_datasets d ON d.id = v.dataset_id
+    WHERE d.project_id = ? ORDER BY d.id, v.version DESC LIMIT 1`).get(projectId) as { id: number } | undefined;
+  if (!v) return;
+  const runId = Number(db.prepare(`INSERT INTO eval_runs (project_id, version_id, name, system_prompt, max_tokens, status, est_low, est_high, cost_usd, created_at, started_at, ended_at)
+    VALUES (?, ?, 'Demo run', 'Answer the customer in one or two sentences.', 512, 'done', 0, 0, 0, datetime('now', '-12 minutes'), datetime('now', '-10 minutes'), datetime('now', '-7 minutes'))`)
+    .run(projectId, v.id).lastInsertRowid);
+  const runModelId = Number(db.prepare("INSERT INTO eval_run_models (run_id, provider_id, provider_name, model) VALUES (?, ?, ?, ?)")
+    .run(runId, providerId, DEMO_PROVIDER, DEMO_MODEL).lastInsertRowid);
+  const cases = db.prepare("SELECT id, case_key, input, expected FROM eval_cases WHERE version_id = ? ORDER BY position").all(v.id) as
+    { id: number; case_key: string; input: string; expected: string | null }[];
+  const ins = db.prepare(`INSERT INTO eval_results (run_id, run_model_id, case_id, case_key, answer, status, tokens_in, tokens_out, cost_usd, ms)
+    VALUES (?, ?, ?, ?, ?, 'ok', ?, ?, 0, ?)`);
+  cases.forEach((c, n) => {
+    const answer = demoAnswer(DEMO_MODEL, c.case_key, c.input, c.expected);
+    ins.run(runId, runModelId, c.id, c.case_key, answer, Math.ceil(c.input.length / 4), Math.ceil(answer.length / 4), 300 + n * 40);
+  });
 }
 
 /** The Data factory is on in the demo, with one small sample dataset (generic support questions, no real names). */
