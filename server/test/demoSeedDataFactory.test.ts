@@ -20,6 +20,12 @@ describe("demo seed: Data factory", () => {
     expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM eval_cases WHERE version_id = ?").get(run.version_id)).toEqual({ n: 8 });
     expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM eval_results WHERE run_id = ? AND status = 'ok'").get(run.id)).toEqual({ n: 8 });
     expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM runs WHERE kind = 'eval'").get()).toEqual({ n: 0 });
+    const judge = ctx.db.prepare("SELECT id, status, cost_usd, model FROM eval_judge_runs").get() as { id: number; status: string; cost_usd: number; model: string };
+    expect(judge).toMatchObject({ status: "done", cost_usd: 0, model: "demo-model" });
+    expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM eval_judgements WHERE judge_run_id = ? AND status = 'ok'").get(judge.id)).toEqual({ n: 8 });
+    const passed = ctx.db.prepare("SELECT COUNT(*) AS n FROM eval_judgements WHERE judge_run_id = ? AND pass = 1").get(judge.id) as { n: number };
+    expect(passed.n).toBeGreaterThan(0);
+    expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM runs WHERE kind = 'judge'").get()).toEqual({ n: 0 });
     expect(seedDemo(ctx.db, dataDir)).toBe(false);
     expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM eval_dataset_versions WHERE dataset_id = ?").get(dataset.id)).toEqual({ n: 1 });
     await ctx.app.close();
