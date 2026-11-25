@@ -466,6 +466,33 @@ const MIGRATIONS: string[] = [
     UNIQUE (project_id, provider_id, model)
   );
   `,
+  `
+  CREATE TABLE eval_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    version_id INTEGER NOT NULL REFERENCES eval_dataset_versions(id),
+    name TEXT NOT NULL DEFAULT '',
+    system_prompt TEXT NOT NULL DEFAULT '',
+    max_tokens INTEGER NOT NULL DEFAULT 512,
+    cap_usd REAL,
+    status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned','running','done','stopped','failed','interrupted')),
+    stop_reason TEXT NOT NULL DEFAULT '',
+    est_low REAL,
+    est_high REAL,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    started_at TEXT,
+    ended_at TEXT
+  );
+  CREATE TABLE eval_run_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES eval_runs(id) ON DELETE CASCADE,
+    provider_id INTEGER REFERENCES providers(id) ON DELETE SET NULL,
+    provider_name TEXT NOT NULL,
+    model TEXT NOT NULL,
+    UNIQUE (run_id, provider_id, model)
+  );
+  `,
 ];
 
 export function openDb(file: string): DB {
