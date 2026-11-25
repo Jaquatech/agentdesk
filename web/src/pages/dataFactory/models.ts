@@ -27,7 +27,7 @@ const usd = (n: number | null) => `$${(n ?? 0).toFixed(2)}`;
 
 /** One line about the price of a model, by price status. */
 export function priceLine(m: PriceFields): string {
-  if (m.price_status === "free") return "Free (local model)";
+  if (m.price_status === "free") return "Free";
   if (m.price_status === "missing") return "No price set";
   let line = `${usd(m.price_in)} in / ${usd(m.price_out)} out per Mtok`;
   const read = m.cache_read ?? 0;

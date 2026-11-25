@@ -1,5 +1,6 @@
 import type { DB } from "../db.ts";
 import { findPrice, type ModelPrice } from "../pricing.ts";
+import { isZeroPrice } from "./estimate.ts";
 
 const FAMILIES: [string[], string][] = [
   [["claude"], "claude"],
@@ -29,7 +30,7 @@ export type PriceStatus = { status: "priced" | "free" | "missing"; price: ModelP
 /** priced: the global price table has the model; free: a local Ollama model without a key; else missing. */
 export function priceStatus(db: DB, provider: { kind: string; secret_id: number | null }, model: string): PriceStatus {
   const price = findPrice(db, model);
-  if (price) return { status: "priced", price };
+  if (price) return { status: isZeroPrice(price) ? "free" : "priced", price };
   if (provider.kind === "ollama" && !provider.secret_id) return { status: "free", price: null };
   return { status: "missing", price: null };
 }

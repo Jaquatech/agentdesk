@@ -40,6 +40,30 @@ describe("estimateRun", () => {
     expect(e.needs_cap).toBe(false);
   });
 
+  it("all-zero price, no cap: needs_cap is false", () => {
+    const zero = { ...price, price_in: 0, price_out: 0 };
+    const e = estimateRun({ ...base, models: [{ provider_name: "A", model: "z", price: zero, free: false }] });
+    expect(e.models[0].status).toBe("free");
+    expect(e.high).toBe(0);
+    expect(e.needs_cap).toBe(false);
+  });
+
+  it("one free and one priced model still need a cap", () => {
+    const zero = { ...price, price_in: 0, price_out: 0 };
+    const e = estimateRun({ ...base, models: [
+      { provider_name: "A", model: "z", price: zero, free: false },
+      { provider_name: "A", model: "p", price, free: false },
+    ] });
+    expect(e.needs_cap).toBe(true);
+  });
+
+  it("a price with only a cache price above 0 stays priced", () => {
+    const cacheOnly = { ...price, price_in: 0, price_out: 0, cache_read: 0.5 };
+    const e = estimateRun({ ...base, models: [{ provider_name: "A", model: "c", price: cacheOnly, free: false }] });
+    expect(e.models[0].status).toBe("priced");
+    expect(e.needs_cap).toBe(true);
+  });
+
   it("expected text sets the low output, within 16 and maxTokens", () => {
     const one = (expected: string | null, maxTokens: number) =>
       estimateRun({ ...base, maxTokens, cases: [{ input: "a", expected }], models: [{ provider_name: "A", model: "p", price, free: false }] }).models[0].out_tokens;

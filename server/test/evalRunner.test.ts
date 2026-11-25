@@ -119,6 +119,14 @@ describe("eval runner", () => {
     expect(count("SELECT COUNT(*) AS n FROM runs WHERE kind = 'eval'")).toBeGreaterThan(0);
   });
 
+  it("starts a run of an all-zero-price model without a cap", async () => {
+    ctx.db.prepare("INSERT OR REPLACE INTO model_prices (model, price_in, price_out, cache_read, cache_write) VALUES ('zero-model', 0, 0, 0, 0)").run();
+    const a = Number((ctx.db.prepare("SELECT id FROM providers WHERE name = 'A'").get() as { id: number }).id);
+    const zero = (await call("POST", `/api/projects/${projectId}/models`, { provider_id: a, model: "zero-model" })).id;
+    const id = await plan({ model_ids: [zero], cap_usd: null });
+    expect(await start(id)).toEqual({ ok: true });
+  });
+
   it("stops when the cost reaches the cap", async () => {
     versionId = await dataset(8);
     const id = await plan({ cap_usd: CALL_COST * 2.5 });
