@@ -26,6 +26,12 @@ describe("demo seed: Data factory", () => {
     const passed = ctx.db.prepare("SELECT COUNT(*) AS n FROM eval_judgements WHERE judge_run_id = ? AND pass = 1").get(judge.id) as { n: number };
     expect(passed.n).toBeGreaterThan(0);
     expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM runs WHERE kind = 'judge'").get()).toEqual({ n: 0 });
+    const votes = ctx.db.prepare("SELECT COUNT(*) AS n FROM eval_votes").get() as { n: number };
+    expect(votes.n).toBeGreaterThanOrEqual(3);
+    expect(votes.n).toBeLessThan(8);
+    const disagree = ctx.db.prepare(`SELECT COUNT(*) AS n FROM eval_votes v JOIN eval_judgements g ON g.result_id = v.result_id
+      WHERE (v.verdict = 'good') <> (g.pass = 1)`).get() as { n: number };
+    expect(disagree.n).toBeGreaterThan(0);
     expect(seedDemo(ctx.db, dataDir)).toBe(false);
     expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM eval_dataset_versions WHERE dataset_id = ?").get(dataset.id)).toEqual({ n: 1 });
     await ctx.app.close();
