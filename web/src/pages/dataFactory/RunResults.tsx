@@ -85,7 +85,7 @@ function Row({ row: r, free }: { row: ResultRow; free: boolean }) {
       <TableCell className="whitespace-normal break-all">{r.model}</TableCell>
       <TableCell className="whitespace-pre-wrap break-words">{open ? r.input : input.text}</TableCell>
       <TableCell className={failed ? "whitespace-pre-wrap break-words text-destructive" : "whitespace-pre-wrap break-words"}>
-        {open ? answer : out.text}
+        {open ? <div className="max-h-96 overflow-auto">{answer}</div> : out.text}
         {cut && <div><Button variant="link" size="sm" className="h-auto p-0" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Show less" : "Show more"}</Button></div>}
       </TableCell>
       <TableCell>{r.tokens_in ?? "-"} / {r.tokens_out ?? "-"}</TableCell>

@@ -167,7 +167,7 @@ function NewRun({ projectId, onPlanned, onStarted }: { projectId: number; onPlan
 
   return (
     <>
-      <Card className="max-w-2xl">
+      <Card className="max-w-2xl shrink-0">
         <CardHeader><CardTitle>New run</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -189,7 +189,7 @@ function NewRun({ projectId, onPlanned, onStarted }: { projectId: number; onPlan
                 <span className="min-w-0">
                   <span className="break-all">{m.model}</span> <span className="text-muted-foreground">({m.provider_name})</span>
                   <span className="block text-xs text-muted-foreground">
-                    {m.price_status === "missing" ? "No price set. Set it on the Models tab." : priceLine(m)}
+                    {m.price_status === "missing" ? "No price set. Set it on the Models tab (0 and 0 if free)." : priceLine(m)}
                   </span>
                 </span>
               </label>
@@ -198,13 +198,13 @@ function NewRun({ projectId, onPlanned, onStarted }: { projectId: number; onPlan
           <Field label="System prompt (optional)"><Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} maxLength={8000} /></Field>
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Answer length cap (tokens)" hint="16 to 8192"><NoFillInput type="number" min={16} max={8192} value={maxTokens} onChange={(e) => setMaxTokens(e.target.value)} /></Field>
-            <Field label="Cost cap (USD)" hint="Optional"><NoFillInput type="number" min={0} step="any" value={cap} onChange={(e) => setCap(e.target.value)} /></Field>
+            <Field label="Cost cap (USD)" hint="Optional. Not needed for free models."><NoFillInput type="number" min={0} step="any" value={cap} onChange={(e) => setCap(e.target.value)} /></Field>
             <Field label="Name (optional)"><NoFillInput value={name} maxLength={120} onChange={(e) => setName(e.target.value)} /></Field>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="max-w-2xl">
+      <Card className="max-w-2xl shrink-0">
         <CardHeader><CardTitle>Estimate</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-3 text-sm">
           {!tokensOk && <p className="text-destructive">The answer length cap must be a whole number from 16 to 8192.</p>}
@@ -235,7 +235,7 @@ function EstimateView({ est, confirmOver, onConfirm }: { est: Estimate; confirmO
           </li>
         ))}
       </ul>
-      {est.missing.length > 0 && <p role="status">No price for {est.missing.join(", ")}. Set it on the Models tab before starting.</p>}
+      {est.missing.length > 0 && <p role="status">No price for {est.missing.join(", ")}. Set it on the Models tab (enter 0 and 0 if the model is free).</p>}
       {est.needs_cap && <p role="status">Set a cost cap: this run uses paid models.</p>}
       {est.over_cap && (
         <div role="status" className="flex flex-col gap-2">
@@ -280,7 +280,7 @@ function RunView({ id, onChanged, onDeleted }: { id: number; onChanged: () => vo
 
   return (
     <>
-      <Card className="max-w-3xl">
+      <Card className="max-w-3xl shrink-0">
         <CardHeader><CardTitle className="flex items-center gap-2 break-all">{runName(run)} <StatusBadge status={run.status} /></CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-4 text-sm">
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
