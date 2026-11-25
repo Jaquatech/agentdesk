@@ -18,6 +18,7 @@
 - The Datasets page opens the first dataset by itself, clears the form and old messages after an import, and shows times in local time.
 - Import is its own tab in the Data factory; after an import the page opens the dataset in the Datasets tab.
 - Picking a second file after typing a dataset name renames the dataset from the new file name, unless the name was typed again since the last pick.
+- Data factory run page: the run summary, New run and Estimate cards no longer shrink, an opened long answer scrolls inside its cell, and the free-model price hints are reworded.
 
 ### Changed
 - The demo project has the Data factory on and a small sample dataset.
