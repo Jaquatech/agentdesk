@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Data factory: Review tab to vote Good or Bad on answers before seeing the reference answer and the judge, with a per-model summary of good rate and agreement with the judge.
 - Data factory: Runs tab to plan a run with a cost estimate, follow it live, stop it and read each model's answers.
 - Data factory: Judge tab to edit the rubric, score a finished run's answers with a judge model (with a cost estimate) and read each model's average score, pass rate and reasons.
 - Projects have a Data factory switch. When it is on, the project shows a Data factory page in the sidebar.
