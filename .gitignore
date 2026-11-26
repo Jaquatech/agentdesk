@@ -8,3 +8,4 @@ data-demo/
 # Playwright
 test-results/
 playwright-report/
+/research/

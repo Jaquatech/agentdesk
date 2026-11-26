@@ -5,7 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/node_modules/**", "data/**", "data-demo/**", "web/src/components/ui/**"] },
+  { ignores: ["**/dist/**", "**/node_modules/**", "data/**", "data-demo/**", "web/src/components/ui/**", "research/**"] },
   // Warnings are the baseline of code written before the rules; the lint script caps their number so it can only go down.
   js.configs.recommended,
   ...tseslint.configs.recommended,
