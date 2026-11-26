@@ -86,6 +86,8 @@ export function registerAuth(app: FastifyInstance, db: DB) {
     if (!verifyPassword(String(current ?? ""), row.password_hash)) return reply.code(400).send({ error: "Current password is wrong" });
     if (!password || password.length < 8) return reply.code(400).send({ error: "Use at least 8 characters" });
     db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hashPassword(password), req.userId);
+    const keep = sha256(String(req.cookies[COOKIE] ?? ""));
+    db.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?").run(req.userId, keep);
     return { ok: true };
   });
 
