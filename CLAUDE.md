@@ -41,7 +41,7 @@ Node >= 22.13 (uses the built-in `node:sqlite`). The UI is shadcn/ui on Tailwind
 | Attachment Markdown copies, paging, `read_attachment` | `server/src/attachmentMarkdown.ts`, `server/src/attachments.ts` |
 | UI pages | `web/src/pages/` (Documents, Scrum, Teams, Agents, Chat, Settings, ...) |
 | Chat drafts (unsent text and attachments, per chat) | `web/src/lib/chatDraft.ts` |
-| Documents (wiki: General guides, project sections, task pages) | `server/src/documents.ts`, `web/src/pages/DocumentsPage.tsx` |
+| Documents (wiki: General guides, project sections, task pages) | `server/src/documents.ts`, `web/src/pages/DocumentsPage.tsx` (General pages only; a project page address redirects), `web/src/pages/ProjectWikiPage.tsx` (`#/wiki/<project>?doc=<id>`, sidebar item unless `project_wiki` is 0), shared view, dialog and pure helpers in `web/src/components/documents/` |
 
 ## How the pieces fit
 

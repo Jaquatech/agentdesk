@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+- Project wiki page: a project's documents are now under the project in the sidebar (Project wiki), with a switch next to Data factory in the project form. Documents under Platform settings shows only the General pages; old links to project pages still open.
+
 ### Fixed
 - Data factory, Review tab: the cards in the right-hand column no longer shrink and get cut off; the column scrolls to show the whole page.
 
