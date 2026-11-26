@@ -121,7 +121,7 @@ test("a dataset version is checked and approved before it can run", async ({ pag
   await signIn(page);
   await page.goto("/#/data-factory/1?tab=datasets");
   const main = page.getByRole("main");
-  await main.getByRole("button", { name: /support-tickets/ }).click();
+  await main.getByRole("button", { name: /^support-tickets/ }).click();
   await expect(main.getByText("Not approved").first()).toBeVisible();
   await main.getByRole("button", { name: "Check for sensitive data" }).click();
   await expect(main.getByText("Email_1").first()).toBeVisible();
