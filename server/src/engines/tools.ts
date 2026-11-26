@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, existsSync } from "node:fs";
-import { join, relative, resolve, sep, dirname } from "node:path";
+import { readFileSync, writeFileSync, readdirSync, statSync, lstatSync, realpathSync, mkdirSync, existsSync } from "node:fs";
+import { join, relative, resolve, sep, dirname, basename } from "node:path";
 import type { ToolDef } from "../providers/types.ts";
 import type { AgentState } from "../bus.ts";
 import { runCommandLine, tail } from "../orchestrator/shell.ts";
@@ -129,6 +129,19 @@ function safePath(cwd: string, p: string | undefined): string {
   const root = resolve(cwd);
   const full = resolve(root, p || ".");
   if (full !== root && !full.startsWith(root + sep)) throw new Error(`Path outside the working folder: ${p}`);
+  // Also check the real location: a symlink or junction inside the folder must not lead out of it.
+  const realRoot = realpathSync(root);
+  let real: string;
+  const present = (f: string) => { try { lstatSync(f); return true; } catch { return false; } }; // true for a dangling link too
+  try {
+    let parent = full;
+    const rest: string[] = [];
+    while (!present(parent) && dirname(parent) !== parent) { rest.unshift(basename(parent)); parent = dirname(parent); }
+    real = join(realpathSync(parent), ...rest); // a dangling link throws here
+  } catch {
+    throw new Error(`Path outside the working folder: ${p}`);
+  }
+  if (real !== realRoot && !real.startsWith(realRoot + sep)) throw new Error(`Path outside the working folder: ${p}`);
   return full;
 }
 
@@ -151,7 +164,8 @@ function walk(root: string, base: string, out: string[], limit = 5000) {
     if (out.length >= limit) return;
     const full = join(root, name);
     let st;
-    try { st = statSync(full); } catch { continue; }
+    try { st = lstatSync(full); } catch { continue; }
+    if (st.isSymbolicLink()) continue;
     if (st.isDirectory()) { if (!SKIP_DIRS.has(name)) walk(full, base, out, limit); }
     else out.push(relative(base, full).split(sep).join("/"));
   }

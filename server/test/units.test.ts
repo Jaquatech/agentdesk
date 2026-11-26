@@ -1,7 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, symlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+
+// Windows without developer mode cannot create symlinks (EPERM): skip the symlink test there.
+const canSymlink = (() => {
+  try {
+    const d = mkdtempSync(join(tmpdir(), "ad-sym-"));
+    symlinkSync(d, join(d, "l"), "dir");
+    return true;
+  } catch { return false; }
+})();
 import { commandAllowed, globToRegex, runTool } from "../src/engines/tools.ts";
 import { splitChain, needsShell } from "../src/orchestrator/shell.ts";
 import { pathAllowed } from "../src/orchestrator/git.ts";
@@ -58,6 +67,26 @@ describe("paths and globs", () => {
     expect(r.isError).toBe(true);
     const w = await runTool("write_file", { path: "a.txt", content: "x" }, { cwd: dir, canWrite: false, commandPrefixes: [] });
     expect(w.isError).toBe(true);
+  });
+  it.skipIf(!canSymlink)("file tools refuse symlinks that leave the working folder", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ad-tools-"));
+    const outside = mkdtempSync(join(tmpdir(), "ad-outside-"));
+    writeFileSync(join(outside, "secret.txt"), "TOPSECRET");
+    symlinkSync(outside, join(dir, "link"), "dir");
+    symlinkSync(join(outside, "secret.txt"), join(dir, "file-link.txt"));
+    const ctx = { cwd: dir, canWrite: false, commandPrefixes: [] };
+    const r = await runTool("read_file", { path: "link/secret.txt" }, ctx);
+    expect(r.isError).toBe(true);
+    expect(r.content).toMatch(/outside the working folder/);
+    expect((await runTool("read_file", { path: "file-link.txt" }, ctx)).isError).toBe(true);
+    const w = await runTool("write_file", { path: "link/new.txt", content: "x" }, { ...ctx, canWrite: true });
+    expect(w.isError).toBe(true);
+    expect(existsSync(join(outside, "new.txt"))).toBe(false);
+    const l = await runTool("list_files", {}, ctx);
+    expect(l.content).not.toContain("link");
+    expect((await runTool("search", { pattern: "TOPSECRET" }, ctx)).content).not.toContain("TOPSECRET");
+    const ok = await runTool("write_file", { path: "sub/ok.txt", content: "y" }, { ...ctx, canWrite: true });
+    expect(ok.isError).toBeFalsy();
   });
   it("edits only on a unique match", async () => {
     const dir = mkdtempSync(join(tmpdir(), "ad-tools-"));
