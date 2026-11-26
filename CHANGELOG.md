@@ -6,6 +6,7 @@
 - Data factory, Review tab: the cards in the right-hand column no longer shrink and get cut off; the column scrolls to show the whole page.
 
 ### Added
+- Data factory (server): the report of a finished run, with one chosen judging and your votes, as data, Markdown, CSV and JSON (`/api/eval-runs/:id/report`, `.md`, `.csv`, `.json`).
 - Office: a draft beer tap and a kombucha machine in the lounge that idle agents pour from. Turn them off with "Beer and kombucha" in Settings > Office.
 - Data factory, Review tab: a "Your votes" table with the judge's verdict and an Agree / Disagree / No judge filter (click a row to read the answers), and a "Hide model names while voting" option, on by default.
 
