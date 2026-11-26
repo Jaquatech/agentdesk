@@ -11,6 +11,7 @@ import { registerRunPlans } from "./runPlans.ts";
 import { interruptRunning } from "./runner.ts";
 import { registerReviewRoutes } from "./reviewRoutes.ts";
 import { registerReportRoutes } from "./reportRoutes.ts";
+import { registerCompareRoutes } from "./compareRoutes.ts";
 import { registerRunner }from "./runnerRoutes.ts";
 
 const FORMATS = new Set(["jsonl", "json", "csv"]);
@@ -38,6 +39,7 @@ export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: strin
   registerJudgeRoutes(app, db, vault, projectOn);
   registerReviewRoutes(app, db, projectOn);
   registerReportRoutes(app, db, projectOn);
+  registerCompareRoutes(app, db, projectOn);
 
   const datasetProject = (id: number) =>
     (db.prepare("SELECT project_id FROM eval_datasets WHERE id = ?").get(id) as { project_id: number } | undefined)?.project_id;

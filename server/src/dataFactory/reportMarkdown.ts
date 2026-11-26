@@ -1,14 +1,14 @@
 import type { ReportCase, RunReport } from "./report.ts";
 
-const SECTION_LIMIT = 100;
-const BLOCK_LIMIT = 4000;
+export const SECTION_LIMIT = 100;
+export const BLOCK_LIMIT = 4000;
 const CUT_NOTE = "… (cut; the full text is in the CSV and JSON)";
 
 /** One line of untrusted text, safe inside a heading, table cell or sentence. */
-const inline = (s: string) => s.replace(/\r\n|\r|\n/g, " ").replace(/[\\|[\]*_`]/g, "\\$&").replace(/</g, "&lt;");
+export const inline = (s: string) => s.replace(/\r\n|\r|\n/g, " ").replace(/[\\|[\]*_`]/g, "\\$&").replace(/</g, "&lt;");
 
 /** A fenced block whose fence is longer than any backtick run inside. */
-function block(text: string, cut: boolean): string {
+export function block(text: string, cut: boolean): string {
   let body = text;
   if (cut && body.length > BLOCK_LIMIT) body = `${body.slice(0, BLOCK_LIMIT)}\n${CUT_NOTE}`;
   const longest = Math.max(0, ...(body.match(/`+/g) ?? []).map((m) => m.length));
@@ -16,9 +16,9 @@ function block(text: string, cut: boolean): string {
   return `${fence}\n${body}\n${fence}`;
 }
 
-const pct = (n: number | null) => (n === null ? "-" : `${Math.round(n * 100)}%`);
-const secs = (ms: number | null) => (ms === null ? "-" : `${(ms / 1000).toFixed(1)} s`);
-const money = (n: number | null) => (n === null ? "-" : `$${n.toFixed(4)}`);
+export const pct = (n: number | null) => (n === null ? "-" : `${Math.round(n * 100)}%`);
+export const secs = (ms: number | null) => (ms === null ? "-" : `${(ms / 1000).toFixed(1)} s`);
+export const money =(n: number | null) => (n === null ? "-" : `$${n.toFixed(4)}`);
 
 function caseBlock(c: ReportCase, judged: boolean, withVote: boolean): string {
   const out = [`### ${inline(c.case_key)} · ${inline(c.model)}`, "", "Input:", "", block(c.input, true)];

@@ -6,6 +6,7 @@
 - Data factory, Review tab: the cards in the right-hand column no longer shrink and get cut off; the column scrolls to show the whole page.
 
 ### Added
+- Data factory (server): two finished runs of a project can be compared (`/api/eval-compare?a=&b=`, and `.md`, `.csv`, `.json`, `.xlsx`): cases that went from pass to fail or back, figures side by side, and warnings when the runs are not directly comparable. The demo has a second run, "Demo run, shorter prompt", to compare with.
 - Data factory (server): the run report can also be downloaded as Excel (`/api/eval-runs/:id/report.xlsx`: Summary, Models and Cases sheets; text is always stored as text).
 - Data factory (server): the report of a finished run, with one chosen judging and your votes, as data, Markdown, CSV and JSON (`/api/eval-runs/:id/report`, `.md`, `.csv`, `.json`).
 - Office: a draft beer tap and a kombucha machine in the lounge that idle agents pour from. Turn them off with "Beer and kombucha" in Settings > Office.

@@ -5,7 +5,7 @@ export const CASE_COLUMNS = [
   "status", "error", "tokens_in", "tokens_out", "cost_usd", "ms", "judge_status", "score", "pass", "judge_reason", "vote", "vote_note", "agrees",
 ] as const;
 
-type Cell = string | number | null;
+export type Cell = string | number | null;
 const bool = (b: boolean | null): string | null => (b === null ? null : b ? "true" : "false");
 
 /** One row per case, raw values (booleans as `true`/`false`); quoting and the formula guard are done by `reportCsv`. */
@@ -18,7 +18,8 @@ export function caseRows(report: RunReport): Cell[][] {
   ]);
 }
 
-function cell(v: Cell): string {
+/** One CSV field: quoted when needed, with the formula guard. */
+export function cell(v: Cell): string {
   if (v === null) return "";
   if (typeof v === "number") return String(v);
   const s = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
