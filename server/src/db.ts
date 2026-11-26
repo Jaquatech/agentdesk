@@ -564,6 +564,7 @@ const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   `,
+  `ALTER TABLE projects ADD COLUMN project_wiki INTEGER NOT NULL DEFAULT 1;`,
 ];
 
 export function openDb(file: string): DB {

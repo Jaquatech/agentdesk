@@ -6,6 +6,7 @@
 - Data factory, Review tab: the cards in the right-hand column no longer shrink and get cut off; the column scrolls to show the whole page.
 
 ### Added
+- Project wiki switch (server): a project has `project_wiki`, on by default. Off, agents get only General pages (no project index, no page writes, no prompt text about updating pages), which saves tokens; no page is deleted and task and release pages still sync.
 - Data factory, Reports tab: "Compare with" puts the open run next to another finished run: figures side by side, the cases that broke or got fixed (click a row to read both answers and judge reasons), a choice of judging for each side, "Swap A and B", the same downloads and print.
 - Data factory, Reports tab: shows the report of a finished run (models, problems, optionally every answer) with a choice of judging. Copy it as Markdown or a code block, download Markdown, CSV, Excel or JSON, or save it as PDF through the print dialog.
 - Data factory (server): two finished runs of a project can be compared (`/api/eval-compare?a=&b=`, and `.md`, `.csv`, `.json`, `.xlsx`): cases that went from pass to fail or back, figures side by side, and warnings when the runs are not directly comparable. The demo has a second run, "Demo run, shorter prompt", to compare with.

@@ -23,13 +23,17 @@ export class ApiLoopEngine implements Engine {
     const { commandPrefixes } = parseAllowedTools(write ? allowedRaw : JSON.stringify(READ_ONLY_TOOLS));
 
     const finalTool: ToolDef = req.output ?? FINISH_TOOL;
-    const wiki = req.writeWiki ? [READ_WIKI_TOOL, SEARCH_WIKI_TOOL, WIKI_TOOL] : [];
+    const wiki = [
+      ...(req.readWiki ? [READ_WIKI_TOOL] : []),
+      ...(req.searchWiki ? [SEARCH_WIKI_TOOL] : []),
+      ...(req.writeWiki ? [WIKI_TOOL] : []),
+    ];
     const attached = req.readAttachment ? [READ_ATTACHMENT_TOOL] : [];
     const tools = [...READ_TOOLS, ...attached, ...(write ? WRITE_TOOLS : []), ...wiki, finalTool];
     const system = `${req.system}
 
 # Tools
-You work inside one folder; paths are relative to it. Use list_files, read_file and search to look around${write ? ", write_file and edit_file to change files" : ""}${attached.length ? ", and read_attachment to read a file the user attached in this chat (its name and a part number, never a path)" : ""}${wiki.length ? ", read_wiki and search_wiki to look up a wiki page (this project or a General page), and write_wiki to update this project's wiki (overview, architecture, roadmap, setup, decisions, releases; never a General page). Update Overview, Architecture, Road map and Setup when your work changes them" : ""}.
+You work inside one folder; paths are relative to it. Use list_files, read_file and search to look around${write ? ", write_file and edit_file to change files" : ""}${attached.length ? ", and read_attachment to read a file the user attached in this chat (its name and a part number, never a path)" : ""}${req.writeWiki ? ", read_wiki and search_wiki to look up a wiki page (this project or a General page), and write_wiki to update this project's wiki (overview, architecture, roadmap, setup, decisions, releases; never a General page). Update Overview, Architecture, Road map and Setup when your work changes them" : wiki.length ? ", and read_wiki and search_wiki to look up a General wiki page" : ""}.
 run_command accepts only commands that start with: ${commandPrefixes.join(", ") || "(none)"}. No pipes or redirects.
 When you are done, call ${finalTool.name} exactly once. Do not ask questions; take the most reasonable reading and say so.`;
 
