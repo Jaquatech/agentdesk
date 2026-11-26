@@ -105,6 +105,38 @@ function seedDemoRun(db: DB, projectId: number, providerId: number) {
     if (r === disputed) { insVote.run(r.id, "good"); return; }
     if (n % 2 === 0) insVote.run(r.id, r.answer === byCase.get(r.case_id)?.expected ? "good" : "bad");
   });
+  seedShorterRun(db, projectId, providerId, v.id, runId, judgeId);
+}
+
+/** A second finished, judged run of the same dataset version and model, so there is something to compare. No votes, no `runs` rows, cost 0.
+ *  Its answers equal the first run's, except the first case the first judging failed (now the expected answer) and the first it passed (now a refusal). */
+function seedShorterRun(db: DB, projectId: number, providerId: number, versionId: number, firstRun: number, firstJudge: number) {
+  const runId = Number(db.prepare(`INSERT INTO eval_runs (project_id, version_id, name, system_prompt, max_tokens, status, est_low, est_high, cost_usd, created_at, started_at, ended_at)
+    VALUES (?, ?, 'Demo run, shorter prompt', 'Answer in one sentence.', 512, 'done', 0, 0, 0, datetime('now', '-4 minutes'), datetime('now', '-3 minutes'), datetime('now', '-2 minutes'))`)
+    .run(projectId, versionId).lastInsertRowid);
+  const runModelId = Number(db.prepare("INSERT INTO eval_run_models (run_id, provider_id, provider_name, model) VALUES (?, ?, ?, ?)")
+    .run(runId, providerId, DEMO_PROVIDER, DEMO_MODEL).lastInsertRowid);
+  const first = db.prepare(`SELECT r.case_id, r.case_key, r.answer, r.tokens_in, r.tokens_out, r.ms, c.expected, g.pass
+    FROM eval_results r JOIN eval_cases c ON c.id = r.case_id LEFT JOIN eval_judgements g ON g.result_id = r.id AND g.judge_run_id = ?
+    WHERE r.run_id = ? AND r.status = 'ok' ORDER BY r.id`).all(firstJudge, firstRun) as
+    { case_id: number; case_key: string; answer: string; tokens_in: number; tokens_out: number; ms: number; expected: string | null; pass: number | null }[];
+  const failed = first.find((r) => r.pass === 0);
+  const passed = first.find((r) => r.pass === 1);
+  const ins = db.prepare(`INSERT INTO eval_results (run_id, run_model_id, case_id, case_key, answer, status, tokens_in, tokens_out, cost_usd, ms)
+    VALUES (?, ?, ?, ?, ?, 'ok', ?, ?, 0, ?)`);
+  const answers = first.map((r) => {
+    const answer = r === failed && r.expected !== null ? r.expected : r === passed ? "I am not sure." : r.answer;
+    return { id: Number(ins.run(runId, runModelId, r.case_id, r.case_key, answer, r.tokens_in, Math.ceil(answer.length / 4), r.ms).lastInsertRowid), answer, expected: r.expected };
+  });
+  const judgeId = Number(db.prepare(`INSERT INTO eval_judge_runs (run_id, provider_id, provider_name, model, rubric, max_tokens, status, est_low, est_high, cost_usd, created_at, ended_at)
+    VALUES (?, ?, ?, ?, ?, 300, 'done', 0, 0, 0, datetime('now', '-2 minutes'), datetime('now', '-1 minutes'))`)
+    .run(runId, providerId, DEMO_PROVIDER, DEMO_MODEL, DEFAULT_RUBRIC).lastInsertRowid);
+  const insJudgement = db.prepare(`INSERT INTO eval_judgements (judge_run_id, result_id, score, pass, reason, status, tokens_in, tokens_out, cost_usd, ms)
+    VALUES (?, ?, ?, ?, ?, 'ok', 0, 0, 0, ?)`);
+  answers.forEach((r, n) => {
+    const j = JSON.parse(demoJudgeReply(r.expected, r.answer)) as { score: number; pass: boolean; reason: string };
+    insJudgement.run(judgeId, r.id, j.score, j.pass ? 1 : 0, j.reason, 200 + n * 30);
+  });
 }
 
 /** The Data factory is on in the demo, with one small sample dataset (generic support questions, no real names). */

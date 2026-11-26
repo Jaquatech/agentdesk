@@ -3,7 +3,7 @@ import type { Cell as XCell } from "write-excel-file/node";
 import type { RunReport } from "./report.ts";
 import { CASE_COLUMNS, caseRows } from "./reportCsv.ts";
 
-type Value = string | number | null;
+export type Value = string | number | null;
 const MAX_CELL = 32767;
 const CUT = "… (cut)";
 const bad = (c: number) => c <= 8 || c === 0x0b || c === 0x0c || (c >= 0x0e && c <= 0x1f);
@@ -16,13 +16,13 @@ export function cleanText(s: string): string {
 }
 
 
-function cell(v: Value, extra: { format?: string; fontWeight?: "bold" } = {}): XCell {
+export function cell(v: Value, extra: { format?: string; fontWeight?: "bold" } = {}): XCell {
   if (v === null) return null;
   if (typeof v === "number") return { value: v, type: Number, ...extra };
   return { value: cleanText(v), type: String, ...extra };
 }
-const bold = (v: string): XCell => cell(v, { fontWeight: "bold" });
-const rate = (v: number | null): XCell => cell(v, { format: "0%" });
+export const bold = (v: string): XCell => cell(v, { fontWeight: "bold" });
+export const rate =(v: number | null): XCell => cell(v, { format: "0%" });
 
 /** The run report as a workbook: Summary, Models, Cases. Text is always stored as text, never as a formula. */
 export async function reportXlsx(report: RunReport): Promise<Buffer> {
