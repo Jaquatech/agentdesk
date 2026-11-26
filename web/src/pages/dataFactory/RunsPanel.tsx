@@ -13,6 +13,7 @@ import { Choice, NoFillInput } from "../../components/inputs.tsx";
 import { localTime } from "./localTime.ts";
 import { priceLine, type PriceStatus } from "./models.ts";
 import { RunResults } from "./RunResults.tsx";
+import { runName, RUNS_CHANGED } from "./sidebarRuns.ts";
 import { canStart, compareLine, estimateRange, formatUsd, progressPercent, statusLabel } from "./runs.ts";
 
 type RunRow = {
@@ -36,8 +37,9 @@ type Run = RunRow & {
 };
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const runName = (r: { id: number; name: string }) => r.name || `Run ${r.id}`;
 const tabLink = (projectId: number, tab: string) => `#/data-factory/${projectId}?tab=${tab}`;
+const runLink = (projectId: number, id: number) => `${tabLink(projectId, "runs")}&run=${id}`;
+const announce = () => window.dispatchEvent(new Event(RUNS_CHANGED));
 
 function StatusBadge({ status }: { status: string }) {
   const variant = status === "failed" ? "destructive" : status === "running" ? "default" : "secondary";
@@ -45,10 +47,15 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 /** Runs of one project: the narrow list, the new-run form or the open run. */
-export function RunsPanel({ projectId }: { projectId: number }) {
+export function RunsPanel({ projectId, run }: { projectId: number; run?: number }) {
   const list = useLoad<RunRow[]>(`/api/projects/${projectId}/runs`);
-  const [openId, setOpenId] = useState<number | null>(null);
+  const openId = run ?? null;
   const [creating, setCreating] = useState(false);
+  // The open run lives in the address: choosing one (here or in the sidebar) closes the new-run form.
+  const [seenRun, setSeenRun] = useState(run);
+  if (seenRun !== run) { setSeenRun(run); if (run !== undefined) setCreating(false); }
+  const goRun = (id: number | null) => { window.location.hash = id === null ? tabLink(projectId, "runs") : runLink(projectId, id); };
+  const changed = () => { list.reload(); announce(); };
   const rows = list.data ?? [];
   const open = rows.find((r) => r.id === openId) ?? null;
 
@@ -56,13 +63,13 @@ export function RunsPanel({ projectId }: { projectId: number }) {
     <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(16rem,25%)_minmax(0,1fr)] lg:grid-rows-1">
       <nav aria-label="Runs" className="max-h-60 min-h-0 overflow-auto border-b lg:max-h-none lg:border-b-0 lg:border-r">
         <div className="border-b p-2">
-          <Button size="sm" variant="outline" className="w-full" onClick={() => { setCreating(true); setOpenId(null); }}><Plus /> New run</Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => { setCreating(true); goRun(null); }}><Plus /> New run</Button>
         </div>
         {rows.length > 0 && (
           <ul className="flex flex-col">
             {rows.map((r) => (
               <li key={r.id} className={cn("border-b hover:bg-accent/50", !creating && openId === r.id && "bg-accent")} aria-current={!creating && openId === r.id ? "true" : undefined}>
-                <button type="button" className="flex w-full min-w-0 flex-col gap-0.5 px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset" onClick={() => { setCreating(false); setOpenId(r.id); }}>
+                <button type="button" className="flex w-full min-w-0 flex-col gap-0.5 px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset" onClick={() => { setCreating(false); goRun(r.id); }}>
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">{runName(r)}</span>
                     <StatusBadge status={r.status} />
@@ -84,10 +91,10 @@ export function RunsPanel({ projectId }: { projectId: number }) {
           </div>
         )}
         {creating && (
-          <NewRun projectId={projectId} onPlanned={list.reload} onStarted={(id) => { setCreating(false); setOpenId(id); list.reload(); }} />
+          <NewRun projectId={projectId} onPlanned={changed} onStarted={(id) => { setCreating(false); goRun(id); changed(); }} />
         )}
         {!creating && open && (
-          <RunView key={open.id} id={open.id} onChanged={list.reload} onDeleted={() => { setOpenId(null); list.reload(); }} />
+          <RunView key={open.id} id={open.id} onChanged={changed} onDeleted={() => { goRun(null); changed(); }} />
         )}
         {!creating && openId !== null && !open && list.data && <p className="text-sm text-muted-foreground">No such run.</p>}
       </div>

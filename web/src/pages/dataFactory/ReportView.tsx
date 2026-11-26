@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { caseLabel } from "./caseLabel.ts";
 import { localTime } from "./localTime.ts";
 import { percent, problems, seconds, type ReportCase, type RunReport } from "./report.ts";
 
@@ -13,7 +14,7 @@ function CaseItem({ c, withReason }: { c: ReportCase; withReason: boolean }) {
   const reason = c.judge ? (c.judge.status === "error" ? c.judge.error : c.judge.reason) : "";
   return (
     <li className="flex min-w-0 flex-col gap-1 border-b pb-3">
-      <span className="text-sm font-medium">Case {c.case_key} <span className="font-normal text-muted-foreground">({c.model}, {c.provider_name})</span></span>
+      <span className="text-sm font-medium">{caseLabel(c.case_key)} <span className="font-normal text-muted-foreground">({c.model}, {c.provider_name})</span></span>
       {c.status === "error" && <Text>{c.error}</Text>}
       {withReason && reason !== "" && <Text>{reason}</Text>}
       {c.vote && <span className="text-xs text-muted-foreground">Your vote: {c.vote.verdict}{c.vote.note ? `, ${c.vote.note}` : ""}</span>}
@@ -106,7 +107,7 @@ export function ReportView({ report, all }: { report: RunReport; all: boolean })
           <CardContent className="flex flex-col gap-4">
             {report.cases.map((c) => (
               <div key={`${c.run_model_id}-${c.case_key}`} className="flex min-w-0 flex-col gap-1 border-b pb-3">
-                <span className="text-sm font-medium">Case {c.case_key} <span className="font-normal text-muted-foreground">({c.model}, {c.status})</span></span>
+                <span className="text-sm font-medium">{caseLabel(c.case_key)} <span className="font-normal text-muted-foreground">({c.model}, {c.status})</span></span>
                 <Text>{c.input}</Text>
                 <Text>{c.status === "error" ? c.error : c.answer}</Text>
                 {c.judge?.status === "ok" && <span className="text-xs text-muted-foreground">Judge: {c.judge.score ?? "-"}, {c.judge.pass ? "pass" : "fail"}. {c.judge.reason}</span>}

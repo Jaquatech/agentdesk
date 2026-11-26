@@ -7,6 +7,7 @@ import { ApprovalsBar } from "./components/Approvals.tsx";
 import { BudgetBar } from "./components/BudgetBar.tsx";
 import { Modal } from "./components/ui.tsx";
 import { ThemeToggle } from "./components/theme.tsx";
+import { SidebarRuns } from "./pages/dataFactory/SidebarRuns.tsx";
 import { LogoMark } from "./office/LogoMark.tsx";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -33,7 +34,7 @@ const DataFactoryPage = lazy(() => import("./pages/DataFactoryPage.tsx").then((m
 const VersionPage = lazy(() => import("./pages/VersionPage.tsx").then((m) => ({ default: m.VersionPage })));
 const Office = lazy(() => import("./office/Office.tsx").then((m) => ({ default: m.Office })));
 
-export type Route = { page: string; id?: number; tab?: string; sprint?: number; task?: number; group?: string; doc?: number };
+export type Route = { page: string; id?: number; tab?: string; sprint?: number; task?: number; group?: string; doc?: number; run?: number };
 
 function parseHash(): Route {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
@@ -42,7 +43,7 @@ function parseHash(): Route {
   const num = (k: string) => (q.get(k) ? Number(q.get(k)) : undefined);
   const idNum = rawId ? Number(rawId) : NaN;
   // "projects/new" is not an id; only numeric path segments are.
-  return { page: page || "home", id: Number.isFinite(idNum) ? idNum : undefined, tab: q.get("tab") ?? undefined, sprint: num("sprint"), task: num("task"), group: q.get("group") ?? undefined, doc: num("doc") };
+  return { page: page || "home", id: Number.isFinite(idNum) ? idNum : undefined, tab: q.get("tab") ?? undefined, sprint: num("sprint"), task: num("task"), group: q.get("group") ?? undefined, doc: num("doc"), run: num("run") };
 }
 
 /** The Data factory switch (projects.data_factory). Typed here because Project in api.ts does not list it yet. */
@@ -178,6 +179,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
                                 <SidebarMenuSubButton asChild isActive={route.page === "data-factory" && route.id === p.id}>
                                   <a href={`#/data-factory/${p.id}`}><Database /> <span>Data factory</span></a>
                                 </SidebarMenuSubButton>
+                                <SidebarRuns projectId={p.id} activeRun={route.page === "data-factory" && route.id === p.id && route.tab === "runs" ? route.run : undefined} />
                               </SidebarMenuSubItem>
                             )}
                             {pchats.map((c) => (
@@ -248,7 +250,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
           <Suspense fallback={<div className="flex flex-1 items-center justify-center"><Spinner /></div>}>
           {route.page === "chat" && route.id ? <ChatPage key={route.id} chatId={route.id} tab={route.tab} projects={projects} onChanged={reload} />
             : route.page === "scrum" && route.id ? <ScrumPage key={`${route.id}-${route.tab}-${route.sprint}-${route.task}`} projectId={route.id} initial={{ tab: route.tab, sprint: route.sprint, task: route.task }} />
-            : route.page === "data-factory" && route.id ? <DataFactoryPage projectId={route.id} tab={route.tab} />
+            : route.page === "data-factory" && route.id ? <DataFactoryPage projectId={route.id} tab={route.tab} run={route.run} />
             : route.page === "wiki" && route.id ? <ProjectWikiPage projectId={route.id} doc={route.doc} />
             : route.page === "tasks" ? <TasksBoard key={`${route.group}-${route.task}`} group={route.group} task={route.task} />
             : route.page === "office" ? <OfficePage />

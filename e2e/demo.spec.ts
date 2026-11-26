@@ -116,3 +116,14 @@ test("a keyboard user can open a backlog item", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(page.getByText("As a rover driver").first()).toBeVisible();
 });
+
+test("the sidebar lists the latest Data factory runs", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/#/data-factory/1");
+  const sidebar = page.getByRole("complementary");
+  await expect(sidebar.getByRole("link", { name: "View all" })).toBeVisible();
+  await sidebar.getByRole("link", { name: "Demo run", exact: true }).click();
+  await expect(page).toHaveURL(/#\/data-factory\/1\?tab=runs&run=\d+/);
+  await expect(page.getByRole("tab", { name: "Runs" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("main").getByText("Demo run", { exact: true }).first()).toBeVisible();
+});

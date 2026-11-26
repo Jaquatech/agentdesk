@@ -5,7 +5,10 @@
 ### Changed
 - Project wiki page: a project's documents are now under the project in the sidebar (Project wiki), with a switch next to Data factory in the project form. Documents under Platform settings shows only the General pages; old links to project pages still open.
 
+- Data factory: the sidebar lists a project's 5 newest runs under its Data factory entry, with a View all row. The open run is part of the address (`?tab=runs&run=ID`).
+
 ### Fixed
+- Data factory: "Report made" shows a readable local time, and cases with a generated id read "Case 3" instead of "Case case-3".
 - Changing your password signs out your other browsers.
 - Read-only agents can no longer write files through `git diff --output` or read outside the project with `--no-index`.
 - Only AgentDesk's own page can change data; other apps on localhost are refused.

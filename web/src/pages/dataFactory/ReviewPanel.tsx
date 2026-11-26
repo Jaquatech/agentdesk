@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Field } from "../../components/ui.tsx";
 import { Choice } from "../../components/inputs.tsx";
+import { caseLabel } from "./caseLabel.ts";
 import { hasEnded } from "./judge.ts";
 import {
   agreementSentence, agreementWord, defaultVoteFilter, judgeLabel, modelShown, nextAfterSkip, nextAfterVote, percentText, previousVoted, progressLine,
@@ -228,7 +229,7 @@ function AnswerCard({ item, focusRef, projectId, hideModels, previous, onVote, o
     <Card className="min-w-0 shrink-0">
       <CardHeader>
         <CardTitle>
-          <h2>Case {item.case_key}</h2>
+          <h2>{caseLabel(item.case_key)}</h2>
         </CardTitle>
         <p className="text-xs text-muted-foreground">{modelShown(hideModels, revealed, item.model, item.provider_name)}</p>
       </CardHeader>

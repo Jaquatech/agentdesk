@@ -12,7 +12,7 @@ import { RunsPanel } from "./dataFactory/RunsPanel.tsx";
 import { SECTIONS, sectionFromTab, type SectionId } from "./dataFactory/sections.ts";
 
 /** The Data factory of one project: sections as header tabs, each a list and a wide view. */
-export function DataFactoryPage({ projectId, tab }: { projectId: number; tab?: string }) {
+export function DataFactoryPage({ projectId, tab, run }: { projectId: number; tab?: string; run?: number }) {
   // undefined = loading, null = no such project.
   const [project, setProject] = useState<Project | null | undefined>(undefined);
   useEffect(() => {
@@ -56,7 +56,7 @@ export function DataFactoryPage({ projectId, tab }: { projectId: number; tab?: s
       ) : current === "judge" ? (
         <JudgePanel projectId={project.id} />
       ) : current === "runs" ? (
-        <RunsPanel projectId={project.id} />
+        <RunsPanel projectId={project.id} run={run} />
       ) : current === "review" ? (
         <ReviewPanel projectId={project.id} />
       ) : (
