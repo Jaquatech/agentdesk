@@ -12,6 +12,8 @@ import { hasEnded } from "./judge.ts";
 import { localTime } from "./localTime.ts";
 import { fenced, reportUrl, unvoted, type ReportResponse } from "./report.ts";
 import { ReportView } from "./ReportView.tsx";
+import { CompareView } from "./CompareView.tsx";
+import { compareUrl, orderSides, type CaseFilter, type CompareResponse } from "./compare.ts";
 
 type RunRow = { id: number; name: string; status: string; dataset_name: string; version: number };
 
@@ -49,7 +51,7 @@ export function ReportsPanel({ projectId }: { projectId: number }) {
       <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-auto p-6">
         {runs.error && <p role="alert" className="text-sm text-destructive">{runs.error}</p>}
         {open ? (
-          <RunReportView key={open.id} runId={open.id} projectId={projectId} />
+          <RunReportView key={open.id} runId={open.id} projectId={projectId} others={ended.filter((r) => r.id !== open.id)} />
         ) : (
           ended.length > 0 && <p className="text-sm text-muted-foreground">Choose a run.</p>
         )}
@@ -58,7 +60,17 @@ export function ReportsPanel({ projectId }: { projectId: number }) {
   );
 }
 
-function RunReportView({ runId, projectId }: { runId: number; projectId: number }) {
+function RunReportView({ runId, projectId, others }: { runId: number; projectId: number; others: RunRow[] }) {
+  const [other, setOther] = useState("");
+  const [swapped, setSwapped] = useState(false);
+  const [judgeA, setJudgeA] = useState<string | null>(null);
+  const [judgeB, setJudgeB] = useState<string | null>(null);
+  const [filter, setFilter] = useState<CaseFilter>("changed");
+  const [cmp, setCmp] = useState<CompareResponse | null>(null);
+  const [cmpError, setCmpError] = useState<string | null>(null);
+  const sides = other === "" ? null : orderSides(runId, Number(other), swapped);
+  const sideA = sides?.a ?? null;
+  const sideB = sides?.b ?? null;
   const [judgePick, setJudgePick] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const [data, setData] = useState<ReportResponse | null>(null);
@@ -75,6 +87,17 @@ function RunReportView({ runId, projectId }: { runId: number; projectId: number 
       .catch((e) => { if (live) setError(message(e)); });
     return () => { live = false; };
   }, [runId, judgePick, all]);
+
+  // The comparison is fetched with the chosen judging of each side.
+  useEffect(() => {
+    if (sideA === null || sideB === null) return;
+    let live = true;
+    const q = `a=${sideA}&b=${sideB}${judgeA ? `&judge_a=${judgeA}` : ""}${judgeB ? `&judge_b=${judgeB}` : ""}`;
+    get<CompareResponse>(`/api/eval-compare?${q}`)
+      .then((d) => { if (live) { setCmp(d); setCmpError(null); } })
+      .catch((e) => { if (live) { setCmp(null); setCmpError(message(e)); } });
+    return () => { live = false; };
+  }, [sideA, sideB, judgeA, judgeB]);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
@@ -94,8 +117,14 @@ function RunReportView({ runId, projectId }: { runId: number; projectId: number 
 
   const { report, markdown, judge_runs } = data;
   const judgeId = judgePick ? Number(judgePick) : report.judge?.id ?? null;
-  const url = (ext: string) => reportUrl(runId, ext, judgeId, all);
-  const missing = unvoted(report);
+  const comparing = sides && cmp && cmp.compare.a.run.id === sides.a && cmp.compare.b.run.id === sides.b ? cmp : null;
+  const jA = judgeA ? Number(judgeA) : comparing?.compare.a.judge?.id ?? null;
+  const jB = judgeB ? Number(judgeB) : comparing?.compare.b.judge?.id ?? null;
+  const url = (ext: string) => (sides ? compareUrl(ext, sides.a, sides.b, jA, jB) : reportUrl(runId, ext, judgeId, all));
+  const markdownText = comparing ? comparing.markdown : markdown;
+  const pickOther = (v: string) => { setOther(v === "none" ? "" : v); setSwapped(false); setJudgeA(null); setJudgeB(null); setCmp(null); setCmpError(null); };
+  const judgeOptions = (list: { id: number; model: string; created_at: string; status: string }[]) =>
+    list.map((j) => ({ value: String(j.id), label: `${j.model} · ${localTime(j.created_at)} · ${j.status}` }));  const missing = unvoted(report);
   const link = "inline-flex h-8 items-center gap-1.5 rounded-md border bg-background px-3 text-sm font-medium shadow-xs hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none";
 
   return (
@@ -103,7 +132,30 @@ function RunReportView({ runId, projectId }: { runId: number; projectId: number 
       <Card className="min-w-0 shrink-0">
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-4">
-            {judge_runs.length > 0 && (
+            <div className="w-80 max-w-full">
+              <Field label="Compare with">
+                <Choice value={other === "" ? "none" : other} onValueChange={pickOther}
+                  options={[{ value: "none", label: "None" }, ...others.map((r) => ({ value: String(r.id), label: `${runName(r)} · ${r.dataset_name} v${r.version}` }))]} />
+              </Field>
+            </div>
+            {sides && (
+              <Button variant="outline" size="sm" onClick={() => { setSwapped(!swapped); setJudgeA(null); setJudgeB(null); setCmp(null); }}>Swap A and B</Button>
+            )}
+            {comparing && (
+              <>
+                <div className="w-80 max-w-full">
+                  <Field label="Judging of A">
+                    <Choice value={String(jA ?? "")} onValueChange={setJudgeA} options={judgeOptions(comparing.judge_runs_a)} />
+                  </Field>
+                </div>
+                <div className="w-80 max-w-full">
+                  <Field label="Judging of B">
+                    <Choice value={String(jB ?? "")} onValueChange={setJudgeB} options={judgeOptions(comparing.judge_runs_b)} />
+                  </Field>
+                </div>
+              </>
+            )}
+            {!sides && judge_runs.length > 0 && (
               <div className="w-96 max-w-full">
                 <Field label="Judging">
                   <Choice value={String(judgeId ?? "")} onValueChange={(v) => setJudgePick(v)}
@@ -111,13 +163,15 @@ function RunReportView({ runId, projectId }: { runId: number; projectId: number 
                 </Field>
               </div>
             )}
-            <label className="flex items-center gap-2 pb-2 text-sm">
-              <Checkbox checked={all} onCheckedChange={(v) => setAll(v === true)} /> Include every answer in the Markdown
-            </label>
+            {!sides && (
+              <label className="flex items-center gap-2 pb-2 text-sm">
+                <Checkbox checked={all} onCheckedChange={(v) => setAll(v === true)} /> Include every answer in the Markdown
+              </label>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => copy(markdown)}><ClipboardCopy /> Copy Markdown</Button>
-            <Button variant="outline" size="sm" onClick={() => copy(fenced(markdown))}><Code /> Copy as code block</Button>
+            <Button variant="outline" size="sm" onClick={() => copy(markdownText)}><ClipboardCopy /> Copy Markdown</Button>
+            <Button variant="outline" size="sm" onClick={() => copy(fenced(markdownText))}><Code /> Copy as code block</Button>
             <a className={link} href={url("md")} download><Download className="size-4" /> .md</a>
             <a className={link} href={url("csv")} download><FileText className="size-4" /> CSV</a>
             <a className={link} href={url("xlsx")} download><FileSpreadsheet className="size-4" /> Excel</a>
@@ -128,14 +182,21 @@ function RunReportView({ runId, projectId }: { runId: number; projectId: number 
         </CardContent>
       </Card>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {missing > 0 && (
+      {sides && cmpError && <p role="alert" className="text-sm text-destructive">{cmpError}</p>}
+      {sides && comparing && (
+        <>
+          <CompareView compare={comparing.compare} filter={filter} onFilter={setFilter} />
+          {createPortal(<div className="print-root"><CompareView compare={comparing.compare} filter={filter} print /></div>, document.body)}
+        </>
+      )}
+      {!sides && missing > 0 && (
         <p className="text-sm text-muted-foreground">
           {missing} answers are not voted yet. This page shows judge scores, so vote on the Review tab first if you want a blind review.{" "}
           <a className="underline" href={`#/data-factory/${projectId}?tab=review`}>Review tab</a>
         </p>
       )}
-      <ReportView report={report} all={all} />
-      {createPortal(<div className="print-root"><ReportView report={report} all={all} /></div>, document.body)}
+      {!sides && <ReportView report={report} all={all} />}
+      {!sides && createPortal(<div className="print-root"><ReportView report={report} all={all} /></div>, document.body)}
     </>
   );
 }
