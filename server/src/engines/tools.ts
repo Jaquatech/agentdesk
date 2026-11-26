@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, readdirSync, statSync, lstatSync, realpathSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, lstatSync, realpathSync, mkdirSync, existsSync } from "node:fs";
 import { join, relative, resolve, sep, dirname, basename } from "node:path";
 import type { ToolDef } from "../providers/types.ts";
 import type { AgentState } from "../bus.ts";
