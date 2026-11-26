@@ -12,7 +12,7 @@ export const SECTIONS: Section[] = [
   { id: "judge", label: "Judge", icon: Scale, description: "The model that scores the answers and the scoring guide it uses. A judge from another model family than the tested models is recommended." },
   { id: "runs", label: "Runs", icon: Play, description: "Plan a run (dataset version, models, budget, cost check, pre-flight), follow it live and read the results." },
   { id: "review", label: "Review", icon: UserCheck, description: "Vote on answers by hand. The judge's score is shown after your vote." },
-  { id: "reports", label: "Reports", icon: FileText, description: "Run reports and comparisons between runs. Copy as Markdown, or export PDF, Excel and JSON." },
+  { id: "reports", label: "Reports", icon: FileText, description: "Run reports and comparisons between runs. Copy as Markdown, save as PDF, or download Markdown, CSV, Excel and JSON." },
 ];
 
 /** A valid section id for a `tab` query value; missing or unknown means datasets. */

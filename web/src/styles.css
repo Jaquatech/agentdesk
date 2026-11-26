@@ -191,6 +191,33 @@
 
 .masked { -webkit-text-security: disc; }
 
+/* Reports tab: the report is printed alone. The copy in .print-root is hidden on screen. */
+.print-root { display: none; }
+@media print {
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body:has(> .print-root) > :not(.print-root) { display: none !important; }
+  .print-root { display: block; }
+  body:has(> .print-root), .print-root, .print-root * {
+    color: #000 !important;
+    background: #fff !important;
+    border-color: #999 !important;
+    box-shadow: none !important;
+  }
+  .print-root * {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .print-root pre {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere;
+  }
+  .print-root tr { break-inside: avoid; }
+}
+
 @keyframes typing-blink {
   0%, 80%, 100% { opacity: 0.25; }
   40% { opacity: 1; }
