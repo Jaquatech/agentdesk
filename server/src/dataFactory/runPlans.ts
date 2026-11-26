@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import type { DB } from "../db.ts";
 import { estimateRun, type RunEstimate } from "./estimate.ts";
 import { priceStatus } from "./modelFamily.ts";
+import { UNAPPROVED_MESSAGE } from "./pipeline.ts";
 
 const MAX_NAME = 120;
 const MAX_PROMPT = 8000;
@@ -40,8 +41,9 @@ export function registerRunPlans(app: FastifyInstance, db: DB, projectOn: (reply
   const readPlan = (projectId: number, body: unknown): Plan | string => {
     const b = (body ?? {}) as Record<string, unknown>;
     const versionId = Number(b.version_id);
-    const v = db.prepare(`SELECT v.case_count FROM eval_dataset_versions v JOIN eval_datasets d ON d.id = v.dataset_id WHERE v.id = ? AND d.project_id = ?`).get(versionId, projectId) as { case_count: number } | undefined;
+    const v = db.prepare(`SELECT v.case_count, v.approved_at FROM eval_dataset_versions v JOIN eval_datasets d ON d.id = v.dataset_id WHERE v.id = ? AND d.project_id = ?`).get(versionId, projectId) as { case_count: number; approved_at: string | null } | undefined;
     if (!Number.isInteger(versionId) || !v) return "Choose a dataset version of this project";
+    if (!v.approved_at) return UNAPPROVED_MESSAGE;
     const cases = db.prepare("SELECT COUNT(*) AS n FROM eval_cases WHERE version_id = ?").get(versionId) as { n: number };
     if (cases.n === 0) return "This dataset version has no cases";
 

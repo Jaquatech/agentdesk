@@ -40,7 +40,11 @@ describe("judge runner", () => {
 
   /** A finished run of the given models over a dataset of n cases. */
   const finishedRun = async (n = 3, models = [testA]) => {
-    const vid = n === 3 ? versionId : (await call("POST", `/api/projects/${projectId}/datasets`, { name: `set${n}`, format: "jsonl", text: jsonl(n) })).version.id;
+    let vid = versionId;
+    if (n !== 3) {
+      vid = (await call("POST", `/api/projects/${projectId}/datasets`, { name: `set${n}`, format: "jsonl", text: jsonl(n) })).version.id;
+      await call("POST", `/api/dataset-versions/${vid}/approve`, {});
+    }
     const id = (await call("POST", `/api/projects/${projectId}/runs`, { version_id: vid, model_ids: models, max_tokens: 100, cap_usd: 1 })).id as number;
     await call("POST", `/api/eval-runs/${id}/start`, {});
     await runFinished(id);
@@ -74,6 +78,7 @@ describe("judge runner", () => {
     unpriced = await model(a, "no-price", false, true);
     noJudge = testA;
     versionId = (await call("POST", `/api/projects/${projectId}/datasets`, { name: "set3", format: "jsonl", text: jsonl(3) })).version.id;
+    await call("POST", `/api/dataset-versions/${versionId}/approve`, {});
     fake(scripted);
   });
 

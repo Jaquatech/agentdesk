@@ -565,6 +565,14 @@ const MIGRATIONS: string[] = [
   );
   `,
   `ALTER TABLE projects ADD COLUMN project_wiki INTEGER NOT NULL DEFAULT 1;`,
+  // Data factory approval: a dataset version must be approved before a run can use it. An anonymized copy records the
+  // version it came from and how many values were replaced per kind (never the values). Own names and terms per project.
+  `
+  ALTER TABLE eval_dataset_versions ADD COLUMN approved_at TEXT;
+  ALTER TABLE eval_dataset_versions ADD COLUMN cleaned_from INTEGER;
+  ALTER TABLE eval_dataset_versions ADD COLUMN cleaned_counts TEXT NOT NULL DEFAULT '';
+  ALTER TABLE projects ADD COLUMN sensitive_terms TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 export function openDb(file: string): DB {
