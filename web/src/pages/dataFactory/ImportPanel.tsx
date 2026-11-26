@@ -19,7 +19,7 @@ const ENCODING_LABELS: Record<TextEncodingName, string> = {
 type Problem = { line: number; message: string };
 
 /** What the Datasets tab shows after an import. */
-export type ImportStatus = { message: string; warnings: string[] };
+export type ImportStatus = { message: string; warnings: string[]; needsApproval?: boolean };
 
 const FORMATS = [
   { value: "jsonl", label: "JSON Lines (.jsonl)" },
@@ -89,7 +89,7 @@ export function ImportPanel({ projectId, onImported }: {
         return;
       }
       const message = body.unchanged ? `Nothing new: this file is the same as version ${body.version.version}.` : `Saved as version ${body.version.version}.`;
-      onImported(body.dataset_id, body.version.id, { message, warnings: body.warnings ?? [] });
+      onImported(body.dataset_id, body.version.id, { message, warnings: body.warnings ?? [], needsApproval: !body.unchanged || !body.version.approved_at });
     } finally {
       setBusy(false);
     }
