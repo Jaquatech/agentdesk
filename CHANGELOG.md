@@ -6,6 +6,7 @@
 - Project wiki page: a project's documents are now under the project in the sidebar (Project wiki), with a switch next to Data factory in the project form. Documents under Platform settings shows only the General pages; old links to project pages still open.
 
 ### Fixed
+- Only AgentDesk's own page can change data; other apps on localhost are refused.
 - Agent file tools no longer follow symlinks out of the working folder.
 - Agent commands: a single `&` or a line break can no longer run a second command without asking.
 - Data factory, Review tab: the cards in the right-hand column no longer shrink and get cut off; the column scrolls to show the whole page.

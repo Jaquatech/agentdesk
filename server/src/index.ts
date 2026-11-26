@@ -22,7 +22,7 @@ import { seedDemo } from "./demoSeed.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export type AppOptions = { dataDir: string; webDist?: string; logger?: boolean };
+export type AppOptions = { dataDir: string; webDist?: string; logger?: boolean; port?: number; allowedOrigins?: string[] };
 
 export async function buildApp(opts: AppOptions) {
   const db = openDb(join(opts.dataDir, "agentdesk.db"));
@@ -33,14 +33,26 @@ export async function buildApp(opts: AppOptions) {
   const app = Fastify({ logger: opts.logger ? { level: "info" } : false, bodyLimit: 5 * 1024 * 1024 });
   await app.register(cookie);
 
+  const port = opts.port ?? 4317;
+  const allowed = new Set([`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`]);
+  if (process.env.AGENTDESK_DEV === "1" || process.argv.includes("--dev")) {
+    allowed.add("http://localhost:5173");
+    allowed.add("http://127.0.0.1:5173");
+  }
+  for (const o of opts.allowedOrigins ?? []) allowed.add(o);
+
   // Local tool: refuse requests that do not come from this machine's own UI (DNS rebinding, other sites).
+  // Same origin only: other ports on localhost are other apps (and count as the same site for cookies).
   app.addHook("onRequest", async (req, reply) => {
     const host = String(req.headers.host ?? "").replace(/:\d+$/, "");
     if (!["localhost", "127.0.0.1", "[::1]"].includes(host)) return reply.code(403).send({ error: "Local access only" });
+    if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return;
     const origin = req.headers.origin;
-    if (origin && req.method !== "GET" && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)) {
-      return reply.code(403).send({ error: "Cross-site request refused" });
-    }
+    const fetchSite = req.headers["sec-fetch-site"];
+    const refused = origin
+      ? !allowed.has(origin)
+      : fetchSite !== undefined && fetchSite !== "same-origin" && fetchSite !== "none";
+    if (refused) return reply.code(403).send({ error: "Cross-site request refused" });
   });
 
   app.addHook("onRequest", async (_req, reply) => { reply.headers(SECURITY_HEADERS); });
@@ -74,7 +86,7 @@ async function main() {
   if (demo) process.env.AGENTDESK_DEMO = "1";
   const dataDir = resolve(process.env.AGENTDESK_DATA ?? join(here, "..", "..", demo ? "data-demo" : "data"));
   const port = Number(process.env.PORT ?? 4317);
-  const { app, orch, db } = await buildApp({ dataDir, webDist: join(here, "..", "..", "web", "dist"), logger: process.env.LOG === "1" });
+  const { app, orch, db } = await buildApp({ dataDir, webDist: join(here, "..", "..", "web", "dist"), logger: process.env.LOG === "1", port });
   if (demo) seedDemo(db, dataDir);
   orch.start();
   // Bound to the loopback interface only: the tool never listens on the network.
