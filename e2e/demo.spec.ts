@@ -120,7 +120,7 @@ test("a keyboard user can open a backlog item", async ({ page }) => {
 test("the sidebar lists the latest Data factory runs", async ({ page }) => {
   await signIn(page);
   await page.goto("/#/data-factory/1");
-  const sidebar = page.getByRole("complementary");
+  const sidebar = page.getByRole("list", { name: "Latest runs" });
   await expect(sidebar.getByRole("link", { name: "View all" })).toBeVisible();
   await sidebar.getByRole("link", { name: "Demo run", exact: true }).click();
   await expect(page).toHaveURL(/#\/data-factory\/1\?tab=runs&run=\d+/);
