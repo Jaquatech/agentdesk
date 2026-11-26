@@ -1,7 +1,7 @@
 {
   "own": "Copyright (c) 2026 Jan Romppanen",
   "licenses": {
-    "MIT": 336,
+    "MIT": 337,
     "OFL-1.1": 1,
     "BlueOak-1.0.0": 6,
     "ISC": 11,
@@ -1948,6 +1948,11 @@
     {
       "name": "worker-f",
       "version": "0.1.25",
+      "license": "MIT"
+    },
+    {
+      "name": "write-excel-file",
+      "version": "4.1.1",
       "license": "MIT"
     },
     {

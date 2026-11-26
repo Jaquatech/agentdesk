@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import type { DB } from "../db.ts";
 import { buildReport, defaultJudgeRun, judgeRunsOf } from "./report.ts";
 import { reportCsv } from "./reportCsv.ts";
+import { reportXlsx } from "./reportXlsx.ts";
 import { reportMarkdown } from "./reportMarkdown.ts";
 
 const fail = (reply: FastifyReply, code: number, error: string) => reply.code(code).send({ error });
@@ -46,5 +47,11 @@ export function registerReportRoutes(app: FastifyInstance, db: DB, projectOn: (r
   app.get("/api/eval-runs/:id/report.json", async (req, reply) => {
     const c = checked(req, reply);
     if (c) return attach(reply, c.id, "json", "application/json", JSON.stringify(c.report, null, 2));
+  });
+  app.get("/api/eval-runs/:id/report.xlsx", async (req, reply) => {
+    const c = checked(req, reply);
+    if (!c) return;
+    return reply.header("content-type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      .header("content-disposition", `attachment; filename="run-${c.id}-report.xlsx"`).send(await reportXlsx(c.report));
   });
 }

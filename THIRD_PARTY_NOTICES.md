@@ -2,7 +2,7 @@
 
 AgentDesk is MIT licensed (see LICENSE). Copyright (c) 2026 Jan Romppanen. It uses the packages below; each keeps its own licence, whose text ships with the package.
 
-- MIT: 336
+- MIT: 337
 - MPL-2.0: 12
 - BSD-2-Clause: 11
 - ISC: 11
@@ -404,6 +404,7 @@ AgentDesk is MIT licensed (see LICENSE). Copyright (c) 2026 Jan Romppanen. It us
 | vfile-message | 4.0.4 | MIT |
 | vite | 8.3.8 | MIT |
 | worker-f | 0.1.25 | MIT |
+| write-excel-file | 4.1.1 | MIT |
 | xmlbuilder | 10.1.1 | MIT |
 | yaml | 2.9.1 | ISC |
 | zwitch | 2.0.4 | MIT |
