@@ -21,6 +21,7 @@ const ChatPage = lazy(() => import("./pages/ChatPage.tsx").then((m) => ({ defaul
 const AgentsPage = lazy(() => import("./pages/AgentsPage.tsx").then((m) => ({ default: m.AgentsPage })));
 const TeamsPage = lazy(() => import("./pages/TeamsPage.tsx").then((m) => ({ default: m.TeamsPage })));
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage.tsx").then((m) => ({ default: m.DocumentsPage })));
+const ProjectWikiPage = lazy(() => import("./pages/ProjectWikiPage.tsx").then((m) => ({ default: m.ProjectWikiPage })));
 const ProvidersPage = lazy(() => import("./pages/ProvidersPage.tsx").then((m) => ({ default: m.ProvidersPage })));
 const ProjectsPage = lazy(() => import("./pages/ProjectsPage.tsx").then((m) => ({ default: m.ProjectsPage })));
 const AttachmentsPage = lazy(() => import("./pages/AttachmentsPage.tsx").then((m) => ({ default: m.AttachmentsPage })));
@@ -32,7 +33,7 @@ const DataFactoryPage = lazy(() => import("./pages/DataFactoryPage.tsx").then((m
 const VersionPage = lazy(() => import("./pages/VersionPage.tsx").then((m) => ({ default: m.VersionPage })));
 const Office = lazy(() => import("./office/Office.tsx").then((m) => ({ default: m.Office })));
 
-export type Route = { page: string; id?: number; tab?: string; sprint?: number; task?: number; group?: string };
+export type Route = { page: string; id?: number; tab?: string; sprint?: number; task?: number; group?: string; doc?: number };
 
 function parseHash(): Route {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
@@ -41,7 +42,7 @@ function parseHash(): Route {
   const num = (k: string) => (q.get(k) ? Number(q.get(k)) : undefined);
   const idNum = rawId ? Number(rawId) : NaN;
   // "projects/new" is not an id; only numeric path segments are.
-  return { page: page || "home", id: Number.isFinite(idNum) ? idNum : undefined, tab: q.get("tab") ?? undefined, sprint: num("sprint"), task: num("task"), group: q.get("group") ?? undefined };
+  return { page: page || "home", id: Number.isFinite(idNum) ? idNum : undefined, tab: q.get("tab") ?? undefined, sprint: num("sprint"), task: num("task"), group: q.get("group") ?? undefined, doc: num("doc") };
 }
 
 /** The Data factory switch (projects.data_factory). Typed here because Project in api.ts does not list it yet. */
@@ -165,6 +166,13 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>
                             )}
+                            {p.project_wiki !== 0 && (
+                              <SidebarMenuSubItem>
+                                <SidebarMenuSubButton asChild isActive={route.page === "wiki" && route.id === p.id}>
+                                  <a href={`#/wiki/${p.id}`}><BookOpen /> <span>Project wiki</span></a>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            )}
                             {dataFactoryOn(p) && (
                               <SidebarMenuSubItem>
                                 <SidebarMenuSubButton asChild isActive={route.page === "data-factory" && route.id === p.id}>
@@ -241,6 +249,7 @@ function Shell({ route, username, demo, onSignOut }: { route: Route; username: s
           {route.page === "chat" && route.id ? <ChatPage key={route.id} chatId={route.id} tab={route.tab} projects={projects} onChanged={reload} />
             : route.page === "scrum" && route.id ? <ScrumPage key={`${route.id}-${route.tab}-${route.sprint}-${route.task}`} projectId={route.id} initial={{ tab: route.tab, sprint: route.sprint, task: route.task }} />
             : route.page === "data-factory" && route.id ? <DataFactoryPage projectId={route.id} tab={route.tab} />
+            : route.page === "wiki" && route.id ? <ProjectWikiPage projectId={route.id} doc={route.doc} />
             : route.page === "tasks" ? <TasksBoard key={`${route.group}-${route.task}`} group={route.group} task={route.task} />
             : route.page === "office" ? <OfficePage />
             : route.page === "teams" ? <TeamsPage />

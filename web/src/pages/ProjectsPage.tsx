@@ -138,9 +138,14 @@ function ProjectForm({ p, teams, agents, onClose, onSaved }: { p: Partial<Projec
           </Field>
         )}
       </div>
-      <Field label="Data factory" hint="Adds a Data factory page to this project: datasets, model runs and reports.">
-        <Switch checked={(f as { data_factory?: number }).data_factory === 1} onCheckedChange={(v) => set("data_factory", v ? 1 : 0)} />
-      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Data factory" hint="Adds a Data factory page to this project: datasets, model runs and reports.">
+          <Switch checked={(f as { data_factory?: number }).data_factory === 1} onCheckedChange={(v) => set("data_factory", v ? 1 : 0)} />
+        </Field>
+        <Field label="Project wiki" hint="A wiki for this project under its menu. When off, agents neither read nor write it; General pages stay readable.">
+          <Switch checked={f.project_wiki !== 0} onCheckedChange={(v) => set("project_wiki", v ? 1 : 0)} />
+        </Field>
+      </div>
       {f.source !== "local" && (
         <Field label="Repository URL" hint={f.source === "github" ? "Pull requests are opened with the GitHub CLI (gh) when it is installed and signed in." : "Pull requests are opened with the Azure CLI (az repos) when it is installed and signed in."}>
           <NoFillInput className="font-mono" value={f.repo_url ?? ""} onChange={(e) => set("repo_url", e.target.value)}

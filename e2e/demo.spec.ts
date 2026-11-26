@@ -92,9 +92,12 @@ test("a chat shows its token total", async ({ page }) => {
 
 test("documents list the release notes and a task page", async ({ page }) => {
   await signIn(page);
-  await page.goto("/#/documents");
+  await page.goto("/#/wiki/1");
   await expect(page.getByText("Sprint 1: Touchdown").first()).toBeVisible();
   await expect(page.getByText("Airlock door chime").first()).toBeVisible();
+  await page.goto("/#/documents");
+  await expect(page.getByRole("main")).toBeVisible();
+  await expect(page.getByText("Airlock door chime")).toHaveCount(0);
 });
 
 test("provider test works in demo mode", async ({ page }) => {
