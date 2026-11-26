@@ -179,7 +179,29 @@ export function commandAllowed(command: string, prefixes: string[]): boolean {
   if (/%[A-Za-z_]/.test(c)) return false; // cmd.exe expands %VAR% even inside quotes
   if (/[|><`]|\$\(/.test(c)) return false; // no pipes, redirects or substitutions
   const parts = c.split(/&&|;/).map((s) => s.trim()).filter(Boolean);
-  return parts.length > 0 && parts.every((part) => prefixes.some((p) => part === p || part.startsWith(p + " ")));
+  return parts.length > 0 && parts.every((part) => {
+    if (!prefixes.some((p) => part === p || part.startsWith(p + " "))) return false;
+    if (part.startsWith("git ") && riskyGitArgs(part)) return false;
+    if (part.startsWith("ls ") && leavesFolder(part)) return false;
+    return true;
+  });
+}
+
+// Git options that write a file, read outside the repo, or run a program from git config.
+export function riskyGitArgs(part: string): boolean {
+  return part.split(/\s+/).some((t) =>
+    t.startsWith("--output") ||
+    ["--no-index", "--ext-diff", "--textconv", "--exec", "-c"].includes(t) ||
+    t.startsWith("--exec-path") || t.startsWith("--git-dir") || t.startsWith("--work-tree") ||
+    t.startsWith("-C"));
+}
+
+// An ls argument that is an absolute path, a home path, or has a `..` segment.
+function leavesFolder(part: string): boolean {
+  return part.split(/\s+/).slice(1).some((raw) => {
+    const t = raw.replace(/^["']|["']$/g, "");
+    return /^([/\\~]|[A-Za-z]:)/.test(t) || t.split(/[/\\]/).includes("..");
+  });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- model-supplied JSON, each tool validates the fields it reads

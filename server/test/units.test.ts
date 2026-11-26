@@ -11,7 +11,7 @@ const canSymlink = (() => {
     return true;
   } catch { return false; }
 })();
-import { commandAllowed, globToRegex, runTool } from "../src/engines/tools.ts";
+import { commandAllowed, globToRegex, riskyGitArgs, runTool } from "../src/engines/tools.ts";
 import { splitChain, needsShell } from "../src/orchestrator/shell.ts";
 import { pathAllowed } from "../src/orchestrator/git.ts";
 import { parseAllowedTools } from "../src/engines/types.ts";
@@ -21,6 +21,20 @@ import { Vault, hashPassword, verifyPassword } from "../src/crypto.ts";
 
 describe("command allow-list", () => {
   const prefixes = ["npm test", "git diff", "dotnet test"];
+  it("refuses git options that write or leave the repo", () => {
+    const prefixes = ["git diff", "git log", "git show", "ls"];
+    expect(commandAllowed("git diff --output=/tmp/x", prefixes)).toBe(false);
+    expect(commandAllowed("git log --output /tmp/x", prefixes)).toBe(false);
+    expect(commandAllowed("git diff --no-index /etc/passwd a", prefixes)).toBe(false);
+    expect(commandAllowed("git diff --ext-diff", prefixes)).toBe(false);
+    expect(commandAllowed("git show -C .. HEAD", prefixes)).toBe(false);
+    expect(commandAllowed("ls /etc", prefixes)).toBe(false);
+    expect(commandAllowed("ls ../..", prefixes)).toBe(false);
+    expect(commandAllowed("git diff main...HEAD -- src/a.ts", prefixes)).toBe(true);
+    expect(commandAllowed("git log --oneline -5", prefixes)).toBe(true);
+    expect(commandAllowed("ls src", prefixes)).toBe(true);
+    expect(riskyGitArgs("git diff --stat")).toBe(false);
+  });
   it("accepts allowed prefixes and chains of them", () => {
     expect(commandAllowed("npm test", prefixes)).toBe(true);
     expect(commandAllowed("git diff main...HEAD -- src", prefixes)).toBe(true);
