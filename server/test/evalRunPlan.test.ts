@@ -117,6 +117,7 @@ describe("run plans", () => {
     const d = await call("POST", `/api/projects/${projectId}/datasets`, { name: "set", format: "jsonl", text: jsonl(3) });
     datasetId = d.dataset_id;
     versionId = d.version.id;
+    await call("POST", `/api/dataset-versions/${versionId}/approve`, {});
   });
 
   afterEach(async () => {

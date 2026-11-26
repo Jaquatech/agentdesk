@@ -14,6 +14,9 @@ export type DatasetVersion = {
   note: string;
   source_name: string;
   created_at: string;
+  approved_at: string | null;
+  cleaned_from: number | null;
+  cleaned_counts: string;
 };
 
 export type ImportResult =
@@ -22,6 +25,16 @@ export type ImportResult =
 
 export function datasetDir(dataDir: string, datasetId: number): string {
   return join(dataDir, "evals", "datasets", String(datasetId));
+}
+
+export function versionFilePath(dataDir: string, datasetId: number, version: number, format: string): string {
+  return join(datasetDir(dataDir, datasetId), `v${version}.${format}`);
+}
+
+/** The stored copy of one version's text. */
+export function writeVersionFile(dataDir: string, datasetId: number, version: number, format: string, text: string): void {
+  mkdirSync(datasetDir(dataDir, datasetId), { recursive: true });
+  writeFileSync(versionFilePath(dataDir, datasetId, version, format), text, "utf8");
 }
 
 /** Parse and store one upload. Nothing is stored when the file has problems. Versions are only ever added. */
@@ -66,9 +79,7 @@ export function importDataset(
     return { datasetId, version, versionId };
   })();
 
-  const dir = datasetDir(dataDir, stored.datasetId);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `v${stored.version}.${input.format}`), input.text, "utf8");
+  writeVersionFile(dataDir, stored.datasetId, stored.version, input.format, input.text);
 
   const row = db.prepare("SELECT * FROM eval_dataset_versions WHERE id = ?").get(stored.versionId) as DatasetVersion;
   return { ok: true, datasetId: stored.datasetId, version: row, unchanged: false, warnings };

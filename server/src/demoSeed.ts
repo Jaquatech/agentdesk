@@ -68,7 +68,7 @@ export function seedDemo(db: DB, dataDir: string): boolean {
 /** One finished run of the sample dataset with the demo model. It adds no rows to `runs`, so usage counts stay as they were. */
 function seedDemoRun(db: DB, projectId: number, providerId: number) {
   const v = db.prepare(`SELECT v.id FROM eval_dataset_versions v JOIN eval_datasets d ON d.id = v.dataset_id
-    WHERE d.project_id = ? ORDER BY d.id, v.version DESC LIMIT 1`).get(projectId) as { id: number } | undefined;
+    WHERE d.project_id = ? AND d.name = 'support-questions' ORDER BY v.version DESC LIMIT 1`).get(projectId) as { id: number } | undefined;
   if (!v) return;
   const runId = Number(db.prepare(`INSERT INTO eval_runs (project_id, version_id, name, system_prompt, max_tokens, status, est_low, est_high, cost_usd, created_at, started_at, ended_at)
     VALUES (?, ?, 'Demo run', 'Answer the customer in one or two sentences.', 512, 'done', 0, 0, 0, datetime('now', '-12 minutes'), datetime('now', '-10 minutes'), datetime('now', '-7 minutes'))`)
@@ -152,8 +152,20 @@ function seedDataFactory(db: DB, dataDir: string, projectId: number) {
     { input: "Do you offer a refund for a damaged item?", expected: "Yes, photograph the damage and request a refund from Orders within 30 days.", tags: ["returns"] },
     { input: "How do I change the language?", expected: "Open Settings, then Language, and pick one from the list.", tags: ["account"] },
   ];
+  // Made-up personal data (example.com, a 192.0.2.0/24 address, individual number 9xx). Unapproved: the check finds it. The name
+  // "Marta Lindqvist" is found only after it is added to the project's list of people.
+  const tickets = [
+    { input: "Hi, I am Marta Lindqvist. Please reply to marta.lindqvist@example.com about my invoice.", expected: "Ask for the invoice number and confirm the email address on the account.", tags: ["billing"] },
+    { input: "Call me on +358 40 555 0123, the delivery driver cannot find the door.", expected: "Offer to contact the carrier and ask for a clear entrance description.", tags: ["shipping"] },
+    { input: "The app says I was signed in from 192.0.2.17 and that was not me.", expected: "Advise a password reset and review of the active sessions.", tags: ["account", "security"] },
+    { input: "My personal id 010190-900P is shown wrongly on the contract.", expected: "Explain how to request a correction without repeating the id.", tags: ["account"] },
+    { input: "How long does a refund take after a return?", expected: "Refunds arrive within 5 to 7 days after the return is received.", tags: ["returns"] },
+  ];
+  importDataset(db, dataDir, { projectId, name: "support-tickets", format: "jsonl", text: tickets.map((c) => JSON.stringify(c)).join("\n"), note: "Demo sample with made-up personal data" });
+  // Seeded last, so it has the higher id and opens first. Approved, so its demo runs keep working.
   const text = cases.map((c) => JSON.stringify(c)).join("\n");
-  importDataset(db, dataDir, { projectId, name: "support-questions", format: "jsonl", text, note: "Demo sample" });
+  const imported = importDataset(db, dataDir, { projectId, name: "support-questions", format: "jsonl", text, note: "Demo sample" });
+  if (imported.ok) db.prepare("UPDATE eval_dataset_versions SET approved_at = datetime('now') WHERE id = ?").run(imported.version.id);
 }
 
 /** A released first sprint (two merged tasks, runs, release notes) and an active second sprint: one task waiting to run, one needing the user, one merged. */

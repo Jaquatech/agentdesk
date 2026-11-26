@@ -142,6 +142,7 @@ describe("judge routes", () => {
     offId = (await call("POST", "/api/projects", { name: "off", source: "local", path: repo })).id;
     prov = Number(ctx.db.prepare("INSERT INTO providers (name, kind, base_url, default_model) VALUES ('A', 'anthropic', '', 'm')").run().lastInsertRowid);
     const d = await call("POST", `/api/projects/${projectId}/datasets`, { name: "set", format: "jsonl", text: JSON.stringify({ input: "q", expected: "a" }) });
+    await call("POST", `/api/dataset-versions/${d.version.id}/approve`, {});
     const tested = (await call("POST", `/api/projects/${projectId}/models`, { provider_id: prov, model: "claude-tested" })).id;
     runId = (await call("POST", `/api/projects/${projectId}/runs`, { version_id: d.version.id, model_ids: [tested] })).id;
   });

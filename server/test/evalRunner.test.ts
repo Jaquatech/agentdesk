@@ -33,7 +33,11 @@ describe("eval runner", () => {
   const count = (sql: string) => (ctx.db.prepare(sql).get() as { n: number }).n;
   const ok = async (req: ChatRequest): Promise<ChatResponse> => ({ content: [{ type: "text", text: `re: ${req.messages[0].content[0].type === "text" ? (req.messages[0].content[0] as { text: string }).text : ""}` }], stopReason: "end", usage: USAGE });
   const fake = (chat: (req: ChatRequest) => Promise<ChatResponse>) => { evalHooks.chat = { chat, listModels: async () => [] }; };
-  const dataset = async (n: number) => (await call("POST", `/api/projects/${projectId}/datasets`, { name: `set${n}-${Math.random()}`, format: "jsonl", text: jsonl(n) })).version.id as number;
+  const dataset = async (n: number) => {
+    const id = (await call("POST", `/api/projects/${projectId}/datasets`, { name: `set${n}-${Math.random()}`, format: "jsonl", text: jsonl(n) })).version.id as number;
+    await call("POST", `/api/dataset-versions/${id}/approve`, {});
+    return id;
+  };
   /** Plans a run and returns its id. */
   const plan = async (extra: object = {}) =>
     (await call("POST", `/api/projects/${projectId}/runs`, { version_id: versionId, model_ids: [priced], max_tokens: 100, cap_usd: 1, ...extra })).id as number;

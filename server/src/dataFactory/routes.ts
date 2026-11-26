@@ -13,6 +13,7 @@ import { registerReviewRoutes } from "./reviewRoutes.ts";
 import { registerReportRoutes } from "./reportRoutes.ts";
 import { registerCompareRoutes } from "./compareRoutes.ts";
 import { registerRunner }from "./runnerRoutes.ts";
+import { registerPipelineRoutes } from "./pipelineRoutes.ts";
 
 const FORMATS = new Set(["jsonl", "json", "csv"]);
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -40,6 +41,7 @@ export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: strin
   registerReviewRoutes(app, db, projectOn);
   registerReportRoutes(app, db, projectOn);
   registerCompareRoutes(app, db, projectOn);
+  registerPipelineRoutes(app, db, dataDir, projectOn);
 
   const datasetProject = (id: number) =>
     (db.prepare("SELECT project_id FROM eval_datasets WHERE id = ?").get(id) as { project_id: number } | undefined)?.project_id;
@@ -48,7 +50,7 @@ export function registerDataFactory(app: FastifyInstance, db: DB, dataDir: strin
     const projectId = Number((req.params as { id: string }).id);
     if (!projectOn(reply, projectId)) return;
     return db.prepare(`
-      SELECT d.id, d.name, d.created_at, v.id AS version_id, v.version, v.format, v.case_count, v.note, v.created_at AS version_created_at
+      SELECT d.id, d.name, d.created_at, v.id AS version_id, v.version, v.format, v.case_count, v.note, v.approved_at, v.created_at AS version_created_at
       FROM eval_datasets d
       JOIN eval_dataset_versions v ON v.dataset_id = d.id
         AND v.version = (SELECT MAX(version) FROM eval_dataset_versions WHERE dataset_id = d.id)

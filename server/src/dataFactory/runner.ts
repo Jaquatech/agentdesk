@@ -2,6 +2,7 @@ import type { DB } from "../db.ts";
 import type { Vault } from "../crypto.ts";
 import { evalCall } from "./evalCall.ts";
 import { estimateFor } from "./runPlans.ts";
+import { isApproved, UNAPPROVED_MESSAGE } from "./pipeline.ts";
 
 /** Calls in flight at the same time in one run. */
 export const MAX_IN_FLIGHT = 2;
@@ -33,6 +34,7 @@ export function startRun(db: DB, vault: Vault, runId: number, confirmOverCap: bo
   const run = db.prepare("SELECT id, project_id, version_id, system_prompt, max_tokens, cap_usd, status FROM eval_runs WHERE id = ?").get(runId) as RunRow | undefined;
   if (!run) return { ok: false, status: 404, error: "No such run" };
   if (run.status !== "planned") return { ok: false, status: 409, error: "Only a planned run can be started" };
+  if (!isApproved(db, run.version_id)) return { ok: false, status: 409, error: UNAPPROVED_MESSAGE };
   if (db.prepare("SELECT id FROM eval_runs WHERE status = 'running'").get()) return { ok: false, status: 409, error: "Another run is in progress" };
 
   const models = db.prepare("SELECT id, provider_id, provider_name, model FROM eval_run_models WHERE run_id = ? ORDER BY id").all(runId) as RunModel[];

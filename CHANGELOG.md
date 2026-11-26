@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- Data factory: a dataset version must be approved before a run can use it, so existing datasets must be approved before their next run. Approval first checks the version locally for sensitive data (no model is called), replaces what it finds with placeholders in a new version and removes the original text. Own names and terms are kept per project.
 - Project wiki page: a project's documents are now under the project in the sidebar (Project wiki), with a switch next to Data factory in the project form. Documents under Platform settings shows only the General pages; old links to project pages still open.
 
 - Data factory: the sidebar lists a project's 5 newest runs under its Data factory entry, with a View all row. The open run is part of the address (`?tab=runs&run=ID`).
