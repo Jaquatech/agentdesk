@@ -253,6 +253,8 @@ export function registerRoutes(app: FastifyInstance, db: DB, vault: Vault, orch:
     if (b.points_per_dev !== undefined) db.prepare("UPDATE projects SET points_per_dev = ? WHERE id = ?").run(Math.max(1, Math.min(60, Math.round(Number(b.points_per_dev)) || 8)), projectId);
     // Only 1 turns the Data factory on; any other value (including 7) is off.
     if (b.data_factory !== undefined) db.prepare("UPDATE projects SET data_factory = ? WHERE id = ?").run(b.data_factory === 1 ? 1 : 0, projectId);
+    // Only 0 turns the project wiki off for agents; any other value (including 7) is on.
+    if (b.project_wiki !== undefined) db.prepare("UPDATE projects SET project_wiki = ? WHERE id = ?").run(b.project_wiki === 0 || b.project_wiki === "0" ? 0 : 1, projectId);
   };
   app.post("/api/projects", async (req, reply) => {
     const f = projectFields(req.body as Body);

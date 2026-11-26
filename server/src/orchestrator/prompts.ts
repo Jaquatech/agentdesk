@@ -29,6 +29,29 @@ to merge; ask for changes only for real problems, as concrete fix instructions.`
 /** One sentence every role sees: which project wiki pages it may change. General pages stay out. */
 export const WIKI_LINE = "You may update this project's wiki pages: overview, architecture, roadmap (Road map), setup, decisions and releases. Update Overview, Architecture, Road map and Setup when your work changes them. Never a General page.";
 
+/** Sentences that ask for page updates. Kept as constants so `withoutWikiWrites` can take them out when the project wiki is off. */
+export const WIKI_CALL = " Call write_wiki, or include the pages in `wiki`.";
+export const WIKI_PUT = " Put page updates in `wiki`.";
+export const WORKER_WIKI_BULLET = "\n- The wiki in your instructions is an index. Overview, Architecture and Setup are written out for you, except on the Claude CLI, which includes Overview only. Use read_wiki or search_wiki when they are available. Use write_wiki for overview, architecture, roadmap (Road map), setup, decisions and releases when your work changes them. Update Overview, Architecture, Road map and Setup when they are no longer true. A title is optional for those four; decisions and releases are one page per title. Do not write this project's name, its data, or a customer name into a General page.";
+export const PLAN_WIKI_LINES = `\n${WIKI_LINE} The wiki in your instructions is an index. Use read_wiki or search_wiki when you need a page that is not written out. Put the pages in \`wiki\`: overview, architecture, roadmap and setup replace that one page (a title is optional). decisions and releases are one page per title.
+Do not put this project's name, its data, or a customer name into General pages. You cannot edit those from here.`;
+
+/** A prompt without the sentences that ask to update project wiki pages. Pure; used when a project's wiki switch is off. */
+export function withoutWikiWrites(prompt: string): string {
+  return [WORKER_WIKI_BULLET, PLAN_WIKI_LINES, WIKI_CALL, WIKI_PUT, `${WIKI_LINE} `, WIKI_LINE]
+    .reduce((text, part) => text.split(part).join(""), prompt)
+    .trimEnd();
+}
+
+/** A copy of an output tool without its `wiki` property. The shared tool constants are not changed. */
+export function withoutWikiField(tool: ToolDef): ToolDef {
+  const schema = tool.input_schema as { properties?: Record<string, unknown>; required?: string[] };
+  if (!schema.properties || !("wiki" in schema.properties)) return tool;
+  const properties = { ...schema.properties };
+  delete properties.wiki;
+  return { ...tool, input_schema: { ...schema, properties, ...(schema.required ? { required: schema.required.filter((r) => r !== "wiki") } : {}) } };
+}
+
 const WIKI_ITEM = {
   type: "object",
   required: ["section", "body"],
@@ -131,8 +154,7 @@ ${o.spec}${round}
     : "Run the relevant ones yourself first."}` : "Run the relevant tests yourself."}
 - Do not commit, push or open a PR; leave changes in the working tree.
 - Your final message becomes the PR description: what changed (short bullets), tests run and results, anything left open.
-  No diffs, no logs, no secrets. It is also copied onto this task's wiki page.
-- The wiki in your instructions is an index. Overview, Architecture and Setup are written out for you, except on the Claude CLI, which includes Overview only. Use read_wiki or search_wiki when they are available. Use write_wiki for overview, architecture, roadmap (Road map), setup, decisions and releases when your work changes them. Update Overview, Architecture, Road map and Setup when they are no longer true. A title is optional for those four; decisions and releases are one page per title. Do not write this project's name, its data, or a customer name into a General page.`;
+  No diffs, no logs, no secrets. It is also copied onto this task's wiki page.${WORKER_WIKI_BULLET}`;
 }
 
 export function buildReviewPrompt(o: { title: string; specs: string; branch: string; base: string; diffStat: string; verify: string[] }) {
@@ -150,7 +172,7 @@ Read the diff with \`git diff ${o.base}...HEAD\` (per file if large) and open fi
 ${o.verify.length ? `The verify commands passed: ${o.verify.join(" ; ")}.` : ""}
 
 Finish with your verdict: approve, or changes with concrete fix instructions.
-${WIKI_LINE} Call write_wiki, or include the pages in \`wiki\`.`;
+${WIKI_LINE}${WIKI_CALL}`;
 }
 
 export const NOTES_TOOL: ToolDef = {
@@ -254,5 +276,5 @@ ${o.items.map((i) => `- ${i}`).join("\n") || "- (none)"}
 Look for: secrets or personal data in code or logs, injection (SQL, command, path, HTML), missing authorization or input checks,
 unsafe file or network access, dependencies added or loosened, error messages that leak internals, disabled security checks.
 Single-task reviews already covered style and correctness; focus on what is dangerous. Verdict "issues" only for real findings.
-${WIKI_LINE} Call write_wiki, or include the pages in \`wiki\`.`;
+${WIKI_LINE}${WIKI_CALL}`;
 }

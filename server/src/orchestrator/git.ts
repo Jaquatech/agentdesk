@@ -9,6 +9,8 @@ export type ProjectRow = {
   /** File in the project folder copied into the worktree only while the verify commands run (e.g. .env.test). */
   checks_env_file?: string;
   checks_env_target?: string;
+  /** 0 = agents get no project wiki pages (General pages only). Default 1. */
+  project_wiki?: number;
 };
 
 export async function git(cwd: string, ...args: string[]): Promise<string> {

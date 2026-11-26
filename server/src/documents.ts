@@ -382,11 +382,14 @@ type WikiDoc = { title: string; section: string; slot: string; kind: string; pro
 /** index: titles only. job: index plus overview, architecture and setup. claude: index plus Overview (no read tool). */
 export type WikiDepth = "index" | "job" | "claude";
 
-function wikiDocs(db: DB, projectId: number): WikiDoc[] {
-  return db.prepare(`SELECT title, section, slot, kind, project_id, body FROM documents
+function wikiDocs(db: DB, projectId: number, generalOnly = false): WikiDoc[] {
+  const all = db.prepare(`SELECT title, section, slot, kind, project_id, body FROM documents
     WHERE project_id = ? OR project_id IS NULL
     ORDER BY project_id IS NULL, section, title`).all(projectId) as WikiDoc[];
+  return generalOnly ? all.filter((d) => d.project_id == null) : all;
 }
+
+export const WIKI_OFF_LINE = "The project wiki is off for this project. Only General pages can be read.";
 
 function wikiFirstLine(body: string): string {
   const line = (body || "").split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? "";
@@ -409,8 +412,12 @@ function indexLines(pages: WikiDoc[]): string {
  * Wiki text for a system prompt. The default is an index (title, section, first line, length), including General pages
  * so they can be looked up. `job` also writes out overview, architecture and setup. `claude` writes out Overview only.
  */
-export function projectWikiContext(db: DB, projectId: number, depth: WikiDepth = "index") {
-  const docs = wikiDocs(db, projectId);
+export function projectWikiContext(db: DB, projectId: number, depth: WikiDepth = "index", generalOnly = false) {
+  const docs = wikiDocs(db, projectId, generalOnly);
+  if (generalOnly) {
+    const general = docs.length ? `\n\n# General pages\n${indexLines(docs)}` : "";
+    return `${WIKI_OFF_LINE}${general}`;
+  }
   if (!docs.length) return "";
   const project = docs.filter((d) => d.project_id != null);
   const general = docs.filter((d) => d.project_id == null);
@@ -436,13 +443,13 @@ function renderWikiPage(p: WikiDoc): string {
 }
 
 /** One page, by section (overview, decisions, …) or title. General pages are included. Several matches list titles instead of bodies. */
-export function readWikiPage(db: DB, projectId: number, q: { section?: string; title?: string }): string {
+export function readWikiPage(db: DB, projectId: number, q: { section?: string; title?: string }, generalOnly = false): string {
   const section = String(q.section ?? "").trim();
   const title = String(q.title ?? "").trim();
   if (!section && !title) return "Pass a section or a title.";
   const sec = section ? normalizeWikiKey(section) : "";
   const tit = title ? normalizeWikiKey(title) : "";
-  let hits = wikiDocs(db, projectId).filter((p) => {
+  let hits = wikiDocs(db, projectId, generalOnly).filter((p) => {
     const secOk = !sec || [p.section, p.slot, p.title, p.kind].some((v) => normalizeWikiKey(v) === sec);
     const titleOk = !tit || normalizeWikiKey(p.title) === tit;
     return secOk && titleOk;
@@ -516,12 +523,12 @@ function matchSnippet(page: WikiDoc, terms: string[]): string {
  * ignoring case. Rank is how many distinct terms match, with a title or section match counting more than the body.
  * Equal rank lists a project page before a General page. The snippet is about 160 characters around the first match.
  */
-export function searchWikiPages(db: DB, projectId: number, query: string): string {
+export function searchWikiPages(db: DB, projectId: number, query: string, generalOnly = false): string {
   const q = String(query ?? "").trim().toLowerCase();
   if (!q) return "Pass a query.";
   const terms = [...new Set(q.split(/\s+/).map((w) => w.replace(/[^a-z0-9]+/g, "")).filter((w) => w.length >= 2 && !SEARCH_STOP.has(w)))].slice(0, 8);
   if (!terms.length) return "(no matching pages)";
-  const ranked = wikiDocs(db, projectId).flatMap((page) => {
+  const ranked = wikiDocs(db, projectId, generalOnly).flatMap((page) => {
     let score = 0;
     for (const term of terms) score += termWeight(page, term);
     return score > 0 ? [{ page, score }] : [];

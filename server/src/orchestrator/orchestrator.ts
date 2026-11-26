@@ -23,7 +23,7 @@ import { placeEnvFile, type EnvFileHandle } from "./envFile.ts";
 import { blockingTask, isStuck, waitKey } from "./overlap.ts";
 import { setupProblem } from "../verifyHelp.ts";
 import { DEFAULT_WORKER_TOOLS } from "../engines/types.ts";
-import { PLAN_TOOL, REVIEW_TOOL, NOTES_TOOL, ROLE_TEMPLATES, WIKI_LINE, buildWorkerPrompt, buildReviewPrompt } from "./prompts.ts";
+import { PLAN_TOOL, REVIEW_TOOL, NOTES_TOOL, ROLE_TEMPLATES, WIKI_LINE, PLAN_WIKI_LINES, withoutWikiWrites, withoutWikiField, buildWorkerPrompt, buildReviewPrompt } from "./prompts.ts";
 import { applyWikiWrites, projectWikiContext, readWikiPage, searchWikiPages, syncTaskPage, type WikiWrite } from "../documents.ts";
 import { clipRollup, formatJournal, journalLines, recentTurns, recordRollupFailure, recordRollupSuccess, rollupAnchor, rollupBatch, rollupPrompt, type ChatTurn } from "../chatHistory.ts";
 
@@ -221,24 +221,28 @@ export class Orchestrator {
       ? this.db.prepare("SELECT p.* FROM projects p JOIN chats c ON c.project_id = p.id WHERE c.id = ?").get(o.chatId) as ProjectRow | undefined
       : o.projectId ? this.db.prepare("SELECT * FROM projects WHERE id = ?").get(o.projectId) as ProjectRow | undefined : undefined;
     const offerWiki = !!project && o.wiki !== "none";
+    // The switch is read on every call. Off: General pages only, no page writes, and no text that asks for them.
+    const wikiOff = !!project && project.project_wiki === 0;
     const depth = !offerWiki ? null : provider.kind === "claude-cli" ? "claude" as const : o.wiki === "job" ? "job" as const : "index" as const;
     const system = [
       o.agent.context || ROLE_TEMPLATES[o.agent.role],
       project?.context ? `# Project notes\n${project.context}` : "",
-      depth && project ? projectWikiContext(this.db, project.id, depth) : "",
+      depth && project ? projectWikiContext(this.db, project.id, depth, wikiOff) : "",
     ].filter(Boolean).join("\n\n");
+    const prompt = wikiOff ? withoutWikiWrites(o.prompt) : o.prompt;
+    const output = wikiOff && o.output ? withoutWikiField(o.output) : o.output;
     const runId = this.startRun({
       taskId: o.taskId, chatId: o.chatId, projectId: o.projectId ?? project?.id, sprintId: o.sprintId, itemId: o.itemId, agent: o.agent, kind: o.kind,
       round: o.round ?? 0, model: provider.model || (provider.kind === "claude-cli" ? "claude-cli default" : ""), engine: provider.kind,
     });
     const lines: string[] = [];
-    this.db.prepare("UPDATE runs SET prompt_chars = ? WHERE id = ?").run(system.length + o.prompt.length, runId);
+    this.db.prepare("UPDATE runs SET prompt_chars = ? WHERE id = ?").run(system.length + prompt.length, runId);
     this.busyAgents.add(o.agent.id);
     this.activity(o.agent.id, o.kind === "review" ? "reviewing" : "thinking", o.kind, o.taskId, o.chatId);
     const attachmentChat = o.chatId;
     try {
       const result = await engineFor(provider).run({
-        agent: o.agent, provider, cwd: o.cwd, system, prompt: o.prompt, mode: o.mode, output: o.output, signal: o.signal,
+        agent: o.agent, provider, cwd: o.cwd, system, prompt, mode: o.mode, output, signal: o.signal,
         attachments: o.attachments,
         onActivity: (state, detail) => this.activity(o.agent.id, o.kind === "review" && state === "thinking" ? "reviewing" : state, detail, o.taskId, o.chatId),
         onLog: (line) => { lines.push(line); if (o.taskId) this.log(o.taskId, `[${o.agent.name}] ${line}`); },
@@ -247,16 +251,16 @@ export class Orchestrator {
           : (q) => this.askUser({ ...q, runId, taskId: o.taskId, chatId: o.chatId, agent: o.agent, signal: o.signal }),
         // Wiki writes never touch the worktree, so every project call gets them, including read-only roles.
         // read_wiki and search_wiki come with them. General pages can be read and cannot be written.
-        writeWiki: offerWiki && project ? (page) => {
+        writeWiki: offerWiki && project && !wikiOff ? (page) => {
           const [one] = applyWikiWrites(this.db, project.id, [page]);
           return one?.result ?? "empty body";
         } : undefined,
-        readWiki: offerWiki && project ? (q) => readWikiPage(this.db, project.id, q) : undefined,
-        searchWiki: offerWiki && project ? (q) => searchWikiPages(this.db, project.id, q) : undefined,
+        readWiki: offerWiki && project ? (q) => readWikiPage(this.db, project.id, q, wikiOff) : undefined,
+        searchWiki: offerWiki && project ? (q) => searchWikiPages(this.db, project.id, q, wikiOff) : undefined,
         // Every role in a chat can read that chat's files. The tool takes a name, never a path.
         readAttachment: attachmentChat ? (name, part) => readChatAttachment(this.db, attachmentChat, name, part) : undefined,
       });
-      if (project && result.ok) noteWiki(this.db, project.id, result, lines);
+      if (project && !wikiOff && result.ok) noteWiki(this.db, project.id, result, lines);
       this.endRun(runId, result, lines);
       if (o.taskId) {
         this.db.prepare("UPDATE tasks SET cost_usd = cost_usd + ?, tokens = tokens + ? WHERE id = ?")
@@ -424,8 +428,7 @@ If the user asks to merge finished work, do not write tasks for it: put the slug
 If the user asks to run earlier tasks again, put them in \`retry\` (any chat of this project; set \`worker\` to hand one to another
 developer) instead of writing new tasks. Retryable: ${tasks.filter((t) => RETRYABLE.includes(t.status)).map((t) => t.slug).join(", ") || "none"}.
 Add to \`journal\` only what a later chat must know (a decision, a finding, why something failed); usually nothing.
-${WIKI_LINE} The wiki in your instructions is an index. Use read_wiki or search_wiki when you need a page that is not written out. Put the pages in \`wiki\`: overview, architecture, roadmap and setup replace that one page (a title is optional). decisions and releases are one page per title.
-Do not put this project's name, its data, or a customer name into General pages. You cannot edit those from here.`;
+${PLAN_WIKI_LINES.slice(1)}`;
 
       const result = await this.callAgent({ agent: planner, kind: "plan", chatId, cwd: project.path, prompt, mode: "read", output: PLAN_TOOL, attachments });
       if (!result.ok || !result.output) {

@@ -69,6 +69,7 @@ describe("built-in agent loop", () => {
     const r = await new ApiLoopEngine().run({
       agent: agent("reviewer"), cwd: dir, system: "s", prompt: "p", mode: "read", output: REVIEW_TOOL,
       writeWiki: (page) => { seen.push(`${page.section}:${page.body}`); return "updated"; },
+      readWiki: () => "page", searchWiki: () => "hits",
       provider: { id: 1, name: "p", baseUrl: "", kind: "ollama", model: "m", chat },
     });
     expect(seen).toEqual(["Road map:Next: the alarm."]);
