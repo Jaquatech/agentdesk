@@ -25,6 +25,15 @@ describe("command allow-list", () => {
     expect(commandAllowed("git diff $(whoami)", prefixes)).toBe(false);
     expect(commandAllowed("git diff > out.txt", prefixes)).toBe(false);
   });
+  it("refuses background and multi-line chains", () => {
+    expect(commandAllowed("npm test & touch x", prefixes)).toBe(false);
+    expect(commandAllowed("npm test &touch x", prefixes)).toBe(false);
+    expect(commandAllowed("npm test\ntouch x", prefixes)).toBe(false);
+    expect(commandAllowed("npm test\r\ntouch x", prefixes)).toBe(false);
+    expect(commandAllowed("git diff %USERPROFILE%", prefixes)).toBe(false);
+    expect(commandAllowed("npm test && git diff", prefixes)).toBe(true);
+    expect(commandAllowed("git diff main...HEAD -- src", prefixes)).toBe(true);
+  });
   it("parses Claude Code style tool lists", () => {
     const p = parseAllowedTools(["Read", "Bash(npm test:*)", "Bash(git diff)"]);
     expect([...p.tools]).toEqual(["Read"]);

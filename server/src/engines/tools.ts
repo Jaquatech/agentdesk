@@ -157,8 +157,12 @@ function walk(root: string, base: string, out: string[], limit = 5000) {
   }
 }
 
+// One line, no background (&), no pipes, redirects or substitutions.
 export function commandAllowed(command: string, prefixes: string[]): boolean {
   const c = command.trim();
+  if (/[\r\n]/.test(c)) return false; // a line break starts a new command
+  if (c.replace(/&&/g, "").includes("&")) return false; // a single & starts a background command
+  if (/%[A-Za-z_]/.test(c)) return false; // cmd.exe expands %VAR% even inside quotes
   if (/[|><`]|\$\(/.test(c)) return false; // no pipes, redirects or substitutions
   const parts = c.split(/&&|;/).map((s) => s.trim()).filter(Boolean);
   return parts.length > 0 && parts.every((part) => prefixes.some((p) => part === p || part.startsWith(p + " ")));
