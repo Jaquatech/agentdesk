@@ -117,6 +117,21 @@ test("a keyboard user can open a backlog item", async ({ page }) => {
   await expect(page.getByText("As a rover driver").first()).toBeVisible();
 });
 
+test("a dataset version is checked and approved before it can run", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/#/data-factory/1?tab=datasets");
+  const main = page.getByRole("main");
+  await main.getByRole("button", { name: /support-tickets/ }).click();
+  await expect(main.getByText("Not approved").first()).toBeVisible();
+  await main.getByRole("button", { name: "Check for sensitive data" }).click();
+  await expect(main.getByText("Email_1").first()).toBeVisible();
+  await main.getByRole("button", { name: "Approve", exact: true }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog.getByText(/permanently deleted/)).toBeVisible();
+  await dialog.getByRole("button", { name: "Approve and delete" }).click();
+  await expect(main.getByText(/Anonymized from v1/)).toBeVisible();
+});
+
 test("the sidebar lists the latest Data factory runs", async ({ page }) => {
   await signIn(page);
   await page.goto("/#/data-factory/1");

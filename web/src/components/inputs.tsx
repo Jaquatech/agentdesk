@@ -34,7 +34,7 @@ export function Choice({ id, value, onValueChange, options, placeholder, disable
   label?: string;
   value: string;
   onValueChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; disabled?: boolean }[];
   placeholder?: string;
   disabled?: boolean;
   className?: string;
@@ -53,7 +53,7 @@ export function Choice({ id, value, onValueChange, options, placeholder, disable
         <SelectGroup>
           {options.map((o) => {
             const v = o.value === "" ? BLANK : o.value;
-            return <SelectItem key={v} value={v}>{o.label}</SelectItem>;
+            return <SelectItem key={v} value={v} disabled={o.disabled}>{o.label}</SelectItem>;
           })}
         </SelectGroup>
       </SelectContent>

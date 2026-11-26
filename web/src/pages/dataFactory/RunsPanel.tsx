@@ -13,6 +13,7 @@ import { Choice, NoFillInput } from "../../components/inputs.tsx";
 import { localTime } from "./localTime.ts";
 import { priceLine, type PriceStatus } from "./models.ts";
 import { RunResults } from "./RunResults.tsx";
+import { firstApprovedVersion } from "./pipeline.ts";
 import { runName, RUNS_CHANGED } from "./sidebarRuns.ts";
 import { canStart, compareLine, estimateRange, formatUsd, progressPercent, statusLabel } from "./runs.ts";
 
@@ -24,7 +25,7 @@ type ModelRow = {
   price_status: PriceStatus; price_in: number | null; price_out: number | null; cache_read: number | null; cache_write: number | null;
 };
 type DatasetRow = { id: number; name: string };
-type DatasetDetail = { id: number; versions: { id: number; version: number; case_count: number }[] };
+type DatasetDetail = { id: number; versions: { id: number; version: number; case_count: number; approved_at: string | null }[] };
 type Estimate = {
   models: { provider_name: string; model: string; status: PriceStatus; low: number; high: number }[];
   low: number; high: number; missing: string[]; needs_cap: boolean; over_cap: boolean;
@@ -122,7 +123,9 @@ function NewRun({ projectId, onPlanned, onStarted }: { projectId: number; onPlan
   const datasetId = datasetList.find((d) => String(d.id) === datasetPick)?.id ?? datasetList[0]?.id ?? null;
   const detail = useLoad<DatasetDetail>(datasetId === null ? null : `/api/datasets/${datasetId}`);
   const versions = detail.data && detail.data.id === datasetId ? detail.data.versions : [];
-  const versionId = versions.find((v) => String(v.id) === versionPick)?.id ?? versions[0]?.id ?? null;
+  // Only an approved version can run: the pick, else the first approved one.
+  const versionId = versions.find((v) => String(v.id) === versionPick && v.approved_at)?.id ?? firstApprovedVersion(versions)?.id ?? null;
+  const noneApproved = detail.data !== null && detail.data.id === datasetId && versionId === null;
   const testModels = (models.data ?? []).filter((m) => m.for_test === 1);
   const chosen = picked.filter((id) => testModels.some((m) => m.id === id));
 
@@ -184,8 +187,13 @@ function NewRun({ projectId, onPlanned, onStarted }: { projectId: number; onPlan
             </Field>
             <Field label="Version">
               <Choice value={versionId === null ? "" : String(versionId)} onValueChange={setVersionPick}
-                options={versions.map((v) => ({ value: String(v.id), label: `v${v.version} (${v.case_count} cases)` }))} />
+                options={versions.map((v) => ({ value: String(v.id), label: `v${v.version} (${v.case_count} cases)${v.approved_at ? "" : " (not approved)"}`, disabled: !v.approved_at }))} />
             </Field>
+            {noneApproved && (
+              <p className="text-sm text-muted-foreground sm:col-span-2">
+                Approve a version on the Datasets tab before running. <a className="underline" href={tabLink(projectId, "datasets")}>Go to Datasets</a>
+              </p>
+            )}
           </div>
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-1 text-sm font-medium">Models</legend>

@@ -8,6 +8,9 @@
 
 - Data factory: the sidebar lists a project's 5 newest runs under its Data factory entry, with a View all row. The open run is part of the address (`?tab=runs&run=ID`).
 
+### Added
+- Data factory: on the Datasets tab, "Check for sensitive data" opens a review with the findings, a before and after preview, your own names and terms, and Approve (with an optional deletion of the original). Unapproved versions are marked "Not approved" and cannot be picked for a run.
+
 ### Fixed
 - Data factory: "Report made" shows a readable local time, and cases with a generated id read "Case 3" instead of "Case case-3".
 - Changing your password signs out your other browsers.

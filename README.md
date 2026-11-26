@@ -210,6 +210,8 @@ The wiki lives in the local database. **Documents** (under Platform settings) sh
 
 With the Data factory on, the project's 5 newest runs are listed under its sidebar entry (a dot marks a running one), and View all opens the Runs tab.
 
+A dataset version must be approved before a run can use it. On the Datasets tab an unapproved version says "Not approved" and has **Check for sensitive data**, which opens the review in place of the cases: the findings per kind, a table where you untick a kind or a single value to keep it, your own names and terms (one per line, `Matt*` also matches word endings; saved for the project on this computer), and a before and after of the cases that change, 50 at a time. Nothing is sent to a model. Automatic detection is not perfect: names and details in free text are found only when you list them, and rare combinations of facts are not detected, so read the preview before approving. **Approve** makes a new, cleaned version (shown as "Anonymized from vN") and, with "Delete the original after approval" ticked, permanently deletes the original; the original is kept when runs use it, and the reason is shown. A version with nothing to replace is approved as it is. New run lists unapproved versions as disabled.
+
 ## How a task runs
 
 ```
