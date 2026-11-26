@@ -6,6 +6,7 @@
 - Project wiki page: a project's documents are now under the project in the sidebar (Project wiki), with a switch next to Data factory in the project form. Documents under Platform settings shows only the General pages; old links to project pages still open.
 
 ### Fixed
+- Changing your password signs out your other browsers.
 - Read-only agents can no longer write files through `git diff --output` or read outside the project with `--no-index`.
 - Only AgentDesk's own page can change data; other apps on localhost are refused.
 - Agent file tools no longer follow symlinks out of the working folder.
