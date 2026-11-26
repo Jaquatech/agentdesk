@@ -17,6 +17,7 @@
 - Data factory, Review tab: the cards in the right-hand column no longer shrink and get cut off; the column scrolls to show the whole page.
 
 ### Added
+- Data factory (server): a local scanner finds sensitive data in dataset cases (secrets, emails, IBANs, Finnish personal ids, IPs, hosts, phone numbers, and your own names and terms) and replaces it with consistent placeholders such as `Email_1`. No model, no network; values are never logged.
 - Project wiki switch (server): a project has `project_wiki`, on by default. Off, agents get only General pages (no project index, no page writes, no prompt text about updating pages), which saves tokens; no page is deleted and task and release pages still sync.
 - Data factory, Reports tab: "Compare with" puts the open run next to another finished run: figures side by side, the cases that broke or got fixed (click a row to read both answers and judge reasons), a choice of judging for each side, "Swap A and B", the same downloads and print.
 - Data factory, Reports tab: shows the report of a finished run (models, problems, optionally every answer) with a choice of judging. Copy it as Markdown or a code block, download Markdown, CSV, Excel or JSON, or save it as PDF through the print dialog.
