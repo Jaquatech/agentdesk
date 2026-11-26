@@ -66,12 +66,22 @@ interface ResultRow {
   g_status: "ok" | "error" | null; g_score: number | null; g_pass: number | null; g_reason: string | null; g_error: string | null;
 }
 
+interface RunRow {
+  id: number; name: string; status: string; stop_reason: string; created_at: string; started_at: string | null; ended_at: string | null;
+  system_prompt: string; max_tokens: number; cap_usd: number | null; est_low: number | null; est_high: number | null; cost_usd: number;
+  version_id: number; dataset_id: number; dataset_name: string; version: number; sha256: string; case_count: number;
+}
+
+interface JudgeRunRow {
+  id: number; provider_name: string; model: string; status: string; stop_reason: string; rubric: string; cost_usd: number; created_at: string;
+}
+
 /** Reads only. `judgeRunId` is a judge run of this run, or null for no judging. */
 export function buildReport(db: DB, runId: number, judgeRunId: number | null): RunReport {
   const run = db.prepare(`SELECT r.*, d.id AS dataset_id, d.name AS dataset_name, v.version, v.sha256, v.case_count
-    FROM eval_runs r JOIN eval_dataset_versions v ON v.id = r.version_id JOIN eval_datasets d ON d.id = v.dataset_id WHERE r.id = ?`).get(runId) as any;
+    FROM eval_runs r JOIN eval_dataset_versions v ON v.id = r.version_id JOIN eval_datasets d ON d.id = v.dataset_id WHERE r.id = ?`).get(runId) as unknown as RunRow;
   const judgeRow = judgeRunId === null ? undefined
-    : db.prepare("SELECT * FROM eval_judge_runs WHERE id = ? AND run_id = ?").get(judgeRunId, runId) as any;
+    : db.prepare("SELECT * FROM eval_judge_runs WHERE id = ? AND run_id = ?").get(judgeRunId, runId) as unknown as JudgeRunRow | undefined;
   const judge = judgeRow
     ? { id: judgeRow.id, provider_name: judgeRow.provider_name, model: judgeRow.model, family: modelFamily(judgeRow.model), status: judgeRow.status,
         stop_reason: judgeRow.stop_reason, rubric: judgeRow.rubric, cost_usd: judgeRow.cost_usd, created_at: judgeRow.created_at }
