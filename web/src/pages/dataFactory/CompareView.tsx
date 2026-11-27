@@ -10,15 +10,15 @@ const LIMIT = 100;
 const runName = (r: { id: number; name: string }) => r.name || `Run ${r.id}`;
 const score = (n: number | null) => (n === null ? "-" : n.toFixed(2));
 
-function Text({ children }: { children: string }) {
-  return <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-xs">{children === "" ? "(empty)" : children}</pre>;
+function Text({ children, label }: { children: string; label: string }) {
+  return <pre role="group" aria-label={label} tabIndex={0} className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50">{children === "" ? "(empty)" : children}</pre>;
 }
 
 function Part({ label, text }: { label: string; text: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <Text>{text}</Text>
+      <Text label={label}>{text}</Text>
     </div>
   );
 }

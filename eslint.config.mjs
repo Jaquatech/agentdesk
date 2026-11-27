@@ -45,6 +45,7 @@ export default tseslint.config(
       "jsx-a11y/no-static-element-interactions": "warn",
       "jsx-a11y/no-autofocus": "warn",
       "jsx-a11y/anchor-is-valid": "warn",
+      "jsx-a11y/no-noninteractive-tabindex": ["error", { tags: [], roles: ["tabpanel", "group"], allowExpressionValues: true }],
     },
   },
   // Tests read parsed JSON from the API and build loose fixtures; typing each one adds noise, not safety.

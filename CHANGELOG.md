@@ -13,6 +13,8 @@
 
 ### Fixed
 - Tabs no longer point screen readers at panels that do not exist.
+- Lint: the tab-order rule keeps its expression-value allowance, so `npm run lint` passes again on the Task panel.
+- Data factory: the scrollable text boxes in reports and comparisons can be reached with the keyboard.
 - Data factory: "Report made" shows a readable local time, and cases with a generated id read "Case 3" instead of "Case case-3".
 - Changing your password signs out your other browsers.
 - Read-only agents can no longer write files through `git diff --output` or read outside the project with `--no-index`.

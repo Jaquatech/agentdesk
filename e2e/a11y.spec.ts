@@ -5,7 +5,8 @@ import { expect, test, type Page } from "@playwright/test";
 // It finds a part of the problems (roughly a third); keyboard and screen-reader checks by hand stay part of the gates.
 const pages = ["#/office", "#/teams", "#/agents", "#/providers", "#/documents", "#/usage", "#/projects", "#/settings", "#/attachments", "#/version", "#/tasks", "#/scrum/1", "#/wiki/1"];
 
-for (const theme of ["dark", "light"] as const) test(`no accessibility violations on any page (${theme} theme)`, async ({ page }) => {
+// Signs in, opens each route, scans it and returns the violations as text lines.
+async function scanRoutes(page: Page, theme: string, routes: string[]): Promise<string[]> {
   await page.goto("/");
   await page.getByLabel("Username").fill("tester");
   await page.getByLabel("Password").fill("password123");
@@ -13,14 +14,24 @@ for (const theme of ["dark", "light"] as const) test(`no accessibility violation
   await expect(page.getByText("Red Dust Gadgets").first()).toBeVisible();
 
   const found: string[] = [];
-  for (const route of pages) {
+  for (const route of routes) {
     await page.goto(`/${route}`);
     await expect(page.getByRole("main")).toBeVisible();
     await page.waitForTimeout(500);
     const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     for (const v of result.violations) found.push(`${theme} ${route} ${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target.join(" ")}`);
   }
-  expect(found).toEqual([]);
+  return found;
+}
+
+// Neither scan switches the theme (the app starts dark); the theme name only labels the message.
+for (const theme of ["dark", "light"] as const) test(`no accessibility violations on any page (${theme} theme)`, async ({ page }) => {
+  expect(await scanRoutes(page, theme, pages)).toEqual([]);
+});
+
+const dataFactoryTabs = ["import", "datasets", "models", "judge", "runs", "review", "reports"];
+for (const theme of ["dark", "light"] as const) test(`no accessibility violations on any Data factory tab (${theme} theme)`, async ({ page }) => {
+  expect(await scanRoutes(page, theme, dataFactoryTabs.map((tab) => `#/data-factory/1?tab=${tab}`))).toEqual([]);
 });
 
 // Pages in a state a user reaches by clicking: dialogs, a form with an error, the chat. Each step opens the state, scans, and closes it.
