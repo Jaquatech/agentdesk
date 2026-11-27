@@ -130,6 +130,7 @@ test("a dataset version is checked and approved before it can run", async ({ pag
   await expect(dialog.getByText(/permanently deleted/)).toBeVisible();
   await dialog.getByRole("button", { name: "Approve and delete" }).click();
   await expect(main.getByText(/Anonymized from v1/)).toBeVisible();
+  await expect(main.getByText(/^Imported /)).toHaveCount(0);
 });
 
 test("the sidebar lists the latest Data factory runs", async ({ page }) => {
