@@ -210,6 +210,46 @@ describe("datasetWarnings", () => {
     ]);
   });
 
+  const damaged = (id: string) =>
+    `1 case contains characters that suggest a damaged file or a wrong encoding: ${id}. Check the file's encoding before using it.`;
+
+  it("warns about byte order mark bytes in an input", () => {
+    const cases = five();
+    cases[2] = { ...cases[2], input: "okÿþ€ bytes" };
+    expect(datasetWarnings(cases)).toEqual([damaged("c2")]);
+  });
+
+  it("warns about the replacement character in expected", () => {
+    const cases = five();
+    cases[0] = { ...cases[0], expected: "bad �" };
+    expect(datasetWarnings(cases)).toEqual([damaged("c0")]);
+  });
+
+  it("warns about a NUL in a meta value", () => {
+    const cases = five();
+    cases[4] = { ...cases[4], meta: { source: "a\u0000b" } };
+    expect(datasetWarnings(cases)).toEqual([damaged("c4")]);
+  });
+
+  it("warns about double encoding", () => {
+    const cases = five();
+    cases[1] = { ...cases[1], input: "MÃ¤kinen" };
+    expect(datasetWarnings(cases)).toEqual([damaged("c1")]);
+  });
+
+  it("does not warn about Finnish and Swedish text, tabs or newlines", () => {
+    const cases = five();
+    cases[1] = { ...cases[1], input: "Äiti söi åt oss € 5 “quoted” – dash\tx\ny\r\n" };
+    expect(datasetWarnings(cases)).toEqual([]);
+  });
+
+  it("lists at most five ids", () => {
+    const cases = Array.from({ length: 7 }, (_, i) => testCase({ id: `c${i}`, input: `bad � ${i}`, expected: "yes" }));
+    expect(datasetWarnings(cases)).toEqual([
+      "7 cases contain characters that suggest a damaged file or a wrong encoding: c0, c1, c2, c3, c4 and 2 more. Check the file's encoding before using it.",
+    ]);
+  });
+
   it("does not warn about an input of exactly the limit", () => {
     const cases = five();
     cases[1] = { ...cases[1], input: "x".repeat(MAX_INPUT_CHARS) };
