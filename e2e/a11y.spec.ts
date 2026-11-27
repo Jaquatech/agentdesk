@@ -17,9 +17,7 @@ for (const theme of ["dark", "light"] as const) test(`no accessibility violation
     await page.goto(`/${route}`);
     await expect(page.getByRole("main")).toBeVisible();
     await page.waitForTimeout(500);
-    // The tab buttons point (aria-controls) at panels the page does not render: the tabs only switch what the page below shows.
-    // Recorded in docs/decisions.md; every other rule still runs on the rest of the page.
-    const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).exclude('[role="tab"]').analyze();
+    const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     for (const v of result.violations) found.push(`${theme} ${route} ${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target.join(" ")}`);
   }
   expect(found).toEqual([]);
@@ -66,7 +64,7 @@ for (const s of states) test(`no accessibility violations: ${s.name}`, async ({ 
   await expect(page.getByRole("main")).toBeVisible();
   await s.open(page);
   await page.waitForTimeout(600);
-  const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).exclude('[role="tab"]').analyze();
+  const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(result.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target.join(" ").slice(0, 140)}`)).toEqual([]);
 });
 
@@ -107,7 +105,7 @@ for (const width of [1024, 768]) {
         return dialog.scrollWidth - dialog.clientWidth;
       });
       expect(overflow).toBeLessThanOrEqual(1);
-      const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).exclude('[role="tab"]').analyze();
+      const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
       expect(result.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target.join(" ").slice(0, 140)}`)).toEqual([]);
     });
   });
