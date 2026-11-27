@@ -11,7 +11,7 @@ const runName = (r: { id: number; name: string }) => r.name || `Run ${r.id}`;
 const score = (n: number | null) => (n === null ? "-" : n.toFixed(2));
 
 function Text({ children }: { children: string }) {
-  return <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-xs">{children === "" ? "(empty)" : children}</pre>;
+  return <pre tabIndex={0} className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-xs">{children === "" ? "(empty)" : children}</pre>;
 }
 
 function Part({ label, text }: { label: string; text: string }) {

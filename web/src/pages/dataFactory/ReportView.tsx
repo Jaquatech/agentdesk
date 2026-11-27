@@ -7,7 +7,7 @@ import { percent, problems, seconds, type ReportCase, type RunReport } from "./r
 const LIMIT = 100;
 
 function Text({ children }: { children: string }) {
-  return <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-xs">{children === "" ? "(empty)" : children}</pre>;
+  return <pre tabIndex={0} className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-xs">{children === "" ? "(empty)" : children}</pre>;
 }
 
 function CaseItem({ c, withReason }: { c: ReportCase; withReason: boolean }) {
