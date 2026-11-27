@@ -125,7 +125,6 @@ function RunReportView({ runId, projectId, others }: { runId: number; projectId:
   const pickOther = (v: string) => { setOther(v === "none" ? "" : v); setSwapped(false); setJudgeA(null); setJudgeB(null); setCmp(null); setCmpError(null); };
   const judgeOptions = (list: { id: number; model: string; created_at: string; status: string }[]) =>
     list.map((j) => ({ value: String(j.id), label: `${j.model} · ${localTime(j.created_at)} · ${j.status}` }));  const missing = unvoted(report);
-  const link = "inline-flex h-8 items-center gap-1.5 rounded-md border bg-background px-3 text-sm font-medium shadow-xs hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none";
 
   return (
     <>
@@ -172,10 +171,10 @@ function RunReportView({ runId, projectId, others }: { runId: number; projectId:
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => copy(markdownText)}><ClipboardCopy /> Copy Markdown</Button>
             <Button variant="outline" size="sm" onClick={() => copy(fenced(markdownText))}><Code /> Copy as code block</Button>
-            <a className={link} href={url("md")} download><Download className="size-4" /> .md</a>
-            <a className={link} href={url("csv")} download><FileText className="size-4" /> CSV</a>
-            <a className={link} href={url("xlsx")} download><FileSpreadsheet className="size-4" /> Excel</a>
-            <a className={link} href={url("json")} download><Download className="size-4" /> JSON</a>
+            <Button asChild variant="outline" size="sm"><a href={url("md")} download><Download /> .md</a></Button>
+            <Button asChild variant="outline" size="sm"><a href={url("csv")} download><FileText /> CSV</a></Button>
+            <Button asChild variant="outline" size="sm"><a href={url("xlsx")} download><FileSpreadsheet /> Excel</a></Button>
+            <Button asChild variant="outline" size="sm"><a href={url("json")} download><Download /> JSON</a></Button>
             <Button variant="outline" size="sm" onClick={() => window.print()}><Printer /> Print or save as PDF</Button>
             <span role="status" className="text-sm text-muted-foreground">{copied}</span>
           </div>
