@@ -54,10 +54,26 @@ function TabsList({
 
 function TabsTrigger({
   className,
+  ref,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+  const buttonRef = React.useRef<HTMLButtonElement | null>(null)
+  // Radix points aria-controls at a panel id. Pages that only use the tabs to switch what is shown
+  // below render no TabsContent, so the reference would be broken: drop it when the target is missing.
+  React.useLayoutEffect(() => {
+    const button = buttonRef.current
+    const target = button?.getAttribute("aria-controls")
+    if (button && target && document.getElementById(target) === null) {
+      button.removeAttribute("aria-controls")
+    }
+  })
   return (
     <TabsPrimitive.Trigger
+      ref={(node) => {
+        buttonRef.current = node
+        if (typeof ref === "function") ref(node)
+        else if (ref) ref.current = node
+      }}
       data-slot="tabs-trigger"
       className={cn(
         "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 dark:text-muted-foreground dark:hover:text-foreground group-data-[variant=default]/tabs-list:data-active:shadow-sm group-data-[variant=line]/tabs-list:data-active:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",

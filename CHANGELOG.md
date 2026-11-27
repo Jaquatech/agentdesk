@@ -12,6 +12,7 @@
 - Data factory: on the Datasets tab, "Check for sensitive data" opens a review with the findings, a before and after preview, your own names and terms, and Approve (with an optional deletion of the original). Unapproved versions are marked "Not approved" and cannot be picked for a run.
 
 ### Fixed
+- Tabs no longer point screen readers at panels that do not exist.
 - Data factory: "Report made" shows a readable local time, and cases with a generated id read "Case 3" instead of "Case case-3".
 - Changing your password signs out your other browsers.
 - Read-only agents can no longer write files through `git diff --output` or read outside the project with `--no-index`.
