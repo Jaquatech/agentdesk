@@ -6,8 +6,8 @@ import { percent, problems, seconds, type ReportCase, type RunReport } from "./r
 
 const LIMIT = 100;
 
-function Text({ children }: { children: string }) {
-  return <pre tabIndex={0} className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-xs">{children === "" ? "(empty)" : children}</pre>;
+function Text({ children, label }: { children: string; label: string }) {
+  return <pre role="group" aria-label={label} tabIndex={0} className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50">{children === "" ? "(empty)" : children}</pre>;
 }
 
 function CaseItem({ c, withReason }: { c: ReportCase; withReason: boolean }) {
@@ -15,8 +15,8 @@ function CaseItem({ c, withReason }: { c: ReportCase; withReason: boolean }) {
   return (
     <li className="flex min-w-0 flex-col gap-1 border-b pb-3">
       <span className="text-sm font-medium">{caseLabel(c.case_key)} <span className="font-normal text-muted-foreground">({c.model}, {c.provider_name})</span></span>
-      {c.status === "error" && <Text>{c.error}</Text>}
-      {withReason && reason !== "" && <Text>{reason}</Text>}
+      {c.status === "error" && <Text label="Error">{c.error}</Text>}
+      {withReason && reason !== "" && <Text label="Judge reason">{reason}</Text>}
       {c.vote && <span className="text-xs text-muted-foreground">Your vote: {c.vote.verdict}{c.vote.note ? `, ${c.vote.note}` : ""}</span>}
     </li>
   );
@@ -54,7 +54,7 @@ export function ReportView({ report, all }: { report: RunReport; all: boolean })
           <p>Cost: ${run.cost_usd.toFixed(4)}</p>
           <p>Judge: {judge ? `${judge.model} (${judge.provider_name}), ${judge.status}` : "none"}</p>
           <p className="text-muted-foreground">Report made {localTime(report.generated_at)}</p>
-          {run.system_prompt !== "" && (<><p className="mt-2 text-xs font-medium text-muted-foreground">System prompt</p><Text>{run.system_prompt}</Text></>)}
+          {run.system_prompt !== "" && (<><p className="mt-2 text-xs font-medium text-muted-foreground">System prompt</p><Text label="System prompt">{run.system_prompt}</Text></>)}
         </CardContent>
       </Card>
       <Card className="min-w-0 shrink-0">
@@ -108,8 +108,8 @@ export function ReportView({ report, all }: { report: RunReport; all: boolean })
             {report.cases.map((c) => (
               <div key={`${c.run_model_id}-${c.case_key}`} className="flex min-w-0 flex-col gap-1 border-b pb-3">
                 <span className="text-sm font-medium">{caseLabel(c.case_key)} <span className="font-normal text-muted-foreground">({c.model}, {c.status})</span></span>
-                <Text>{c.input}</Text>
-                <Text>{c.status === "error" ? c.error : c.answer}</Text>
+                <Text label="Question">{c.input}</Text>
+                <Text label={c.status === "error" ? "Error" : "Answer"}>{c.status === "error" ? c.error : c.answer}</Text>
                 {c.judge?.status === "ok" && <span className="text-xs text-muted-foreground">Judge: {c.judge.score ?? "-"}, {c.judge.pass ? "pass" : "fail"}. {c.judge.reason}</span>}
               </div>
             ))}

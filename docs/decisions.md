@@ -35,6 +35,7 @@ One line per decision, with the reason, so nobody raises it again. Add to it at 
 - **The desktop app is planned with Electron,** for someone who does not use a command line: an installer that can also set up Git and the Claude CLI, closing the window keeps it in the tray, one instance only, data in the per-user app-data folder, unsigned at first. Not chosen: Tauri, a browser app-mode window, a PWA. Nothing is built; new dependencies need approval.
 - **A dataset version must be approved before a run can use it.** The check is local rules plus the user's own names and terms; misses and false hits are fixed with rules, not by editing single cases.
 - **Data factory run costs:** a run with paid models needs a cost cap; an estimate over the cap can still be started on purpose; the run stops when the actual cost reaches the cap.
+- **A scrolling text box is a labelled `role="group"` with `tabIndex={0}`** so keyboard users can scroll it; lint allows `tabIndex` on `group` (and `tabpanel`) for this and nowhere else.
 
 ## Known and open
 
