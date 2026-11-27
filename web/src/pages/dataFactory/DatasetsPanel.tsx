@@ -134,7 +134,9 @@ export function DatasetsPanel({ projectId, pick, onPick, status, onStatusDone }:
             const replaced = v.cleaned_from !== null ? countsLine(parseJson<Record<string, number>>(v.cleaned_counts, {})) : "";
             return (
               <>
-                <p className="text-sm text-muted-foreground">Imported {localTime(v.created_at)} {origin}.{v.note && v.cleaned_from === null ? ` ${v.note}` : ""}</p>
+                {v.cleaned_from === null && (
+                  <p className="text-sm text-muted-foreground">Imported {localTime(v.created_at)} {origin}.{v.note ? ` ${v.note}` : ""}</p>
+                )}
                 {v.approved_at ? (
                   <p className="text-sm">
                     Approved {localTime(v.approved_at)}
