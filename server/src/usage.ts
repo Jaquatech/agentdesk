@@ -10,16 +10,34 @@ const TOKENS = `COALESCE(SUM(r.tokens_in),0) AS tokens_in, COALESCE(SUM(r.cache_
 const COST = `ROUND(COALESCE(SUM(r.cost_usd),0), 6) AS cost_usd, COUNT(r.id) AS runs,
   SUM(CASE WHEN r.cost_usd IS NULL AND r.status != 'running' THEN 1 ELSE 0 END) AS unpriced`;
 
-function period(days: unknown) {
+/**
+ * Groups of runs.kind, defined here only. `planning` is every kind not named elsewhere, so a new kind is never lost.
+ * The group value only selects one of these fixed conditions; it is never put into SQL.
+ */
+const KIND_GROUPS: Record<string, string> = {
+  tasks: "r.kind IN ('build','review')",
+  eval: "r.kind = 'eval'",
+  judge: "r.kind = 'judge'",
+  factory: "r.kind IN ('eval','judge')",
+  planning: "r.kind NOT IN ('build','review','eval','judge')",
+};
+
+function groupCondition(group: unknown): string {
+  return typeof group === "string" && Object.hasOwn(KIND_GROUPS, group) ? ` AND ${KIND_GROUPS[group]}` : "";
+}
+
+function period(days: unknown, group?: unknown) {
   const n = Math.max(0, Math.min(3650, Number(days) || 0));
-  return n ? { where: "r.engine != 'shell' AND r.started_at >= datetime('now', ?)", args: [`-${n} days`] } : { where: "r.engine != 'shell'", args: [] as string[] };
+  const kind = groupCondition(group);
+  return n ? { where: `r.engine != 'shell'${kind} AND r.started_at >= datetime('now', ?)`, args: [`-${n} days`] } : { where: `r.engine != 'shell'${kind}`, args: [] as string[] };
 }
 
 const PROJECT = "COALESCE(r.project_id, (SELECT c.project_id FROM chats c WHERE c.id = r.chat_id))";
 
 export function registerUsage(app: FastifyInstance, db: DB) {
   app.get("/api/usage", async (req) => {
-    const p = period((req.query as Record<string, string>).days ?? 30);
+    const query = req.query as Record<string, string>;
+    const p = period(query.days ?? 30, query.group);
     const q = (sql: string) => db.prepare(sql).all(...p.args);
     return {
       totals: db.prepare(`SELECT ${COST}, ${TOKENS} FROM runs r WHERE ${p.where}`).get(...p.args),
@@ -36,18 +54,19 @@ export function registerUsage(app: FastifyInstance, db: DB) {
 
   // Every call of one day (the daily log).
   app.get("/api/usage/runs", async (req) => {
-    const { day } = req.query as Record<string, string>;
+    const { day, group } = req.query as Record<string, string>;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day ?? "")) return [];
     return db.prepare(`SELECT r.id, r.started_at, r.kind, r.round, r.model, r.engine, r.status, r.turns, r.seconds,
         r.tokens_in, r.cache_read, r.cache_write, r.tokens_out, r.cost_usd,
         a.name AS agent, a.role, t.title AS task, c.title AS chat, p.name AS project
       FROM runs r LEFT JOIN agents a ON a.id = r.agent_id LEFT JOIN tasks t ON t.id = r.task_id
       LEFT JOIN chats c ON c.id = r.chat_id LEFT JOIN projects p ON p.id = ${PROJECT}
-      WHERE ${DAY} = ? AND r.engine != 'shell' ORDER BY r.started_at, r.id`).all(day);
+      WHERE ${DAY} = ? AND r.engine != 'shell'${groupCondition(group)} ORDER BY r.started_at, r.id`).all(day);
   });
 
   app.get("/api/usage/export.csv", async (req, reply) => {
-    const p = period((req.query as Record<string, string>).days ?? 0);
+    const query = req.query as Record<string, string>;
+    const p = period(query.days ?? 0, query.group);
     const rows = db.prepare(`SELECT r.started_at, a.name AS agent, a.role, r.kind, r.model, r.engine, p.name AS project,
         t.title AS task, r.status, r.turns, r.seconds, r.tokens_in, r.cache_read, r.cache_write, r.tokens_out, r.cost_usd
       FROM runs r LEFT JOIN agents a ON a.id = r.agent_id LEFT JOIN tasks t ON t.id = r.task_id

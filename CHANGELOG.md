@@ -9,6 +9,7 @@
 - Data factory: the sidebar lists a project's 5 newest runs under its Data factory entry, with a View all row. The open run is part of the address (`?tab=runs&run=ID`).
 
 ### Added
+- Usage: a "Kind of work" filter (all work, coding tasks, planning and chat, Data factory runs, judging, or both) applies to the totals, charts, daily log and CSV, so you can see what Data factory runs or coding tasks cost. The "Agent calls" tile is now "Calls".
 - Data factory: an import now warns when cases contain characters that suggest a damaged file or a wrong encoding (replacement character, control characters, byte order mark bytes, double encoding). The import still succeeds and the text is unchanged.
 - Data factory: on the Datasets tab, "Check for sensitive data" opens a review with the findings, a before and after preview, your own names and terms, and Approve (with an optional deletion of the original). Unapproved versions are marked "Not approved" and cannot be picked for a run.
 
