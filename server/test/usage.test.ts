@@ -8,7 +8,8 @@ describe("usage by kind of work", () => {
   let data: string, ctx: Awaited<ReturnType<typeof buildApp>>, cookie: string;
   const get = async (url: string) => (await ctx.app.inject({ method: "GET", url, headers: { cookie, host: "localhost" } }));
   const kindsOf = (u: any) => u.byKind.map((k: any) => k.kind).sort();
-  const today = () => new Date().toISOString().slice(0, 10);
+  // The server groups days by local time (usage.ts), so ask SQLite for the same local day.
+  const today = () => (ctx.db.prepare("SELECT date('now','localtime') AS d").get() as { d: string }).d;
 
   beforeEach(async () => {
     data = mkdtempSync(join(tmpdir(), "ad-usage-"));
