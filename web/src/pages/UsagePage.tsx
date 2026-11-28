@@ -35,11 +35,23 @@ export const fmtTokens = (n: number) => n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e7
 export const fmtUsd = (v: number | null | undefined) => v === null || v === undefined ? "–" : v === 0 ? "$0" : v < 0.01 ? `$${v.toFixed(4)}` : v < 100 ? `$${v.toFixed(2)}` : `$${Math.round(v).toLocaleString()}`;
 const totalTokens = (t: Tokens) => t.tokens_in + t.cache_read + t.cache_write + t.tokens_out;
 
+/** "all" sends no group. The other values are the groups `server/src/usage.ts` knows. */
+const GROUPS = [
+  { value: "all", label: "All work" },
+  { value: "tasks", label: "Coding tasks" },
+  { value: "planning", label: "Planning and chat" },
+  { value: "factory", label: "Data factory (all)" },
+  { value: "eval", label: "Data factory runs" },
+  { value: "judge", label: "Data factory judging" },
+];
+
 export function UsagePage() {
   const [days, setDays] = useState(30);
+  const [group, setGroup] = useState("all");
   const [usage, setUsage] = useState<Usage | null>(null);
   const [openDay, setOpenDay] = useState<string | null>(null);
-  const load = useCallback(() => get<Usage>(`/api/usage?days=${days}`).then(setUsage), [days]);
+  const groupQuery = group === "all" ? "" : `&group=${group}`;
+  const load = useCallback(() => get<Usage>(`/api/usage?days=${days}${groupQuery}`).then(setUsage), [days, groupQuery]);
   useEffect(() => { load(); }, [load]);
 
   const t = usage?.totals;
@@ -47,18 +59,19 @@ export function UsagePage() {
   return (
     <Page title="Usage & billing" width="wide" actions={
       <>
+        <Choice label="Kind of work" size="sm" className="w-48" value={group} onValueChange={(v) => { setGroup(v); setOpenDay(null); }} options={GROUPS} />
         <Tabs value={String(days)} onValueChange={(v) => { setDays(Number(v)); setOpenDay(null); }}>
           <TabsList>
             {PERIODS.map((p) => <TabsTrigger key={p.days} value={String(p.days)}>{p.label}</TabsTrigger>)}
           </TabsList>
         </Tabs>
-        <Button variant="outline" size="sm" asChild><a href={`/api/usage/export.csv?days=${days}`}><Download data-icon="inline-start" /> CSV</a></Button>
+        <Button variant="outline" size="sm" asChild><a href={`/api/usage/export.csv?days=${days}${groupQuery}`}><Download data-icon="inline-start" /> CSV</a></Button>
       </>
     }>
       {t && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Tile label="Cost" value={fmtUsd(t.cost_usd)} sub={t.unpriced ? `${t.unpriced} call${t.unpriced === 1 ? "" : "s"} without a price` : "all calls priced"} warn={!!t.unpriced} />
-          <Tile label="Agent calls" value={String(t.runs)} sub={usage!.byKind.map((k) => `${k.runs} ${k.kind}`).join(" · ") || "–"} />
+          <Tile label="Calls" value={String(t.runs)} sub={usage!.byKind.map((k) => `${k.runs} ${k.kind}`).join(" · ") || "–"} />
           <Tile label="Input tokens" value={fmtTokens(prompt)} sub={prompt ? `${Math.round((t.cache_read / prompt) * 100)}% read from cache` : "–"} />
           <Tile label="Output tokens" value={fmtTokens(t.tokens_out)} sub={`${fmtTokens(t.cache_write)} written to cache`} />
         </div>
@@ -83,7 +96,7 @@ export function UsagePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {usage && usage.daily.length === 0 && <TableRow><TableCell colSpan={6} className="text-muted-foreground">No agent calls in this period.</TableCell></TableRow>}
+              {usage && usage.daily.length === 0 && <TableRow><TableCell colSpan={6} className="text-muted-foreground">{group === "all" ? "No agent calls in this period." : "No calls of this kind in this period."}</TableCell></TableRow>}
               {usage && [...usage.daily].reverse().map((d) => (
                 <Fragment key={d.day}>
                   <TableRow className={cn("cursor-pointer", openDay === d.day && "bg-accent")} onClick={() => setOpenDay(openDay === d.day ? null : d.day)}>
@@ -95,7 +108,7 @@ export function UsagePage() {
                     <TableCell className="text-right tabular-nums"><b>{fmtUsd(d.cost_usd)}</b>{d.unpriced ? <ToneBadge tone="wait" title="Calls without a model price">+?</ToneBadge> : null}</TableCell>
                   </TableRow>
                   {openDay === d.day && (
-                    <TableRow className="hover:bg-transparent"><TableCell colSpan={6} className="bg-muted p-0"><DayRuns day={d.day} /></TableCell></TableRow>
+                    <TableRow className="hover:bg-transparent"><TableCell colSpan={6} className="bg-muted p-0"><DayRuns day={d.day} groupQuery={groupQuery} /></TableCell></TableRow>
                   )}
                 </Fragment>
               ))}
@@ -201,9 +214,9 @@ function Breakdown({ title, rows, total }: { title: string; total: number; rows:
   );
 }
 
-function DayRuns({ day }: { day: string }) {
+function DayRuns({ day, groupQuery }: { day: string; groupQuery: string }) {
   const [rows, setRows] = useState<RunRow[] | null>(null);
-  useEffect(() => { get<RunRow[]>(`/api/usage/runs?day=${day}`).then(setRows); }, [day]);
+  useEffect(() => { get<RunRow[]>(`/api/usage/runs?day=${day}${groupQuery}`).then(setRows); }, [day, groupQuery]);
   if (!rows) return <p className="px-4 py-2 text-xs text-muted-foreground">Loading…</p>;
   return (
     <div className="flex flex-col py-1">
