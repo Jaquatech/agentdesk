@@ -86,7 +86,7 @@ export function datasetWarnings(cases: DatasetCase[]): string[] {
 }
 
 /** Double encoding and byte order mark bytes read as Windows-1252 (written as escapes on purpose). */
-const MOJIBAKE = /ÿþ|þÿ|Ã[\u0080-¿]|â€/;
+const MOJIBAKE = /\u00ff\u00fe|\u00fe\u00ff|\u00c3[\u0080-\u00bf]|\u00e2\u20ac/;
 
 function badCodePoint(code: number): boolean {
   if (code === 0xfffd) return true;
