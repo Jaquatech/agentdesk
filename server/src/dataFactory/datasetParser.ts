@@ -73,7 +73,43 @@ export function datasetWarnings(cases: DatasetCase[]): string[] {
       notes.push(`Case "${c.id}" has an input of ${c.input.length} characters; the limit is ${MAX_INPUT_CHARS}.`);
     }
   }
+  const suspicious = cases.filter(looksDamaged).map((c) => c.id);
+  if (suspicious.length > 0) {
+    const shown = suspicious.slice(0, 5).join(", ");
+    const more = suspicious.length > 5 ? ` and ${suspicious.length - 5} more` : "";
+    const count = suspicious.length === 1 ? "1 case contains" : `${suspicious.length} cases contain`;
+    notes.push(
+      `${count} characters that suggest a damaged file or a wrong encoding: ${shown}${more}. Check the file's encoding before using it.`,
+    );
+  }
   return notes;
+}
+
+/** Double encoding and byte order mark bytes read as Windows-1252 (written as escapes on purpose). */
+const MOJIBAKE = /\u00ff\u00fe|\u00fe\u00ff|\u00c3[\u0080-\u00bf]|\u00e2\u20ac/;
+
+function badCodePoint(code: number): boolean {
+  if (code === 0xfffd) return true;
+  if (code <= 0x08 || code === 0x0b || code === 0x0c) return true;
+  return (code >= 0x0e && code <= 0x1f) || (code >= 0x7f && code <= 0x9f);
+}
+
+function textLooksDamaged(text: string): boolean {
+  if (MOJIBAKE.test(text)) return true;
+  for (let i = 0; i < text.length; i++) {
+    if (badCodePoint(text.charCodeAt(i))) return true;
+  }
+  return false;
+}
+
+/** True when the input, expected answer, a tag or a meta value holds characters that point to a damaged file. */
+function looksDamaged(c: DatasetCase): boolean {
+  return (
+    textLooksDamaged(c.input) ||
+    (c.expected !== undefined && textLooksDamaged(c.expected)) ||
+    c.tags.some(textLooksDamaged) ||
+    Object.values(c.meta).some(textLooksDamaged)
+  );
 }
 
 function readJsonLines(body: string, problems: DatasetProblem[]): RawRecord[] {
